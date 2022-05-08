@@ -227,7 +227,7 @@ getFirstStateStatistics = function(connection,
     dropTableIfExists = TRUE,
     createTable = TRUE,
     tempTable = TRUE,
-    bulkLoad = TRUE,
+#    bulkLoad = TRUE,
     progressBar = TRUE
   )
   
@@ -369,7 +369,7 @@ getStateStatistics = function(connection,
     dropTableIfExists = TRUE,
     createTable = TRUE,
     tempTable = TRUE,
-    bulkLoad = TRUE,
+#    bulkLoad = TRUE,
     progressBar = TRUE
   )
   # Now let's query a complete table

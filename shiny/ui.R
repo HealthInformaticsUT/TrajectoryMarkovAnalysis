@@ -78,11 +78,6 @@ body = shinydashboard::dashboardBody(
         status = "primary",
         solidHeader = TRUE,
         shiny::fileInput("pttData", "Choose CSV File (MAX 150MB)", accept = ".csv"),
-        shiny::radioButtons(
-          inputId = "trajectoryType",
-          label = p("Which type of data are you using:"),
-          choices = list("Discrete time" = 0, "Continuous time" = 1)
-        )
       ),
       shinydashboard::box(
         title = "Preview of the imported dataset:",

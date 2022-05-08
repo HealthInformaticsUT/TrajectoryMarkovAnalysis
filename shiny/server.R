@@ -45,15 +45,11 @@ server <- function(input, output, session) {
     else
       5
     v$states = unique(inputData$STATE)
-    if (input$trajectoryType == 1) {
-      # If continuous df
-      # Creating a dataframe for mapping state IDs with state names
-      ids = unique(inputData$STATE_ID)
-      states = v$states
-      idStates = cbind(ids, states)
-      colnames(idStates) = c("STATE_ID", "STATE")
-      v$idStates = as.data.frame(idStates)
-    }
+    ids = unique(inputData$STATE_ID)
+    states = v$states
+    idStates = cbind(ids, states)
+    colnames(idStates) = c("STATE_ID", "STATE")
+    v$idStates = as.data.frame(idStates)
     ##############################################################################
     #
     # Adding personal data
@@ -64,19 +60,19 @@ server <- function(input, output, session) {
     v$patientData[1:rows_to_show, 1:4]
   })
   
-  observeEvent(input$trajectoryType, {
-    if (input$trajectoryType == 1 & !is.null(v$patientData$STATE_ID)) {
-      v$states = unique(v$patientData$STATE)
-      ids = unique(v$patientData$STATE_ID)
-      states = v$states
-      idStates = cbind(ids, states)
-      colnames(idStates) = c("STATE_ID", "STATE")
-      v$idStates = as.data.frame(idStates)
-    }
-    else{
-      v$idStates = NULL
-    }
-  })
+  # observeEvent(input$trajectoryType, {
+  #   if (input$trajectoryType == 1 & !is.null(v$patientData$STATE_ID)) {
+  #     v$states = unique(v$patientData$STATE)
+  #     ids = unique(v$patientData$STATE_ID)
+  #     states = v$states
+  #     idStates = cbind(ids, states)
+  #     colnames(idStates) = c("STATE_ID", "STATE")
+  #     v$idStates = as.data.frame(idStates)
+  #   }
+  #   else{
+  #     v$idStates = NULL
+  #   }
+  # })
   
   
   output$sunburst <- sunburstR::renderSunburst({
@@ -271,17 +267,11 @@ server <- function(input, output, session) {
     diag(v$qmatrixCMC) <- 0
     v$qmatrixCMC[, 1] = 0
     v$qmatrixCMC[length(v$states),] = 0
-    if (input$trajectoryType == 1) {
-      # Add correct labels
-      v$idStates = dplyr::arrange(v$idStates, STATE_ID)
-      
-      colnames(v$qmatrixCMC) <- v$idStates$STATE
-      rownames(v$qmatrixCMC) <- v$idStates$STATE
-      # }
-    }
-    else {
-      
-    }
+    # Add correct labels
+    v$idStates = dplyr::arrange(v$idStates, STATE_ID)
+    
+    colnames(v$qmatrixCMC) <- v$idStates$STATE
+    rownames(v$qmatrixCMC) <- v$idStates$STATE
   })
   
   
@@ -308,17 +298,17 @@ server <- function(input, output, session) {
       exacttimes = T,
       control = list(fnscale = 400000, maxit = 400)
     )
-    ParallelLogger::logInfo("Continuous time Markov model calculated!")
-    save_object(v$modelCMC, path = paste(
-      pathToResults,
-      paste(
-        "/models/",
-        studyName,
-        "_continuous_intensity_matrix.rdata",
-        sep = ""
-      ),
-      sep = ""
-    ))
+    # ParallelLogger::logInfo("Continuous time Markov model calculated!")
+    # save_object(v$modelCMC, path = paste(
+    #   pathToResults,
+    #   paste(
+    #     "/models/",
+    #     studyName,
+    #     "_continuous_intensity_matrix.rdata",
+    #     sep = ""
+    #   ),
+    #   sep = ""
+    # ))
     ParallelLogger::logInfo(paste(
       "Saved to: ",
       pathToResults,

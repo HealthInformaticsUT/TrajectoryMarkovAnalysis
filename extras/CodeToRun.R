@@ -3,7 +3,7 @@
 # Study settings
 #
 ################################################################################
-# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis")
+devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis")
 library(TrajectoryMarkovAnalysis)
 studyName = "todo" 
 pathToResults = getwd()
