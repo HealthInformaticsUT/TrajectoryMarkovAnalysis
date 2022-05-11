@@ -1,51 +1,9 @@
-### Analysing patient trajectories on OMOP CDM data structure
+### Package 'TrajectoryMarkovAnalysis':  Package for creating Markov models for patient-orientated trajectories
 
 **Development Status: Under Development**
 
-**The results are not final**
-
-
 ### Information
 
-
-
-This shiny application aims to help users in using Markov chains on OMOP CDM data.
-
-During manuscript development and the subsequent review period, these results are considered under embargo and should not be disclosed without explicit permission and consent from the authors.
-
-
-
-Below are links for study-related artifacts that have been made available as part of this study:
-
-
-
-
-
-
-### Abstract 
-
-
-Below is the abstract of the manuscript that summarizes the findings:
-
-
-
-**Background:**  
-
-
-**Methods:** 
-
-**Findings:** 
-
-
-**Interpretation:**
-
-
-**Findings:** 
-
-
-**Interpretation:**
-
-
-
-
+This shiny application aims to help users in using TrajectoryMarkovAnalysis functionalities.
+R-package TrajectoryMarkovAnalysis specializes on modelling patient trajectories using Markov chains. The package supports discrete and continuous time Markov models, Kaplan-Meier plots, Markov trees and synthetic data generation. The package is based on OMOP CDM. The inputs for this package should be generateb by the Cohort2Trajectory package.
 
