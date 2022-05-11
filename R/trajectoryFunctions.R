@@ -314,7 +314,7 @@ getStateStatistics = function(connection,
                               dbms,
                               cohortData,
                               cdmTmpSchema,
-                              stateStatistics,
+                              stateStatistics = NULL,
                               studyName = 'THE-STUDY',
                               excludedStates = c(),
                               cost_domains =  c('Drug',
@@ -361,6 +361,7 @@ getStateStatistics = function(connection,
                                STATE,
                                STATE_START_DATE,
                                STATE_END_DATE)
+  print(head(tmpDataState))
   
   DatabaseConnector::insertTable(
     connection = connection,

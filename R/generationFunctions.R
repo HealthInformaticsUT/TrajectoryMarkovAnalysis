@@ -10,7 +10,7 @@
 #' This function outputs a data.frame object which describes the movement of patients between the defined states and state duration
 #'
 #' @param transitionMatrix The transition matrix for states
-#' @param startingProbabilities State starting probabilities derived from data
+#  @param startingProbabilities State starting probabilities derived from data
 #' @param n Number of patients' trajectories to generate
 #' @param minDate Smallest possible trajectory start date
 #' @param maxDate Largest possible trajectory start date
@@ -21,7 +21,7 @@
 #' @param studyName  Customized study name
 #' @keywords internal
 generateDataDiscrete = function(transitionMatrix,
-                                startingProbabilities,
+                                #startingProbabilities,
                                 n = 100,
                                 minDate = "1900-01-01",
                                 maxDate = "2021-12-31",
@@ -37,9 +37,9 @@ generateDataDiscrete = function(transitionMatrix,
   
   for (patientId in 1:n) {
     startProbabilty = runif(1)
-    startStateIndex = which.min(startingProbabilities < startProbabilty)
-    startState = colnames(startingProbabilities)[startStateIndex]
-    
+    startStateIndex = which.min(transitionMatrix["START",] < startProbabilty)
+    startState = colnames(transitionMatrix)[startStateIndex]
+
     startDate = as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
     # Adding "START" state
     tmpPatientInfo = data.frame()
@@ -207,7 +207,6 @@ generateDataDiscrete = function(transitionMatrix,
 #' This function outputs a data.frame object which describes the movement of patients between the defined states and state duration
 #'
 #' @param model The markov model calculated using msm package
-#' @param stateLabels State labels
 #' @param n Number of patients' trajectories to generate
 #' @param minDate Smallest possible trajectory start date
 #' @param maxDate Largest possible trajectory start date
@@ -217,7 +216,6 @@ generateDataDiscrete = function(transitionMatrix,
 #' @param studyName  Customized study name
 #' @keywords internal
 generateDataContinuous = function(model,
-                                  stateLabels,
                                   n = 100,
                                   minDate = "1900-01-01",
                                   maxDate = "2021-12-31",
@@ -230,6 +228,7 @@ generateDataContinuous = function(model,
   ParallelLogger::logInfo(paste("Starting generation of ", n, " patients!"))
   Q = msm::qmatrix.msm(model)
   intensityMatrix = data.frame(unclass(Q$estimates))
+  stateLabels =  colnames(model$QmatricesSE$baseline)
   colnames(intensityMatrix) = stateLabels
   rownames(intensityMatrix) = stateLabels
   for (patientId in 1:n) {

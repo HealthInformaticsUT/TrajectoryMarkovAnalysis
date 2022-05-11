@@ -87,7 +87,7 @@ runGUI = function(connection,
   if (ans == "y") {
     dropRelation(
       connection = conn,
-      dbms = "postgresql",
+      dbms = dbms,
       schema = cdmTmpSchema,
       relationName = "cost_person"
     )

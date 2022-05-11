@@ -237,6 +237,7 @@ server <- function(input, output, session) {
     isolate(costDistPlot())
   })
   
+  # Solution for checking probabilities in n cycles
   transferCountP = reactive({
     validate(need(
       !is.null(v$patientData),
@@ -298,17 +299,17 @@ server <- function(input, output, session) {
       exacttimes = T,
       control = list(fnscale = 400000, maxit = 400)
     )
-    # ParallelLogger::logInfo("Continuous time Markov model calculated!")
-    # save_object(v$modelCMC, path = paste(
-    #   pathToResults,
-    #   paste(
-    #     "/models/",
-    #     studyName,
-    #     "_continuous_intensity_matrix.rdata",
-    #     sep = ""
-    #   ),
-    #   sep = ""
-    # ))
+    ParallelLogger::logInfo("Continuous time Markov model calculated!")
+    save_object(v$modelCMC, path = paste(
+      pathToResults,
+      paste(
+        "/tmp/models/",
+        studyName,
+        "_continuous_intensity_matrix.rdata",
+        sep = ""
+      ),
+      sep = ""
+    ))
     ParallelLogger::logInfo(paste(
       "Saved to: ",
       pathToResults,
@@ -1106,10 +1107,10 @@ server <- function(input, output, session) {
   #
   ################################################################################
   
-  observeEvent(input$publishButton, {
-    ParallelLogger::logInfo("Saving data")
-    save_object(paste(pathToResults, "/published3.Rdata", sep = ""),
-                chronologicalTransitions())
-  })
+  # observeEvent(input$publishButton, {
+  #   ParallelLogger::logInfo("Saving data")
+  #   save_object(paste(pathToResults, "/published3.Rdata", sep = ""),
+  #               chronologicalTransitions())
+  # })
   
 }

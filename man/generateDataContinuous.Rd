@@ -6,7 +6,6 @@
 \usage{
 generateDataContinuous(
   model,
-  stateLabels,
   n = 100,
   minDate = "1900-01-01",
   maxDate = "2021-12-31",
@@ -18,8 +17,6 @@ generateDataContinuous(
 }
 \arguments{
 \item{model}{The markov model calculated using msm package}
-
-\item{stateLabels}{State labels}
 
 \item{n}{Number of patients' trajectories to generate}
 

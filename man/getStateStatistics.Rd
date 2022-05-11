@@ -9,7 +9,7 @@ getStateStatistics(
   dbms,
   cohortData,
   cdmTmpSchema,
-  stateStatistics,
+  stateStatistics = NULL,
   studyName = "THE-STUDY",
   excludedStates = c(),
   cost_domains = c("Drug", "Visit", "Procedure", "Device", "Measurement",

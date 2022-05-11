@@ -6,7 +6,6 @@
 \usage{
 generateDataDiscrete(
   transitionMatrix,
-  startingProbabilities,
   n = 100,
   minDate = "1900-01-01",
   maxDate = "2021-12-31",
@@ -20,8 +19,6 @@ generateDataDiscrete(
 }
 \arguments{
 \item{transitionMatrix}{The transition matrix for states}
-
-\item{startingProbabilities}{State starting probabilities derived from data}
 
 \item{n}{Number of patients' trajectories to generate}
 
