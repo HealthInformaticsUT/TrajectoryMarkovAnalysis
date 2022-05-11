@@ -48,17 +48,17 @@ conn <- DatabaseConnector::connect(connectionDetails)
 # Start the GUI application
 #
 ################################################################################
-# runGUI(
-#   connection = conn,
-#   connectionDetails = connectionDetails,
-#   pathToDriver = pathToDriver,
-#   dbms = dbms,
-#   cdmSchema = cdmSchema,
-#   cdmTmpSchema = cdmTmpSchema,
-#   cdmResultsSchema = cdmResultsSchema,
-#   studyName = studyName,
-#   pathToResults = pathToResults
-# )
+runGUI(
+  connection = conn,
+  connectionDetails = connectionDetails,
+  pathToDriver = pathToDriver,
+  dbms = dbms,
+  cdmSchema = cdmSchema,
+  cdmTmpSchema = cdmTmpSchema,
+  cdmResultsSchema = cdmResultsSchema,
+  studyName = studyName,
+  pathToResults = pathToResults
+)
 
 
 
