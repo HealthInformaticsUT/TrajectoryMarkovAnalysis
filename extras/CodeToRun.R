@@ -75,12 +75,12 @@ runGUI(
 # excludedStates = c()
 
 # costDomains = c('Drug',
-                'Visit',
-                'Procedure',
-                'Device',
-                'Measurement',
-                'Observation',
-                'Specimen')
+#                'Visit',
+#                'Procedure',
+#                'Device',
+#                'Measurement',
+#                'Observation',
+#                'Specimen')
 
 # TrajectoryMarkovAnalysis(
 #  conn,
