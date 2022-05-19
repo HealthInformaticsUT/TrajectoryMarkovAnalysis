@@ -456,9 +456,10 @@ body = shinydashboard::dashboardBody(
               label = "Select probability type",
               choices = c(
                 "Probability in target cohort" = 1,
-                "Probability on layer level" = 2
+                "Probability on layer level" = 2,
   # TODO: Some bugs have emerged  
-  #            "Exact trajectory probability in data" = 3
+             "Exact trajectory probability in data" = 3,
+              "Exact trajectory probability in data with repetitions removed" = 4
               )
             )
           ),
@@ -584,6 +585,10 @@ body = shinydashboard::dashboardBody(
           title = "Profiles",
           shiny::includeMarkdown(path = "./www/shinyHelpProfiles.md")
         ),
+        shiny::tabPanel(
+          title = "Kaplan-Meier graphs",
+          shiny::includeMarkdown(path = "./www/shinyHelpKaplan.md")),
+          
         shiny::tabPanel(
           title = "Decision trees",
           shiny::includeMarkdown(path = "./www/shinyHelpDecisionTrees.md")

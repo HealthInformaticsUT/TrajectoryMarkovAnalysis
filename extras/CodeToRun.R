@@ -75,12 +75,12 @@ runGUI(
 # excludedStates = c()
 
 # costDomains = c('Drug',
-                'Visit',
-                'Procedure',
-                'Device',
-                'Measurement',
-                'Observation',
-                'Specimen')
+                # 'Visit',
+                # 'Procedure',
+                # 'Device',
+                # 'Measurement',
+                # 'Observation',
+                # 'Specimen')
 
 # TrajectoryMarkovAnalysis(
 #  conn,
@@ -119,7 +119,7 @@ runGUI(
 # Continuous trajectories
 # intensityMatrix = get(load(paste(pathToResults,"/tmp/models/todo" ,sep = "")))
 
-# generateDataContinuous(model =intensityMatrix,
+# generateDataContinuous(model = intensityMatrix,
 #                      n = 100,  # TODO : Number of patients
 #                      minDate = "1900-01-01",
 #                      maxDate = "2021-12-31",

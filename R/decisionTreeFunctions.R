@@ -74,7 +74,7 @@ mergeEdgeTransition = function(cohortData,
                                inputLayersDT = NULL,
                                probabilityType = 1
 ) {
-  
+  cohortData_copy = cohortData
   dTreeEdges = dplyr::left_join(dTreeEdges, stateTransitionTable, by = c("from_label" = "FROM_LABEL", "to_label" = "TO_LABEL"))
   # If PROB = NA then let's change it to 0 && Let's present probabilities as percentage
   dTreeEdges$PROB[is.na(dTreeEdges$PROB)] = 0
@@ -84,7 +84,11 @@ mergeEdgeTransition = function(cohortData,
     summarydTreeEdges = dplyr::summarise(.data = summarydTreeEdges, PROB = PROB/sum(PROB))
     dTreeEdges$PROB = summarydTreeEdges$PROB
   }
-  else if (probabilityType == 3){
+  else if (probabilityType == 3 | probabilityType == 4){
+    if(probabilityType == 4){
+      # Lets remove all repetitions from cohortData_copy by analyzing STATE vector
+      cohortData_copy = dplyr::filter(cohortData_copy, STATE!= dplyr::lag(STATE, default="1"))
+    }
     # For starters let's state all the transfers we will need, ex 0-1, 0-2, 0-1-2 ...
     trajectories = data.frame(matrix(0,ncol = 3,
                                      nrow = nrow(dTreeEdges)+1))
@@ -107,18 +111,18 @@ mergeEdgeTransition = function(cohortData,
     trajectories$TRAJECTORIE = paths
     ## stringr::str_split(paths, pattern = "%,.,%")
     i = 0
-    for (patientId in unique(cohortData$SUBJECT_ID)) {
+    for (patientId in unique(cohortData_copy$SUBJECT_ID)) {
       i = i+1
-      personData = dplyr::filter(cohortData,  SUBJECT_ID == patientId)
+      personData = dplyr::filter(cohortData_copy,  SUBJECT_ID == patientId)
       fullTrajectorie = paste(c(dTreeEdges$from_label[1],personData$STATE), collapse = "%%,")
       #Surpress warnings
       defaultW <- getOption("warn")
       options(warn = -1)
       #This might be very slow
-      trajectories$COUNT[stringr::str_detect(fullTrajectorie, trajectories$TRAJECTORIE)] = trajectories$COUNT + 1
+      trajectories$COUNT[stringr::str_detect(fullTrajectorie, trajectories$TRAJECTORIE)] = trajectories$COUNT[stringr::str_detect(fullTrajectorie, trajectories$TRAJECTORIE)] + 1
       options(warn = defaultW)
     }
-    trajectories$PROB = trajectories$COUNT/length(unique(cohortData$SUBJECT_ID))
+    trajectories$PROB = trajectories$COUNT/length(unique(cohortData_copy$SUBJECT_ID))
     dTreeEdges$PROB = trajectories$PROB[2:nrow(trajectories)]
     
   }

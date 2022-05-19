@@ -1,6 +1,6 @@
 Package: TrajectoryMarkovAnalysis
 Type: Package
-Title: This package creates Markov models for patient-orientated trajectories. 
+Title: Package for creating Markov models for patient-orientated trajectories. 
 Version: 1.0
 Date: 2022-01-18
 Author: Markus Haug
