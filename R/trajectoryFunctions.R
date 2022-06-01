@@ -152,7 +152,7 @@ getFirstState = function(cohortData, excludedStates = c()) {
   tmpDataState = tmpDataState[!duplicated(tmpDataState$SUBJECT_ID), ]
   tmpDataState = dplyr::select(tmpDataState, SUBJECT_ID, STATE)
   
-  tmpDataDateMin = cohortData
+  tmpDataDateMin = dplyr::filter(cohortData,!STATE %in% c("START", "EXIT", excludedStates))#cohortData
   tmpDataDateMin$STATE_START_DATE = as.Date(tmpDataDateMin$STATE_START_DATE)
   tmpDataDateMin = stats::aggregate(tmpDataDateMin$STATE_START_DATE,
                                     by = list(tmpDataDateMin$SUBJECT_ID),
@@ -164,7 +164,7 @@ getFirstState = function(cohortData, excludedStates = c()) {
                   by.x = "SUBJECT_ID",
                   by.y = "SUBJECT_ID")
   
-  tmpDataDateMax = cohortData
+  tmpDataDateMax = dplyr::filter(cohortData,!STATE %in% c("START", "EXIT", excludedStates)) #cohortData
   tmpDataDateMax$STATE_END_DATE = as.Date(tmpDataDateMax$STATE_END_DATE)
   tmpDataDateMax = stats::aggregate(tmpDataDateMax$STATE_END_DATE,
                                     by = list(tmpDataDateMax$SUBJECT_ID),
@@ -400,8 +400,8 @@ getStateStatistics = function(connection,
     sql = SqlRender::translate(
       targetDialect = dbms,
       sql = sprintf(SqlRender::render(
-        sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE,
-        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID,
+        sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) as TOTAL_CHARGE,
+        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_PAID,
         cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
 FROM @cdmTmpSchema.cost_person
 LEFT JOIN tma_states
