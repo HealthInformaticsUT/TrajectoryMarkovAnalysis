@@ -1052,7 +1052,6 @@ server <- function(input, output, session) {
       colnames(startingProbabilities) = unique(firstStates)
       v$generatedData = generateDataDiscrete(
         transitionMatrix = v$discreteMatrix,
-        startingProbabilities = startingProbabilities,
         n = input$generationNrPatients,
         minDate = input$generationDateRange[1],
         maxDate = input$generationDateRange[2],

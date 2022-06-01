@@ -33,3 +33,4 @@ visualisePatient(
 \description{
 This function outputs a patient oriented plot
 }
+\keyword{internal}

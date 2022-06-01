@@ -17,7 +17,7 @@
 #' @param pathToResults The path where results will be saved
 #' @param excludedStates States which have to be discarded from the study
 #' @param costDomains Cost domains to include in cost analysis
-#' 
+#' @export
 
 TrajectoryMarkovAnalysis = function(conn,
                                     dbms,

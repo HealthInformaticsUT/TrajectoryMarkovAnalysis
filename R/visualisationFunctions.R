@@ -17,6 +17,7 @@
 #' @param connection Active connection
 #' @param dbms Database management system's dialect
 #' @param cdmTmpSchema Temp tables' schema
+#' @keywords internal
 visualisePatient = function(patientData,
                             patientId,
                             trajectoryStopDays = 183,

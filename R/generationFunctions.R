@@ -19,7 +19,7 @@
 #' @param generateCost Value [0,1] indicating whether to generate cost of states
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
-#' @keywords internal
+#' @export
 generateDataDiscrete = function(transitionMatrix,
                                 #startingProbabilities,
                                 n = 100,
@@ -214,7 +214,7 @@ generateDataDiscrete = function(transitionMatrix,
 #' @param generateCost Value [0,1] indicating whether to generate cost of states
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
-#' @keywords internal
+#' @export
 generateDataContinuous = function(model,
                                   n = 100,
                                   minDate = "1900-01-01",

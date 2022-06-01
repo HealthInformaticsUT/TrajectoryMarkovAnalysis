@@ -415,7 +415,17 @@ LEFT JOIN tma_states
       )
     )
   )
-  
+  save_object(data, path = paste(
+    pathToResults,
+    paste("/tmp/datasets/", studyName, "_state_cost.rdata", sep = ""),
+    sep = ""
+  ))
+  ParallelLogger::logInfo(paste(
+    "Saved to: ",
+    pathToResults,
+    paste("/tmp/datasets/", studyName, "_state_cost.rdata", sep = ""),
+    sep = ""
+  ))
 # Overall trajectories charge statistics mean & median
   dataTrajectoryChargeCalculations = dplyr::summarise(dplyr::group_by(dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE), PERSON_ID), CHARGE = sum(TOTAL_STATE_CHARGE))
   trajectoriesMeanCharge = mean(dataTrajectoryChargeCalculations$CHARGE)

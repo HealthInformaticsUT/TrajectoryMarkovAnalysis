@@ -5,7 +5,7 @@
 ################################################################################
 # devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis")
 library(TrajectoryMarkovAnalysis)
-studyName = "" # TODO
+studyName = "Temp" # TODO
 pathToResults <- getwd()   # TODO
 
 ################################################################################
@@ -59,10 +59,6 @@ runGUI(
   studyName = studyName,
   pathToResults = pathToResults
 )
-
-
-
-
 ################################################################################
 #
 # Run without GUI
