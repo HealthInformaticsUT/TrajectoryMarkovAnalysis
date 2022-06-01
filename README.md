@@ -25,7 +25,7 @@ System Requirements
 Getting Started
 ===============
 
-Package manual: [TrajectoryMarkovAnalysis.pdf]([https://github.com/HealthInformaticsUT/Cohort2Trajectory/blob/main/Cohort2Trajectory_1.0.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_1.0.pdf)
+Package manual: [TrajectoryMarkovAnalysis.pdf]([https://github.com/HealthInformaticsUT/Cohort2Trajectory/blob/main/Cohort2Trajectory_1.0.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_1.0.pdf))
  
 License
 =======
