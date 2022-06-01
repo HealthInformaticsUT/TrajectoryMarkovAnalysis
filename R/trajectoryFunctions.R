@@ -361,7 +361,6 @@ getStateStatistics = function(connection,
                                STATE,
                                STATE_START_DATE,
                                STATE_END_DATE)
-  print(head(tmpDataState))
   
   DatabaseConnector::insertTable(
     connection = connection,
