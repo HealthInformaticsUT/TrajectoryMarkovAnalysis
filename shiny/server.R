@@ -1045,11 +1045,11 @@ server <- function(input, output, session) {
       )
     }
     else {
-      firstStates = getFirstState(v$patientData)$FIRST_STATE
-      startingProbabilities = as.data.frame(matrix(cumsum(prop.table(
-        table(firstStates)
-      )), nrow = 1))
-      colnames(startingProbabilities) = unique(firstStates)
+#      firstStates = getFirstState(v$patientData)$FIRST_STATE
+#      startingProbabilities = as.data.frame(matrix(cumsum(prop.table(
+#        table(firstStates)
+#      )), nrow = 1))
+#      colnames(startingProbabilities) = unique(firstStates)
       v$generatedData = generateDataDiscrete(
         transitionMatrix = v$discreteMatrix,
         n = input$generationNrPatients,
