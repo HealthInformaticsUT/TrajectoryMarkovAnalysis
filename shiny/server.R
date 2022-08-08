@@ -8,22 +8,22 @@ server <- function(input, output, session) {
   ## Retrieve patients from selected cohorts
   v <-
     reactiveValues(
-      patientData = NULL,
-      states = NULL,
-      idStates = NULL,
-      profileStochasticPlot = NULL,
-      discreteMatrix = NULL,
-      qmatrixCMC = NULL,
-      modelCMC = NULL,
-      dataCMC = NULL,
-      patientCostInfo = NULL,
-      kmData = NULL,
-      kmAgeAnalysis = FALSE,
-      kmIntervalIds = NULL,
-      dtreeIds = NULL,
-      dtreeDataFrame = NULL,
-      generatedData = NULL,
-      stateStatisticsTable = NULL
+      patientData <- NULL,
+      states <- NULL,
+      idStates <- NULL,
+      profileStochasticPlot <- NULL,
+      discreteMatrix <- NULL,
+      qmatrixCMC <- NULL,
+      modelCMC <- NULL,
+      dataCMC <- NULL,
+      patientCostInfo <- NULL,
+      kmData <- NULL,
+      kmAgeAnalysis <- FALSE,
+      kmIntervalIds <- NULL,
+      dtreeIds <- NULL,
+      dtreeDataFrame <- NULL,
+      generatedData <- NULL,
+      stateStatisticsTable <- NULL
     )
   
   ##############################################################################
@@ -38,25 +38,27 @@ server <- function(input, output, session) {
     ext <- tools::file_ext(file$datapath)
     shiny::req(file)
     validate(need(ext == "csv", "Please upload a csv file"))
-    inputData = as.data.frame(read.csv(file$datapath, header = TRUE))
+    inputData <- as.data.frame(read.csv(file$datapath, header = TRUE))
     # Temporary: show first 5 rows of the file
-    rows_to_show = if (nrow(inputData) < 5)
+    rows_to_show <- if (nrow(inputData) < 5) {
       nrow(inputData)
-    else
+    }
+    else {
       5
-    v$states = unique(inputData$STATE)
-    ids = unique(inputData$STATE_ID)
-    states = v$states
-    idStates = cbind(ids, states)
-    colnames(idStates) = c("STATE_ID", "STATE")
-    v$idStates = as.data.frame(idStates)
+    }
+    v$states <- unique(inputData$STATE)
+    ids <- unique(inputData$STATE_ID)
+    states <- v$states
+    idStates <- cbind(ids, states)
+    colnames(idStates) <- c("STATE_ID", "STATE")
+    v$idStates <- as.data.frame(idStates)
     ##############################################################################
     #
     # Adding personal data
     #
     # ##############################################################################
     # Displaying some imported data
-    v$patientData = inputData
+    v$patientData <- inputData
     v$patientData[1:rows_to_show, 1:4]
   })
   
@@ -76,8 +78,8 @@ server <- function(input, output, session) {
   
   
   output$sunburst <- sunburstR::renderSunburst({
-    if(is.null(v$patientData)){NULL}
-    else{
+    if (is.null(v$patientData)) {NULL}
+    else {
     sunburstDetails <- drawSunburst(v$patientData)
     sunburstR::add_shiny(sunburstR::sunburst(sunburstDetails$freqPaths,
                        count = TRUE,
@@ -99,17 +101,17 @@ server <- function(input, output, session) {
   ##############################################################################
   
   # observeEvent(input$trajectoryType, {
-  #   if(input$trajectoryType == 1){
+  #   if(input$trajectoryType == 1) {
   #     shiny::hideTab("shinyBody","markov")
   #   }
   # })
   
-  stochasticTransitions = reactive({
+  stochasticTransitions <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
     ))
-    v$discreteMatrix = getStohasticMatrix(
+    v$discreteMatrix <- getStohasticMatrix(
       cohortData = v$patientData,
       stateCohorts = v$states,
       pathToResults = pathToResults,
@@ -127,8 +129,9 @@ server <- function(input, output, session) {
     )
   })
   output$stochasticTransitions <- DT::renderDT({
-    if (input$markovAnalyseButton == 0)
+    if (input$markovAnalyseButton == 0) {
       return()
+    }
     isolate(# Real value
       stochasticTransitions())
   }
@@ -136,12 +139,12 @@ server <- function(input, output, session) {
   )
   
   
-  trajectoryStartStatistics = reactive({
+  trajectoryStartStatistics <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
     ))
-    tmpData = getFirstState(v$patientData,input$excludedStatesDisc)
+    tmpData <- getFirstState(v$patientData,input$excludedStatesDisc)
     return(
       getFirstStateStatistics(
         connection = conn,
@@ -154,8 +157,9 @@ server <- function(input, output, session) {
   })
   
   output$trajectoryStartStatistics <- DT::renderDT({
-    if (input$markovAnalyseButton == 0)
+    if (input$markovAnalyseButton == 0) {
       return()
+    }
     isolate(# Development value
       DT::formatPercentage(
         DT::formatCurrency(
@@ -174,13 +178,13 @@ server <- function(input, output, session) {
   , #rownames = T)
   )
   
-  stateStatistics = reactive({
+  stateStatistics <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
     ))
     
-    v$stateStatisticsTable = getStateStatistics(
+    v$stateStatisticsTable <- getStateStatistics(
       conn,
       dbms = dbms,
       cohortData = v$patientData,
@@ -199,8 +203,9 @@ server <- function(input, output, session) {
   output$textMedian <- shiny::renderText({ paste("The median trajectory cost of a patient:", round(as.numeric(v$stateStatisticsTable$median,2)), "€", sep = " ") })
   
   output$stateStatistics <- DT::renderDT({
-    if (input$markovAnalyseButton == 0)
+    if (input$markovAnalyseButton == 0) {
       return()
+    }
     isolate(# Development value
       DT::formatPercentage(
         DT::formatCurrency(
@@ -219,7 +224,7 @@ server <- function(input, output, session) {
   , #rownames = T)
   )
   
-  costDistPlot = reactive({
+  costDistPlot <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
@@ -232,13 +237,14 @@ server <- function(input, output, session) {
   
   
   output$costDistPlotDisc <- shiny::renderPlot({
-    if (input$markovAnalyseButton == 0)
+    if (input$markovAnalyseButton == 0) {
       return()
+    }
     isolate(costDistPlot())
   })
   
   # Solution for checking probabilities in n cycles
-  transferCountP = reactive({
+  transferCountP <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
@@ -249,8 +255,9 @@ server <- function(input, output, session) {
   })
   
   output$transferCountP <- DT::renderDT({
-    if (input$transferCountButton == 0)
+    if (input$transferCountButton == 0) {
       return()
+    }
     isolate(transferCountP())
   })
   
@@ -266,10 +273,10 @@ server <- function(input, output, session) {
     v$qmatrixCMC <-
       matrix(1, nrow = length(v$states), ncol = length(v$states))
     diag(v$qmatrixCMC) <- 0
-    v$qmatrixCMC[, 1] = 0
-    v$qmatrixCMC[length(v$states),] = 0
+    v$qmatrixCMC[, 1] <- 0
+    v$qmatrixCMC[length(v$states),] <- 0
     # Add correct labels
-    v$idStates = dplyr::arrange(v$idStates, STATE_ID)
+    v$idStates <- dplyr::arrange(v$idStates, STATE_ID)
     
     colnames(v$qmatrixCMC) <- v$idStates$STATE
     rownames(v$qmatrixCMC) <- v$idStates$STATE
@@ -288,8 +295,8 @@ server <- function(input, output, session) {
   observeEvent(input$cmcButton, {
     # v$dataCMC = dataPreparation(patientData = v$patientData
     #                             )
-    v$dataCMC  = v$patientData
-    v$modelCMC =  msm::msm(
+    v$dataCMC  <- v$patientData
+    v$modelCMC <-  msm::msm(
       STATE_ID ~ TIME_IN_COHORT,
       subject = SUBJECT_ID,
       data = v$dataCMC,
@@ -323,53 +330,55 @@ server <- function(input, output, session) {
     ))
   })
   
-  cmcCalculatedQ = reactive({
+  cmcCalculatedQ <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
     ))
-    table = data.frame(unclass(msm::qmatrix.msm(v$modelCMC)$estimates))
+    table <- data.frame(unclass(msm::qmatrix.msm(v$modelCMC)$estimates))
     table
   })
   
   output$cmcCalculatedQ <- DT::renderDT({
-    if (input$cmcButton == 0)
+    if (input$cmcButton == 0) {
       return()
+    }
     isolate(cmcCalculatedQ())
   })
   
   
-  cmcCalculatedSojourn = reactive({
+  cmcCalculatedSojourn <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
     ))
-    table1 = data.frame(unclass(msm::sojourn.msm(v$modelCMC)))
-    table2 = data.frame(unclass(msm::totlos.msm(v$modelCMC)))[1:nrow(table1),]
-    table = cbind(table1, table2)
-    rownames(table) =
+    table1 <- data.frame(unclass(msm::sojourn.msm(v$modelCMC)))
+    table2 <- data.frame(unclass(msm::totlos.msm(v$modelCMC)))[1:nrow(table1),]
+    table <- cbind(table1, table2)
+    rownames(table) <-
       plyr::mapvalues(
         rownames(table),
         from = v$idStates$STATE_ID,
         to = v$idStates$STATE,
         warn_missing = FALSE
       )
-    colnames(table) = c("Estimate (days)",
+    colnames(table) <- c("Estimate (days)",
                         "Standard error",
                         "Lower",
                         "Upper",
                         "Estimated stay per patient (days)")
-    table = table * 365.25
+    table <- table * 365.25
     table
   })
   
   output$cmcCalculatedSojourn <- DT::renderDT({
-    if (input$cmcButton == 0)
+    if (input$cmcButton == 0) {
       return()
+    }
     isolate(cmcCalculatedSojourn())
   })
   
-  cmcCalculatedP = reactive({
+  cmcCalculatedP <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
@@ -383,8 +392,9 @@ server <- function(input, output, session) {
   })
   
   output$cmcCalculatedP <- DT::renderDT({
-    if (input$cmcTimeButton == 0)
+    if (input$cmcTimeButton == 0) {
       return()
+    }
     isolate(cmcCalculatedP())
   })
   
@@ -396,12 +406,12 @@ server <- function(input, output, session) {
     )
   })
   
-  trajectoryStartStatisticsCon = reactive({
+  trajectoryStartStatisticsCon <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
     ))
-    tmpData = getFirstState(v$patientData,input$excludedStatesCon)
+    tmpData <- getFirstState(v$patientData,input$excludedStatesCon)
     return(
       getFirstStateStatistics(
         connection = conn,
@@ -414,8 +424,9 @@ server <- function(input, output, session) {
   })
   
   output$trajectoryStartStatisticsCon <- DT::renderDT({
-    if (input$cmcButton == 0)
+    if (input$cmcButton == 0) {
       return()
+    }
     isolate(# Development value
       DT::formatPercentage(
         DT::formatCurrency(
@@ -435,12 +446,12 @@ server <- function(input, output, session) {
   )
   
   
-  stateStatisticsCon = reactive({
+  stateStatisticsCon <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
     ))
-    v$stateStatisticsTable =  getStateStatistics(
+    v$stateStatisticsTable <-  getStateStatistics(
       conn,
       dbms = dbms,
       cohortData = v$patientData,
@@ -455,8 +466,9 @@ server <- function(input, output, session) {
   })
   
   output$stateStatisticsCon <- DT::renderDT({
-    if (input$cmcButton == 0)
+    if (input$cmcButton == 0) {
       return()
+    }
     isolate(# Development value
       DT::formatPercentage(
         DT::formatCurrency(
@@ -473,7 +485,7 @@ server <- function(input, output, session) {
     
   } , )
   
-  costDistPlotCon = reactive({
+  costDistPlotCon <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
@@ -486,8 +498,9 @@ server <- function(input, output, session) {
   
   
   output$costDistPlotCon <- shiny::renderPlot({
-    if (input$cmcButton == 0)
+    if (input$cmcButton == 0) {
       return()
+    }
     isolate(costDistPlotCon())
   })
   ##############################################################################
@@ -497,7 +510,7 @@ server <- function(input, output, session) {
   ##############################################################################
   
   output$kmStateChoices <- renderUI({
-    choices =  sort(paste(rbind(t(combn(
+    choices <-  sort(paste(rbind(t(combn(
       rev(v$states), 2
     )), t(combn((v$states), 2
     )))[, 1],
@@ -507,8 +520,8 @@ server <- function(input, output, session) {
     )), t(
       combn(v$states, 2)
     ))[, 2]))
-    choices = choices[!startsWith(choices, "EXIT")]
-    choices = choices[!endsWith(choices, "START")]
+    choices <- choices[!startsWith(choices, "EXIT")]
+    choices <- choices[!endsWith(choices, "START")]
     shiny::checkboxGroupInput("kmStates", label = NULL,
                               choices = choices)
     
@@ -516,22 +529,22 @@ server <- function(input, output, session) {
   
   observeEvent(input$kmAgeAnalysisInclusion, {
     if (input$kmAgeAnalysisInclusion == 0) {
-      v$kmAgeAnalysis = FALSE
+      v$kmAgeAnalysis <- FALSE
     }
-    else{
+    else {
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       
       progress$set(message = "Loading personal data...", value = 1/4)
       
-      v$patientData = addPersonalData(v$patientData, conn)
+      v$patientData <- addPersonalData(v$patientData, conn)
       progress$set(message = "Loading  complete!", value = 1)
-      v$kmAgeAnalysis = TRUE
+      v$kmAgeAnalysis <- TRUE
     }
   })
   
   output$kmAgeAnalysisIntervals <- renderUI({
-    if (!v$kmAgeAnalysis){
+    if (!v$kmAgeAnalysis) {
     return()
     }
     # # minAge5 = (ceiling(minAge/5)-1)*5
@@ -546,7 +559,7 @@ server <- function(input, output, session) {
   })
   
   output$kmRemoveAgeAnalysisIntervals <- renderUI({
-    if (!v$kmAgeAnalysis){
+    if (!v$kmAgeAnalysis) {
       return()
     }
     shiny::actionButton("rmIntervalButton", "Remove an interval")
@@ -555,13 +568,13 @@ server <- function(input, output, session) {
   observeEvent(input$addIntervalButton, {
     if (is.null(v$kmIntervalIds)) {
       v$kmIntervalIds <<- c(1)
-    } else{
+    } else {
       v$kmIntervalIds <<- c(v$kmIntervalIds, max(v$kmIntervalIds) + 1)
     }
-    minAge = max(round(min(c(
+    minAge <- max(round(min(c(
       v$patientData$AGE, 120
     ))) - 1, 0)
-    maxAge = round(max(c(v$patientData$AGE, 0))) + 1
+    maxAge <- round(max(c(v$patientData$AGE, 0))) + 1
     output$inputsIntervals <- renderUI({
       tagList(lapply(1:length(v$kmIntervalIds), function(i) {
         shiny::sliderInput(
@@ -585,12 +598,12 @@ server <- function(input, output, session) {
       
       output$inputsIntervals <- renderUI({
       })
-    } else{
+    } else {
       v$kmIntervalIds <<- v$kmIntervalIds[v$kmIntervalIds < max(v$kmIntervalIds)]
-    minAge = max(round(min(c(
+    minAge <- max(round(min(c(
       v$patientData$AGE, 120
     ))) - 1, 0)
-    maxAge = round(max(c(v$patientData$AGE, 0))) + 1
+    maxAge <- round(max(c(v$patientData$AGE, 0))) + 1
     output$inputsIntervals <- renderUI({
       tagList(lapply(1:length(v$kmIntervalIds), function(i) {
         shiny::sliderInput(
@@ -609,28 +622,28 @@ server <- function(input, output, session) {
   
   #TODO: NB! For combining ggsurvplots we might use ggsurvplot_combine function
   
-  kmPlots = reactive({
+  kmPlots <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
     ))
-    plots = list()
+    plots <- list()
     for (i in 1:length(input$kmStates)) {
-      states = stringr::str_split(input$kmStates[i], "  →  ")[[1]]
+      states <- stringr::str_split(input$kmStates[i], "  →  ")[[1]]
       
       interval_ids <-
         sapply(1:length(v$kmIntervalIds), function(i) {
           paste("intervalInput", v$kmIntervalIds[i], sep = "")
         })
-      inputItervalsDT = list()
+      inputItervalsDT <- list()
       
       for (j in 1:length(interval_ids)) {
         inputItervalsDT [[j]] <- input[[interval_ids[j]]]
       }
-      v$kmData = kmDataPreparation(
+      v$kmData <- kmDataPreparation(
         v$patientData,
         startCohortId = states[1],
-        endCohortId = states[2],
+        endCohortId <- states[2],
         ageInterval = as.numeric(input$kmAgeAnalysisInclusion),
         selectedIntervals = inputItervalsDT,
         survivalType = "regular"
@@ -648,7 +661,7 @@ server <- function(input, output, session) {
       ########################################################################
       if (v$kmAgeAnalysis) {
         # p = survminer::ggsurvplot(fit, data = v$kmData)$plot + ggplot2::labs(title = input$kmStates[i], pval = TRUE, conf.int = TRUE)
-        p = survminer::ggsurvplot(
+        p <- survminer::ggsurvplot(
           fit,
           data = v$kmData,
           pval = TRUE,
@@ -656,10 +669,10 @@ server <- function(input, output, session) {
           surv.median.line = 'hv'
         )$plot  + ggplot2::labs(title = input$kmStates[i])
       }
-      else{
-        p = survminer::ggsurvplot(fit, data = v$kmData, conf.int = TRUE)$plot + ggplot2::labs(title = input$kmStates[i])#, pval = TRUE)$plot
+      else {
+        p <- survminer::ggsurvplot(fit, data = v$kmData, conf.int = TRUE)$plot + ggplot2::labs(title = input$kmStates[i])#, pval = TRUE)$plot
       }
-      plots[[i]] = p
+      plots[[i]] <- p
     }
     
     return(ggpubr::ggarrange(plotlist = plots, ncol = 1))
@@ -791,8 +804,9 @@ server <- function(input, output, session) {
   
   output$patientPlot <- shiny::renderPlot({
     # Check if the plot has been generated, if it has been --> show
-    if (is.null(v$profileStochasticPlot))
+    if (is.null(v$profileStochasticPlot)) {
       return()
+    }
     v$profileStochasticPlot
   })
   
@@ -810,7 +824,7 @@ server <- function(input, output, session) {
   observeEvent(input$addLayerButton, {
     if (is.null(v$dtreeIds)) {
       v$dtreeIds <<- 1
-    } else{
+    } else {
       v$dtreeIds <<- c(v$dtreeIds, max(v$dtreeIds) + 1)
     }
     output$inputs <- renderUI({
@@ -830,7 +844,7 @@ server <- function(input, output, session) {
       output$inputs <- renderUI({
         NULL
       })
-    } else{
+    } else {
       v$dtreeIds <<- v$dtreeIds[v$dtreeIds < max(v$dtreeIds)]
       
       output$inputs <- renderUI({
@@ -847,34 +861,35 @@ server <- function(input, output, session) {
   })
   
   output$plotOut <- shiny::renderPlot({
-    if (input$getLayersButton == 0)
+    if (input$getLayersButton == 0) {
       return() #renderPlot
-    else{
+    }
+    else {
       # Get ids for layers
       layer_ids <- sapply(1:length(v$dtreeIds), function(i) {
         paste("layerInput", v$dtreeIds[i], sep = "")
       })
-      inputLayersDT = list()
+      inputLayersDT <- list()
       
       # This is a sanity check whether or not every checkbox has at least one box ticked
-      nullCheck = sum(sapply(sapply(layer_ids, function(i) {
+      nullCheck <- sum(sapply(sapply(layer_ids, function(i) {
         input[[i]]
       }), is.null)) > 0
       if (nullCheck) {
         return() #renderPlot
-      } else{
+      } else {
         for (i in 1:length(layer_ids)) {
           inputLayersDT [[i]] <- sprintf(input[[layer_ids[i]]])
         }
-        labels = c('START', inputLayersDT [[1]])
+        labels <- c('START', inputLayersDT [[1]])
         # Multiplier for counting branches
-        n = 1
+        n <- 1
         d <-
           data.frame(from = "0_0", to = paste("0_", seq(1, length(
             inputLayersDT [[1]]
           )), sep = ""))
         edges <- d
-        d_last = d
+        d_last <- d
         if (length(layer_ids) - 1 > 0) {
           for (i in 1:(length(layer_ids) - 1)) {
             d_next <-
@@ -885,11 +900,11 @@ server <- function(input, output, session) {
                 ), sep = "_")
               )
             
-            n = n * length(inputLayersDT [[i]])
-            labels = c(labels, rep(inputLayersDT [[i + 1]], times = n))
+            n <- n * length(inputLayersDT [[i]])
+            labels <- c(labels, rep(inputLayersDT [[i + 1]], times = n))
             edges <- rbind(edges, d_next)
             
-            d_last = d_next
+            d_last <- d_next
           }
         }
         ##########################################################################
@@ -898,10 +913,10 @@ server <- function(input, output, session) {
         # for using and modifying it later
         #
         ##########################################################################
-        v$dtreeDataFrame = edges
+        v$dtreeDataFrame <- edges
         
         mygraph <- igraph::graph_from_data_frame(edges)
-        p = ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
+        p <- ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
           ggraph::geom_edge_diagonal() +
           ggraph::geom_node_text(
             ggplot2::aes(label = as.character(labels), filter = leaf),
@@ -925,29 +940,30 @@ server <- function(input, output, session) {
   
   
   output$plotOut2 <- renderPlot({
-    if (input$generateTreeButton == 0)
+    if (input$generateTreeButton == 0) {
       return() #renderPlot
-    else{
+    }
+    else {
       # Get ids for layers
       layer_ids <- sapply(1:length(v$dtreeIds), function(i) {
         paste("layerInput", v$dtreeIds[i], sep = "")
       })
-      inputLayersDT  = list()
+      inputLayersDT  <- list()
       
       # This is a sanity check whether or not every checkbox has at least one box ticked
-      nullCheck = sum(sapply(sapply(layer_ids, function(i) {
+      nullCheck <- sum(sapply(sapply(layer_ids, function(i) {
         input[[i]]
       }), is.null)) > 0
       
       if (nullCheck) {
         return() #renderPlot
-      } else{
+      } else {
         for (i in 1:length(layer_ids)) {
           inputLayersDT [[i]] <- sprintf(input[[layer_ids[i]]])
         }
         
         # Multiplier for counting branches
-        n = 1
+        n <- 1
         d <-
           data.frame(
             from = "0_0" ,
@@ -958,7 +974,7 @@ server <- function(input, output, session) {
             to_label = inputLayersDT [[1]]
           )
         edges <- d
-        d_last = d
+        d_last <- d
         if (length(layer_ids) - 1 > 0) {
           for (i in 1:(length(layer_ids) - 1)) {
             d_next <-
@@ -971,10 +987,10 @@ server <- function(input, output, session) {
                 to_label = rep(inputLayersDT [[i + 1]], times = length(d_last$to_label))
               )
             
-            n = n * length(inputLayersDT [[i]])
+            n <- n * length(inputLayersDT [[i]])
             edges <- rbind(edges, d_next)
             
-            d_last = d_next
+            d_last <- d_next
           }
         }
         ##########################################################################
@@ -983,7 +999,7 @@ server <- function(input, output, session) {
         # for using and modifying it later
         #
         ##########################################################################
-        v$dtreeDataFrame = edges
+        v$dtreeDataFrame <- edges
         mygraph <- igraph::graph_from_data_frame(edges)
         # vertices <- data.frame(
         #   name=name,
@@ -991,20 +1007,20 @@ server <- function(input, output, session) {
         #   cluster=sample(letters[1:4], length(name), replace=T),
         #   value=sample(seq(10,30), length(name), replace=T)
         # )
-        dTreeProbabilities = getDTreeProbabilities(
-          cohortData = v$patientData,
-          stateCohorts = v$states
+        dTreeProbabilities <- getDTreeProbabilities(
+          cohortData <- v$patientData,
+          stateCohorts <- v$states
         )
         
-        edges = mergeEdgeTransition(
+        edges <- mergeEdgeTransition(
           cohortData = v$patientData,
           dTreeEdges = edges ,
           stateTransitionTable = dTreeProbabilities,
           probabilityType = input$dTreeProbabilityType
         )
-        labels = c('START', paste(edges$to_label, paste(edges$PROB, "%", sep =
+        labels <- c('START', paste(edges$to_label, paste(edges$PROB, "%", sep =
                                                           ""), sep = " "))
-        p = ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
+        p <- ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
           ggraph::geom_edge_diagonal() +
           ggraph::geom_node_text(
             ggplot2::aes(label = as.character(labels), filter = leaf),
@@ -1033,7 +1049,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$generationButton, {
     if (input$trajectoryTypeMatrix == 2) {
-      v$generatedData = generateDataContinuous(
+      v$generatedData <- generateDataContinuous(
         model = v$modelCMC,
         stateLabels = v$idStates$STATE,
         n = input$generationNrPatients,
@@ -1050,7 +1066,7 @@ server <- function(input, output, session) {
 #        table(firstStates)
 #      )), nrow = 1))
 #      colnames(startingProbabilities) = unique(firstStates)
-      v$generatedData = generateDataDiscrete(
+      v$generatedData <- generateDataDiscrete(
         transitionMatrix = v$discreteMatrix,
         n = input$generationNrPatients,
         minDate = input$generationDateRange[1],
@@ -1064,40 +1080,46 @@ server <- function(input, output, session) {
     }
   })
   
-  generationCompareTable = reactive({
+  generationCompareTable <- reactive({
     validate(need(!is.null(v$generatedData), "Please generate some data!"))
     compareTrajectoryData(
-      observedData = if (input$trajectoryTypeMatrix == 2)
+      observedData = if (input$trajectoryTypeMatrix == 2) {
         v$dataCMC
-      else
-        v$patientData,
-      generatedData = v$generatedData
+        }
+      else {
+        v$patientData
+        },
+      generatedData <- v$generatedData
     )
   })
   
-  output$generationCompareTable =  shiny::renderTable({
-    if (input$generationButton == 0)
+  output$generationCompareTable <-  shiny::renderTable({
+    if (input$generationButton == 0) {
       return()
+    }
     isolate(generationCompareTable())
   }, digits = 4)
   
   
-  generationLRMatrix = reactive({
+  generationLRMatrix <- reactive({
     validate(validate(need(
       !is.null(v$generatedData), "Please generate some data!"
     )))
     compareTrajectoryDataLogRank(
-      observedData = if (input$trajectoryTypeMatrix == 2)
+      observedData = if (input$trajectoryTypeMatrix == 2) {
         v$dataCMC
-      else
-        v$patientData,
-      generatedData = v$generatedData
+      }
+      else {
+        v$patientData
+        },
+      generatedData <- v$generatedData
     )
   })
   
   output$generationLRMatrix <- DT::renderDT({
-    if (input$generationButton == 0)
+    if (input$generationButton == 0) {
       return()
+    }
     isolate(generationLRMatrix())
   })
   ################################################################################

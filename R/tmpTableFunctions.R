@@ -44,7 +44,7 @@ createIndex <-
       colsString <-
         toString(sprintf("%s", columnNames))
       if (tempTable) {
-        sql = paste("CREATE CLUSTERED INDEX ",
+        sql <- paste("CREATE CLUSTERED INDEX ",
                     label ,
                     " ON ",
                     relationName,
@@ -56,8 +56,8 @@ createIndex <-
                                         sql = sprintf(sql, colsString)
                                       ))
       }
-      else{
-        sql = paste(
+      else {
+        sql <- paste(
           "CREATE CLUSTERED INDEX ",
           label ,
           " ON ",
@@ -118,7 +118,7 @@ createIndex <-
                                         sql = sprintf(sql, colsString)
                                       ))
       }
-      else{
+      else {
         colsString <-
           toString(sprintf("%s", columnNames))
         sql = paste("CREATE INDEX ",
@@ -185,7 +185,7 @@ dropRelation <-
                                                               relationName = relationName)
                                     ))
     }
-    else{
+    else {
       DatabaseConnector::executeSql(connection,
                                     SqlRender::translate(
                                       targetDialect = dbms,
@@ -219,7 +219,7 @@ dropRelation <-
 #' @param cdmTmpSchema tmpSchema
 #' @keywords internal
 #' @return Boolean of success
-generateTempTables = function(connection,
+generateTempTables <- function(connection,
                               dbms,
                               cdmSchema = "ohdsi_cdm",
                               cdmTmpSchema = "ohdsi_temp") {
@@ -239,7 +239,7 @@ generateTempTables = function(connection,
     relationName = "cost_person"
   )
   
-  sql1 = SqlRender::translate(
+  sql1 <- SqlRender::translate(
     targetDialect = dbms,
     sql = SqlRender::render(
       sql = "SELECT cost_id, cost.cost_event_id as cost_event_id, cost_domain_id, cost_type_concept_id, currency_concept_id, total_charge, total_cost, total_paid, pobs.person_id as person_id, pobs.date as date INTO @cdmTmpSchema.cost_person FROM @cdmSchema.cost LEFT JOIN (SELECT drug_exposure_id as cost_event_id, drug_exposure.person_id as person_id, drug_exposure_start_date as date FROM @cdmSchema.drug_exposure UNION SELECT visit_occurrence_id as cost_event_id, visit_occurrence.person_id as person_id, visit_start_date as date FROM @cdmSchema.visit_occurrence UNION SELECT procedure_occurrence_id as cost_event_id, procedure_occurrence.person_id as person_id, procedure_date as date FROM @cdmSchema.procedure_occurrence UNION SELECT device_exposure_id as cost_event_id, device_exposure.person_id as person_id, device_exposure_start_date as date FROM @cdmSchema.device_exposure UNION SELECT measurement_id as cost_event_id, measurement.person_id as person_id, measurement_date as date FROM @cdmSchema.measurement UNION SELECT observation_id as cost_event_id, observation.person_id as person_id, observation_date as date FROM @cdmSchema.observation UNION SELECT specimen_id as cost_event_id, specimen.person_id as person_id, specimen_date as date FROM @cdmSchema.specimen) pobs on cost.cost_event_id = pobs.cost_event_id;",

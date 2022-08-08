@@ -14,7 +14,7 @@
 #' @param cdmResultsSchema Schema which has the information about the cohorts created in Atlas
 #'
 #' @export
-runGUI = function(connection,
+runGUI <- function(connection,
                   connectionDetails,
                   pathToDriver = './Drivers',
                   dbms = "postgresql",
@@ -35,10 +35,10 @@ runGUI = function(connection,
   cdmSchema <<- cdmSchema
   cdmTmpSchema <<- cdmTmpSchema
   cdmResultsSchema <<- cdmResultsSchema
-  if(!is.null(pathToResults)){
+  if (!is.null(pathToResults)) {
     pathToResults <<- pathToResults
   }
-  else{
+  else {
     pathToResults <<- paste(getwd(), "/tmp", sep = "")
   }
   studyName <<- studyName
@@ -83,7 +83,7 @@ runGUI = function(connection,
   #
   ################################################################################
   
-  ans = droppingTables()
+  ans <- droppingTables()
   if (ans == "y") {
     dropRelation(
       connection = conn,

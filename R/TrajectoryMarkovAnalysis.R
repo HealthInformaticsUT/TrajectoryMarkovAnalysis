@@ -19,7 +19,7 @@
 #' @param costDomains Cost domains to include in cost analysis
 #' @export
 
-TrajectoryMarkovAnalysis = function(conn,
+TrajectoryMarkovAnalysis <- function(conn,
                                     dbms,
                                     cdmSchema,
                                     cdmTmpSchema,
@@ -66,28 +66,28 @@ TrajectoryMarkovAnalysis = function(conn,
 # Getting metadata from input dataframe
 #
 ################################################################################
-  inputData = as.data.frame(inputData)
-  states = unique(inputData$STATE)
-  ids = unique(inputData$STATE_ID)
-  idStates = cbind(ids, states)
-  colnames(idStates) = c("STATE_ID", "STATE")
-  idStates = as.data.frame(idStates)
+  inputData <- as.data.frame(inputData)
+  states <- unique(inputData$STATE)
+  ids <- unique(inputData$STATE_ID)
+  idStates <- cbind(ids, states)
+  colnames(idStates) <- c("STATE_ID", "STATE")
+  idStates <- as.data.frame(idStates)
   
-  markovModel = NULL
+  markovModel <- NULL
   
   ##############################################################################
   #
   # Discrete implementation
   #
   ##############################################################################
-  if(modelType == "discrete") {
+  if (modelType == "discrete") {
   
-    markovModel = getStohasticMatrix(
-    cohortData = inputData,
-    stateCohorts = states,
-    pathToResults = pathToResults,
-    studyName = studyName,
-    excludedStates = excludedStates
+    markovModel <- getStohasticMatrix(
+    cohortData <- inputData,
+    stateCohorts <- states,
+    pathToResults <- pathToResults,
+    studyName <- studyName,
+    excludedStates <- excludedStates
   )
     
     
@@ -99,19 +99,19 @@ TrajectoryMarkovAnalysis = function(conn,
   # Continuous case
   #
   ##############################################################################
-  else{
+  else {
     qmatrixCMC <-
       matrix(1, nrow = length(states), ncol = length(states))
     diag(qmatrixCMC) <- 0
     qmatrixCMC[, 1] = 0
-    qmatrixCMC[length(states),] = 0
+    qmatrixCMC[length(states), ] = 0
     # Add correct labels
-    idStates = dplyr::arrange(idStates, STATE_ID)
+    idStates <- dplyr::arrange(idStates, STATE_ID)
     
     colnames(qmatrixCMC) <- idStates$STATE
     rownames(qmatrixCMC) <- idStates$STATE
     
-    markovModel =  msm::msm(
+    markovModel <-  msm::msm(
       STATE_ID ~ TIME_IN_COHORT,
       subject = SUBJECT_ID,
       data = inputData,
@@ -152,7 +152,7 @@ TrajectoryMarkovAnalysis = function(conn,
 # State statistics
 #
 ################################################################################
-  stateStatisticsTable =  getStateStatistics(
+  stateStatisticsTable <-  getStateStatistics(
     conn,
     dbms = dbms,
     cohortData = inputData,
@@ -162,7 +162,7 @@ TrajectoryMarkovAnalysis = function(conn,
     excludedStates = excludedStates
   )
 
-    tmpData = getFirstState(inputData,excludedStates)
+    tmpData <- getFirstState(inputData,excludedStates)
       getFirstStateStatistics(
         connection = conn,
         dbms = dbms,
@@ -188,7 +188,7 @@ TrajectoryMarkovAnalysis = function(conn,
       #
       ################################################################################
       
-      ans = droppingTables()
+      ans <- droppingTables()
       if (ans == "y") {
         dropRelation(
           connection = conn,

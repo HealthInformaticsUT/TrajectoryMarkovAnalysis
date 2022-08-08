@@ -20,7 +20,7 @@
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
 #' @export
-generateDataDiscrete = function(transitionMatrix,
+generateDataDiscrete <- function(transitionMatrix,
                                 #startingProbabilities,
                                 n = 100,
                                 minDate = "1900-01-01",
@@ -31,49 +31,49 @@ generateDataDiscrete = function(transitionMatrix,
                                 generateCost = 0,
                                 statisticsTable = NULL,
                                 studyName = "") {
-  genData = list()
+  genData <- list()
   
   ParallelLogger::logInfo(paste("Starting generation of ", n, " patients!"))
   
   for (patientId in 1:n) {
-    startProbabilty = runif(1)
-    startStateIndex = which.min(transitionMatrix["START",] < startProbabilty)
-    startState = colnames(transitionMatrix)[startStateIndex]
+    startProbabilty <- runif(1)
+    startStateIndex <- which.min(transitionMatrix["START", ] < startProbabilty)
+    startState <- colnames(transitionMatrix)[startStateIndex]
 
-    startDate = as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
+    startDate <- as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
     # Adding "START" state
-    tmpPatientInfo = data.frame()
-    newRow = c(
+    tmpPatientInfo <- data.frame()
+    newRow <- c(
       as.numeric(patientId),
       as.character("START"),
       as.character(startDate),
       as.character(startDate)
     )
-    tmpPatientInfo = rbind(tmpPatientInfo, newRow)
+    tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
     # Adding first state
     
-    newRow = c(
+    newRow <- c(
       as.numeric(patientId),
       startState,
       as.character(startDate),
       as.character(startDate + stateDuration)
     )
-    tmpPatientInfo = rbind(tmpPatientInfo, newRow)
-    lastState = startState
+    tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
+    lastState <- startState
     # a while loop
-    outOfCohortDays = 0
-    i = 0
+    outOfCohortDays <- 0
+    i <- 0
     while (TRUE) {
-      i = i + 1
+      i <- i + 1
       # Uniform distribution value for determining the next state
-      probability = runif(1)
-      nextStateIndex = which.min(cumsum(transitionMatrix[lastState, ]) < probability)
-      nextState = colnames(transitionMatrix)[nextStateIndex]
+      probability <- runif(1)
+      nextStateIndex <- which.min(cumsum(transitionMatrix[lastState, ]) < probability)
+      nextState <- colnames(transitionMatrix)[nextStateIndex]
       
       if (nextState == "START") {
         next ## fix, in some cases there can be multiple START states generated (rounding bug)
       }
-      lastState = nextState
+      lastState <- nextState
       ############################################################################
       #
       # If state is "EXIT" then add row and exit
@@ -83,66 +83,66 @@ generateDataDiscrete = function(transitionMatrix,
       ############################################################################
       if (nextState == "EXIT") {
         # Adding "EXIT" state
-        newRow = c(
+        newRow <- c(
           as.numeric(patientId),
           as.character("EXIT"),
           as.character(startDate + i * stateDuration),
           as.character(startDate + i * stateDuration + 1)
         )
-        tmpPatientInfo = rbind(tmpPatientInfo, newRow)
+        tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
         
         break
       }
       else if (nextState == "OUT OF COHORT") {
-        outOfCohortDays = outOfCohortDays + stateDuration
+        outOfCohortDays <- outOfCohortDays + stateDuration
         # Adding OUT OF COHORT" state
-        newRow = c(
+        newRow <- c(
           as.numeric(patientId),
           as.character("OUT OF COHORT"),
           as.character(startDate + i * stateDuration),
           as.character(startDate + (i + 1) * stateDuration)
         )
-        tmpPatientInfo = rbind(tmpPatientInfo, newRow)
+        tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
         # Case when we have passed the limit of out-of-cohort days
         if (outOfCohortDays > maxOut) {
           # Adding "EXIT" state
-          newRow = c(
+          newRow <- c(
             as.numeric(patientId),
             as.character("EXIT"),
             as.character(startDate + (i + 1) * stateDuration),
             as.character(startDate + (i + 1) * stateDuration + 1)
           )
-          tmpPatientInfo = rbind(tmpPatientInfo, newRow)
+          tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
           
           # Ending loop as OUT OF COHORT days has maxed out
           break
         }
       }
       else {
-        outOfCohortDays = 0
+        outOfCohortDays <- 0
         # Adding generated row if statements above not true
         
-        newRow = c(
+        newRow <- c(
           as.numeric(patientId),
           nextState,
           as.character(startDate + i * stateDuration),
           as.character(startDate + (i + 1) * stateDuration)
         )
-        tmpPatientInfo = rbind(tmpPatientInfo, newRow)
+        tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
         
         
       }
       
     }
     
-    colnames(tmpPatientInfo) =  c("SUBJECT_ID",
+    colnames(tmpPatientInfo) <-  c("SUBJECT_ID",
                                   "STATE",
                                   "STATE_START_DATE",
                                   "STATE_END_DATE")
-    genData[[patientId]] = tmpPatientInfo
+    genData[[patientId]] <- tmpPatientInfo
   }
   
-  genData = do.call(rbind, genData)
+  genData <- do.call(rbind, genData)
   
   ##############################################################################
   #
@@ -151,19 +151,19 @@ generateDataDiscrete = function(transitionMatrix,
   ##############################################################################
   
   if (generateCost == 1) {
-    costs = c()
-    cost = NA
+    costs <- c()
+    cost <- NA
     for (state in genData$STATE) {
       if (state %in% c("START", "EXIT")) {
-        cost = 0
+        cost <- 0
       }
-      else{
-        cost = generateStateCost(observedStatistics = statisticsTable, state, duration = stateDuration)
+      else {
+        cost <- generateStateCost(observedStatistics = statisticsTable, state, duration = stateDuration)
       }
-      costs = c(costs, cost)
+      costs <- c(costs, cost)
     }
-    genData = cbind(genData, costs)
-    colnames(genData) =  c("SUBJECT_ID",
+    genData <- cbind(genData, costs)
+    colnames(genData) <-  c("SUBJECT_ID",
                            "STATE",
                            "STATE_START_DATE",
                            "STATE_END_DATE",
@@ -173,8 +173,8 @@ generateDataDiscrete = function(transitionMatrix,
   
   ParallelLogger::logInfo("Saving generated patients to a .csv file")
   save_object(
-    object = genData,
-    path = paste(
+    object <- genData,
+    path <- paste(
       pathToResults,
       "/tmp/datasets/",studyName,"generatedTrajectoriesDiscrete.csv",
       sep = ""
@@ -190,7 +190,6 @@ generateDataDiscrete = function(transitionMatrix,
     sep = ""
   ))
   return(genData)
-  
 }
 
 
@@ -215,7 +214,7 @@ generateDataDiscrete = function(transitionMatrix,
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
 #' @export
-generateDataContinuous = function(model,
+generateDataContinuous <- function(model,
                                   n = 100,
                                   minDate = "1900-01-01",
                                   maxDate = "2021-12-31",
@@ -223,61 +222,63 @@ generateDataContinuous = function(model,
                                   generateCost = 0,
                                   statisticsTable = NULL,
                                   studyName = "") {
-  genData = list()
+  genData <- list()
   
   ParallelLogger::logInfo(paste("Starting generation of ", n, " patients!"))
-  Q = msm::qmatrix.msm(model)
-  intensityMatrix = data.frame(unclass(Q$estimates))
-  stateLabels =  colnames(model$QmatricesSE$baseline)
-  colnames(intensityMatrix) = stateLabels
-  rownames(intensityMatrix) = stateLabels
+  Q <- msm::qmatrix.msm(model)
+  intensityMatrix <- data.frame(unclass(Q$estimates))
+  stateLabels <- colnames(model$QmatricesSE$baseline)
+  colnames(intensityMatrix) <- stateLabels
+  rownames(intensityMatrix) <- stateLabels
   for (patientId in 1:n) {
-    startState = "START"
+    startState <- "START"
     # Creating a random trajectory start date from sepcified region
-    startDate = as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
-    stayYears = rexp(1, -intensityMatrix[startState, startState])
-    endDate = startDate + 1 #as.integer(stayYears*365)
-    tmpPatientInfo = data.frame()
+    startDate <- as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
+    stayYears <- rexp(1, -intensityMatrix[startState, startState])
+    endDate <- startDate + 1 #as.integer(stayYears*365)
+    tmpPatientInfo <- data.frame()
     newRow = c(
       as.numeric(patientId),
       startState,
       as.character(startDate),
       as.character(endDate)
     )
-    tmpPatientInfo = rbind(tmpPatientInfo, newRow)
-    lastState = startState
+    tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
+    lastState <- startState
     # a while loop until we hit the absorbing state
     while (TRUE) {
-      probability = runif(1)
-      transitionMatrix = msm::pmatrix.msm(model, t = stayYears)
-      colnames(transitionMatrix) = stateLabels
-      rownames(transitionMatrix) = stateLabels
-      nextStateIndex = which.min(cumsum(transitionMatrix[lastState, ]) < probability)
-      nextState = colnames(transitionMatrix)[nextStateIndex]
+      probability <- runif(1)
+      transitionMatrix <- msm::pmatrix.msm(model, t = stayYears)
+      colnames(transitionMatrix) <- stateLabels
+      rownames(transitionMatrix) <- stateLabels
+      nextStateIndex <- which.min(cumsum(transitionMatrix[lastState, ]) < probability)
+      nextState <- colnames(transitionMatrix)[nextStateIndex]
       if (lastState == "START" & nextState == "EXIT") {
         next
       }
-      startDate = endDate
-      stayYears = if (nextState == "EXIT")
+      startDate <- endDate
+      stayYears <- if (nextState == "EXIT") {
         0.0
-      else
+      }
+      else {
         rexp(1, -intensityMatrix[nextState, nextState])
-      endDate = startDate + as.integer(stayYears * 365.25)
+      }
+      endDate <- startDate + as.integer(stayYears * 365.25)
       
-      newRow = c(
+      newRow <- c(
         as.numeric(patientId),
         nextState,
         as.character(startDate),
         as.character(endDate)
       )
-      tmpPatientInfo = rbind(tmpPatientInfo, newRow)
+      tmpPatientInfo <- rbind(tmpPatientInfo, newRow)
       if (nextState == "EXIT") {
         break
       }
-      lastState = nextState
+      lastState <- nextState
     }
     
-    colnames(tmpPatientInfo) =  c("SUBJECT_ID",
+    colnames(tmpPatientInfo) <- c("SUBJECT_ID",
                                   "STATE",
                                   "STATE_START_DATE",
                                   "STATE_END_DATE")
@@ -288,17 +289,17 @@ generateDataContinuous = function(model,
     #
     ############################################################################
     
-    tmpPatientInfo_START = dplyr::filter(tmpPatientInfo, STATE == "START")
-    tmpPatientInfo_START$STATE_START_DATE = min(tmpPatientInfo_START$STATE_START_DATE)
-    tmpPatientInfo_START$STATE_END_DATE = min(tmpPatientInfo_START$STATE_END_DATE)
-    tmpPatientInfo_START = tmpPatientInfo_START[1, ]
-    tmpPatientInfo = rbind(tmpPatientInfo_START,
+    tmpPatientInfo_START <- dplyr::filter(tmpPatientInfo, STATE == "START")
+    tmpPatientInfo_START$STATE_START_DATE <- min(tmpPatientInfo_START$STATE_START_DATE)
+    tmpPatientInfo_START$STATE_END_DATE <- min(tmpPatientInfo_START$STATE_END_DATE)
+    tmpPatientInfo_START <- tmpPatientInfo_START[1, ]
+    tmpPatientInfo <- rbind(tmpPatientInfo_START,
                            dplyr::filter(tmpPatientInfo, STATE != "START"))
     
-    genData[[patientId]] = tmpPatientInfo
+    genData[[patientId]] <- tmpPatientInfo
   }
   
-  genData = do.call(rbind, genData)
+  genData <- do.call(rbind, genData)
   
   ##############################################################################
   #
@@ -307,21 +308,21 @@ generateDataContinuous = function(model,
   ##############################################################################
   
   if (generateCost == 1) {
-    costs = c()
-    for (row in 1:nrow(genData)){
-      state = genData[row, "STATE"]
+    costs <- c()
+    for (row in 1:nrow(genData)) {
+      state <- genData[row, "STATE"]
       if (state %in% c("START", "EXIT")) {
-        cost = 0
+        cost <- 0
       }
-      else{
-        start = genData[row, "STATE_START_DATE"]
-        end = genData[row, "STATE_END_DATE"]
-        cost = generateStateCost(observedStatistics = statisticsTable, state, duration = as.integer(as.Date(end)-as.Date(start)))
+      else {
+        start <- genData[row, "STATE_START_DATE"]
+        end <- genData[row, "STATE_END_DATE"]
+        cost <- generateStateCost(observedStatistics = statisticsTable, state, duration = as.integer(as.Date(end)-as.Date(start)))
       }
-      costs = c(costs, cost)
+      costs <- c(costs, cost)
     }
-    genData = cbind(genData, costs)
-    colnames(genData) =  c("SUBJECT_ID",
+    genData <- cbind(genData, costs)
+   colnames(genData) <- c("SUBJECT_ID",
                            "STATE",
                            "STATE_START_DATE",
                            "STATE_END_DATE",
@@ -331,8 +332,8 @@ generateDataContinuous = function(model,
   
   ParallelLogger::logInfo("Saving generated patients to a .csv file")
   save_object(
-    object = genData,
-    path = paste(
+    object <- genData,
+    path <- paste(
       pathToResults,
       "/tmp/datasets/",studyName,"generatedTrajectoriesContinuous.csv",
       sep = ""
@@ -367,14 +368,14 @@ generateDataContinuous = function(model,
 #' @param observedData A data.frame object which is output of Cohort2Trajectory package
 #' @param generatedData The data frame of generated data
 #' @keywords internal
-compareTrajectoryData = function(observedData, generatedData) {
-  frame1 = as.data.frame(round(table(observedData$STATE) / nrow(observedData), 5))
-  frame2 = as.data.frame(round(table(generatedData$STATE) / nrow(generatedData), 5))
-  dataTable = merge(frame1, frame2, by = "Var1")
+compareTrajectoryData <- function(observedData, generatedData) {
+  frame1 <- as.data.frame(round(table(observedData$STATE) / nrow(observedData), 5))
+  frame2 <- as.data.frame(round(table(generatedData$STATE) / nrow(generatedData), 5))
+  dataTable <- merge(frame1, frame2, by = "Var1")
   
-  colnames(dataTable) = c("STATE", "OBSERVED", "GENERATED")
-  dataTable$OBSERVED = as.character(formattable::percent(dataTable$OBSERVED, 4))
-  dataTable$GENERATED = as.character(formattable::percent(dataTable$GENERATED, 4))
+  colnames(dataTable) <- c("STATE", "OBSERVED", "GENERATED")
+  dataTable$OBSERVED <- as.character(formattable::percent(dataTable$OBSERVED, 4))
+  dataTable$GENERATED <- as.character(formattable::percent(dataTable$GENERATED, 4))
   return(dataTable)
 }
 
@@ -393,14 +394,14 @@ compareTrajectoryData = function(observedData, generatedData) {
 #' @param observedDataA data.frame object which is output of Cohort2Trajectory package
 #' @param generatedData the data frame of generated data
 #' @keywords internal
-compareTrajectoryDataLogRank = function(observedData, generatedData) {
-  allStates = sort(unique(observedData$STATE))
-  lrMatrix = matrix(NA, length(allStates), length(allStates))
-  colnames(lrMatrix) = allStates
-  rownames(lrMatrix) = allStates
+compareTrajectoryDataLogRank <- function(observedData, generatedData) {
+  allStates <- sort(unique(observedData$STATE))
+  lrMatrix <- matrix(NA, length(allStates), length(allStates))
+  colnames(lrMatrix) <- allStates
+  rownames(lrMatrix) <- allStates
   for (startCohortId in allStates) {
     for (endCohortId in allStates) {
-      test_survival1 = kmDataPreparation(
+      test_survival1 <- kmDataPreparation(
         observedData,
         startCohortId,
         endCohortId,
@@ -408,7 +409,7 @@ compareTrajectoryDataLogRank = function(observedData, generatedData) {
         selectedIntervals = NULL,
         survivalType = "nearest"
       )
-      test_survival2 = kmDataPreparation(
+      test_survival2 <- kmDataPreparation(
         generatedData,
         startCohortId,
         endCohortId,
@@ -422,12 +423,12 @@ compareTrajectoryDataLogRank = function(observedData, generatedData) {
         next
       }
       
-      test_survival1$GROUP = "Observed"
-      test_survival2$GROUP = "Generated"
-      test_survival_combined = rbind(test_survival1, test_survival2)
+      test_survival1$GROUP <- "Observed"
+      test_survival2$GROUP <- "Generated"
+      test_survival_combined <- rbind(test_survival1, test_survival2)
       
       surv_object <- survminer::surv_fit(survival::Surv(DATE, OUTCOME) ~ GROUP, data = test_survival_combined)
-      p_value = survminer::surv_pvalue(surv_object, test_survival_combined)$pval
+      p_value <- survminer::surv_pvalue(surv_object, test_survival_combined)$pval
       ##########################################################################
       # surv_object <-
       #   survival::Surv(time = test_survival_combined$DATE, event =  test_survival_combined$OUTCOME)
@@ -436,7 +437,12 @@ compareTrajectoryDataLogRank = function(observedData, generatedData) {
       # diff <-
       #   survival::survdiff(SURV_OBJECT ~ GROUP, data = test_survival_combined)
       # p_value = pchisq(diff$chisq, length(diff$n) - 1, lower.tail = FALSE)
-      lrMatrix[startCohortId, endCohortId] = if(is.na(p_value)) 0 else p_value
+      lrMatrix[startCohortId, endCohortId] <- if (is.na(p_value)) {
+        0 
+        } 
+      else {
+        p_value
+      }
     }
   }
   return(lrMatrix)
@@ -457,8 +463,8 @@ compareTrajectoryDataLogRank = function(observedData, generatedData) {
 #' @param state The state notation
 #' @param duration Duration of the state
 #' @keywords internal
-generateStateCost = function(observedStatistics, state, duration) {
-  index = which(observedStatistics[,1] == state)
+generateStateCost <- function(observedStatistics, state, duration) {
+  index <- which(observedStatistics[,1] == state)
   
   # Beta distribution
   # mean = cost_data_statistics[index,2]$mean_charge/100000
@@ -468,11 +474,11 @@ generateStateCost = function(observedStatistics, state, duration) {
   # cost = rbeta(1, shape1 = alfa, shape2=beta)
   
   # Normal distribution
-  mean = as.numeric(observedStatistics[index, 2])
-  sd = as.numeric(observedStatistics[index, 3])
-  cost = rnorm(1, mean = mean, sd = sd)*duration
+  mean <- as.numeric(observedStatistics[index, 2])
+  sd <- as.numeric(observedStatistics[index, 3])
+  cost <- rnorm(1, mean = mean, sd = sd)*duration
   if (cost < 0) {
-    cost = 0
+    cost <- 0
   }
   return(round(cost,2))
 }

@@ -3,7 +3,7 @@
 # Header content
 #
 ################################################################################
-header =  shinydashboard::dashboardHeader(title = "TrajectoryMarkovAnalysis dashboard",
+header <-  shinydashboard::dashboardHeader(title = "TrajectoryMarkovAnalysis dashboard",
                                           tags$li(
                                             div(
                                               img(
@@ -22,7 +22,7 @@ header =  shinydashboard::dashboardHeader(title = "TrajectoryMarkovAnalysis dash
 # Sidebar content
 #
 ################################################################################
-sidebar = shinydashboard::dashboardSidebar(
+sidebar <- shinydashboard::dashboardSidebar(
   shinydashboard::sidebarMenu(
     shinydashboard::menuItem("Description", tabName = "description", icon = icon("home")),
     shinydashboard::menuItem("Import", tabName = "import", icon = icon("file-import")),
@@ -55,7 +55,7 @@ sidebar = shinydashboard::dashboardSidebar(
 #
 ################################################################################
 
-body = shinydashboard::dashboardBody(
+body <- shinydashboard::dashboardBody(
   id = "shinyBody",
   shinydashboard::tabItems(
     # First tab content
