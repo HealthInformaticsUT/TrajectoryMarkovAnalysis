@@ -15,15 +15,14 @@
 #'
 #' @export
 runGUI <- function(connection,
-                  connectionDetails,
-                  pathToDriver = './Drivers',
-                  dbms = "postgresql",
-                  cdmSchema = "ohdsi_cdm",
-                  cdmTmpSchema = "ohdsi_temp",
-                  cdmResultsSchema = "ohdsi_results",
-                  studyName = 'MarkovAnalysis',
-                  pathToResults = NULL)
-{
+                   connectionDetails,
+                   pathToDriver = './Drivers',
+                   dbms = "postgresql",
+                   cdmSchema = "ohdsi_cdm",
+                   cdmTmpSchema = "ohdsi_temp",
+                   cdmResultsSchema = "ohdsi_results",
+                   studyName = 'MarkovAnalysis',
+                   pathToResults = NULL) {
   ################################################################################
   #
   # Creating global variables
@@ -92,8 +91,6 @@ runGUI <- function(connection,
       relationName = "cost_person"
     )
   }
-  
-  
   
   DatabaseConnector::disconnect(conn)
   ParallelLogger::logInfo("The database conncetion has been closed")

@@ -82,9 +82,9 @@ idExists <- function(data, id) {
 #' @param controlEnd End of the date interval of interest
 #' @keywords internal
 daysOverlap <- function(dateStart,
-                       dateEnd,
-                       controlStart,
-                       controlEnd) {
+                        dateEnd,
+                        controlStart,
+                        controlEnd) {
   if (dateStart > controlStart &&
       dateEnd > controlEnd) {
     return(max(as.numeric(controlEnd - dateStart), 0))
@@ -107,15 +107,13 @@ daysOverlap <- function(dateStart,
 }
 
 #' Function for asking from user whether to drop the package-generated tables from database
-#' 
+#'
 #' @keywords internal
 droppingTables <- function() {
-  {
     ans <-
       as.character(readline(prompt = "Should we delete the cost_person table in temp schema? (y/n): "))
     cat("\n")
     return(ans)
-  }
 }
 
 
@@ -125,6 +123,6 @@ droppingTables <- function() {
 #' @keywords internal
 createMandatorySubDirs <- function(pathToResults) {
   dir.create(file.path(pathToResults, "tmp"), showWarnings = FALSE)
-  dir.create(file.path(paste(pathToResults,'/tmp', sep = ""), 'datasets'), showWarnings = FALSE)
-  dir.create(file.path(paste(pathToResults,'/tmp', sep = ""), 'models'), showWarnings = FALSE)
+  dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'datasets'), showWarnings = FALSE)
+  dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'models'), showWarnings = FALSE)
 }

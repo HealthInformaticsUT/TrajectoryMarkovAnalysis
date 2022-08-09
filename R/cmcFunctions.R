@@ -8,18 +8,20 @@
 dataPreparation <- function(patientData) {
   # We leave out all subjects which are conflicting with the starting state
   dataTarget <- dplyr::filter(patientData, STATE == 'START')
-  dataTarget <- dplyr::select(dataTarget, SUBJECT_ID, STATE_START_DATE)
+  dataTarget <-
+    dplyr::select(dataTarget, SUBJECT_ID, STATE_START_DATE)
   colnames(dataTarget) <- c("SUBJECT_ID", "REFERENCE_DATE")
   
   data <- merge(patientData, dataTarget, by = "SUBJECT_ID")
   
   data <- dplyr::filter(data, REFERENCE_DATE <= STATE_START_DATE)
-  data <- dplyr::mutate(
-    data,
-    TIME_IN_COHORT = as.numeric(difftime(as.Date(STATE_START_DATE),as.Date(REFERENCE_DATE)))/365.25
-  )
- 
-  states <- c("START", setdiff(unique(data$STATE), c("START", "EXIT")), "END")
+  data <- dplyr::mutate(data,
+                        TIME_IN_COHORT = as.numeric(difftime(
+                          as.Date(STATE_START_DATE), as.Date(REFERENCE_DATE)
+                        )) / 365.25)
+  
+  states <-
+    c("START", setdiff(unique(data$STATE), c("START", "EXIT")), "END")
   
   n <- length(states)
   data$STATE_ID <-
@@ -52,14 +54,24 @@ dataPreparation <- function(patientData) {
     }
     else {
       last_observed_ts <- data$TIME_IN_COHORT[row]
-      data$TIME_IN_COHORT[row] <- data$TIME_IN_COHORT[row] + impact * coef
+      data$TIME_IN_COHORT[row] <-
+        data$TIME_IN_COHORT[row] + impact * coef
       last_patient_id <- patient_id
       coef <- coef + 1
     }
   }
   data$STATE_ID <- as.numeric(data$STATE_ID)
   data <- dplyr::arrange(data, SUBJECT_ID, TIME_IN_COHORT, STATE_ID)
-  data <- dplyr::select(data,SUBJECT_ID,STATE,STATE_ID, STATE_START_DATE,STATE_END_DATE,TIME_IN_COHORT)
-
+  data <-
+    dplyr::select(
+      data,
+      SUBJECT_ID,
+      STATE,
+      STATE_ID,
+      STATE_START_DATE,
+      STATE_END_DATE,
+      TIME_IN_COHORT
+    )
+  
   return(data)
 }

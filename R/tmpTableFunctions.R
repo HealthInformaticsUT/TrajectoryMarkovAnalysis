@@ -45,11 +45,11 @@ createIndex <-
         toString(sprintf("%s", columnNames))
       if (tempTable) {
         sql <- paste("CREATE CLUSTERED INDEX ",
-                    label ,
-                    " ON ",
-                    relationName,
-                    " (%s)",
-                    sep = "")
+                     label ,
+                     " ON ",
+                     relationName,
+                     " (%s)",
+                     sep = "")
         DatabaseConnector::executeSql(connection,
                                       SqlRender::translate(
                                         targetDialect = dbms,
@@ -198,11 +198,11 @@ dropRelation <-
     }
     
     ParallelLogger::logInfo(paste("DROP TABLE ",
-                schema,
-                ".",
-                relationName,
-                " EXECUTED!",
-                sep = ""))
+                                  schema,
+                                  ".",
+                                  relationName,
+                                  " EXECUTED!",
+                                  sep = ""))
   }
 
 
@@ -220,9 +220,9 @@ dropRelation <-
 #' @keywords internal
 #' @return Boolean of success
 generateTempTables <- function(connection,
-                              dbms,
-                              cdmSchema = "ohdsi_cdm",
-                              cdmTmpSchema = "ohdsi_temp") {
+                               dbms,
+                               cdmSchema = "ohdsi_cdm",
+                               cdmTmpSchema = "ohdsi_temp") {
   #ParallelLogger::logInfo("Creating temp tables")
   ##############################################################################
   #

@@ -21,26 +21,28 @@
 #' @param studyName  Customized study name
 #' @export
 generateDataDiscrete <- function(transitionMatrix,
-                                #startingProbabilities,
-                                n = 100,
-                                minDate = "1900-01-01",
-                                maxDate = "2021-12-31",
-                                maxOut = 183,
-                                stateDuration = 30,
-                                pathToResults = getwd(),
-                                generateCost = 0,
-                                statisticsTable = NULL,
-                                studyName = "") {
+                                 #startingProbabilities,
+                                 n = 100,
+                                 minDate = "1900-01-01",
+                                 maxDate = "2021-12-31",
+                                 maxOut = 183,
+                                 stateDuration = 30,
+                                 pathToResults = getwd(),
+                                 generateCost = 0,
+                                 statisticsTable = NULL,
+                                 studyName = "") {
   genData <- list()
   
   ParallelLogger::logInfo(paste("Starting generation of ", n, " patients!"))
   
   for (patientId in 1:n) {
     startProbabilty <- runif(1)
-    startStateIndex <- which.min(transitionMatrix["START", ] < startProbabilty)
+    startStateIndex <-
+      which.min(transitionMatrix["START",] < startProbabilty)
     startState <- colnames(transitionMatrix)[startStateIndex]
-
-    startDate <- as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
+    
+    startDate <-
+      as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
     # Adding "START" state
     tmpPatientInfo <- data.frame()
     newRow <- c(
@@ -67,7 +69,8 @@ generateDataDiscrete <- function(transitionMatrix,
       i <- i + 1
       # Uniform distribution value for determining the next state
       probability <- runif(1)
-      nextStateIndex <- which.min(cumsum(transitionMatrix[lastState, ]) < probability)
+      nextStateIndex <-
+        which.min(cumsum(transitionMatrix[lastState,]) < probability)
       nextState <- colnames(transitionMatrix)[nextStateIndex]
       
       if (nextState == "START") {
@@ -136,9 +139,9 @@ generateDataDiscrete <- function(transitionMatrix,
     }
     
     colnames(tmpPatientInfo) <-  c("SUBJECT_ID",
-                                  "STATE",
-                                  "STATE_START_DATE",
-                                  "STATE_END_DATE")
+                                   "STATE",
+                                   "STATE_START_DATE",
+                                   "STATE_END_DATE")
     genData[[patientId]] <- tmpPatientInfo
   }
   
@@ -158,16 +161,19 @@ generateDataDiscrete <- function(transitionMatrix,
         cost <- 0
       }
       else {
-        cost <- generateStateCost(observedStatistics = statisticsTable, state, duration = stateDuration)
+        cost <-
+          generateStateCost(observedStatistics = statisticsTable,
+                            state,
+                            duration = stateDuration)
       }
       costs <- c(costs, cost)
     }
     genData <- cbind(genData, costs)
     colnames(genData) <-  c("SUBJECT_ID",
-                           "STATE",
-                           "STATE_START_DATE",
-                           "STATE_END_DATE",
-                           "COST")
+                            "STATE",
+                            "STATE_START_DATE",
+                            "STATE_END_DATE",
+                            "COST")
   }
   
   
@@ -176,7 +182,9 @@ generateDataDiscrete <- function(transitionMatrix,
     object <- genData,
     path <- paste(
       pathToResults,
-      "/tmp/datasets/",studyName,"generatedTrajectoriesDiscrete.csv",
+      "/tmp/datasets/",
+      studyName,
+      "generatedTrajectoriesDiscrete.csv",
       sep = ""
     )
   )
@@ -184,7 +192,9 @@ generateDataDiscrete <- function(transitionMatrix,
     "Saved to: ",
     paste(
       pathToResults,
-      "/tmp/datasets/",studyName,"generatedTrajectoriesDiscrete.csv",
+      "/tmp/datasets/",
+      studyName,
+      "generatedTrajectoriesDiscrete.csv",
       sep = ""
     ),
     sep = ""
@@ -215,13 +225,13 @@ generateDataDiscrete <- function(transitionMatrix,
 #' @param studyName  Customized study name
 #' @export
 generateDataContinuous <- function(model,
-                                  n = 100,
-                                  minDate = "1900-01-01",
-                                  maxDate = "2021-12-31",
-                                  pathToResults = getwd(),
-                                  generateCost = 0,
-                                  statisticsTable = NULL,
-                                  studyName = "") {
+                                   n = 100,
+                                   minDate = "1900-01-01",
+                                   maxDate = "2021-12-31",
+                                   pathToResults = getwd(),
+                                   generateCost = 0,
+                                   statisticsTable = NULL,
+                                   studyName = "") {
   genData <- list()
   
   ParallelLogger::logInfo(paste("Starting generation of ", n, " patients!"))
@@ -233,8 +243,9 @@ generateDataContinuous <- function(model,
   for (patientId in 1:n) {
     startState <- "START"
     # Creating a random trajectory start date from sepcified region
-    startDate <- as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
-    stayYears <- rexp(1, -intensityMatrix[startState, startState])
+    startDate <-
+      as.Date(minDate) + runif(1, min = 0, max = as.numeric(as.Date(maxDate) - as.Date(minDate)))
+    stayYears <- rexp(1,-intensityMatrix[startState, startState])
     endDate <- startDate + 1 #as.integer(stayYears*365)
     tmpPatientInfo <- data.frame()
     newRow = c(
@@ -251,7 +262,8 @@ generateDataContinuous <- function(model,
       transitionMatrix <- msm::pmatrix.msm(model, t = stayYears)
       colnames(transitionMatrix) <- stateLabels
       rownames(transitionMatrix) <- stateLabels
-      nextStateIndex <- which.min(cumsum(transitionMatrix[lastState, ]) < probability)
+      nextStateIndex <-
+        which.min(cumsum(transitionMatrix[lastState,]) < probability)
       nextState <- colnames(transitionMatrix)[nextStateIndex]
       if (lastState == "START" & nextState == "EXIT") {
         next
@@ -261,7 +273,7 @@ generateDataContinuous <- function(model,
         0.0
       }
       else {
-        rexp(1, -intensityMatrix[nextState, nextState])
+        rexp(1,-intensityMatrix[nextState, nextState])
       }
       endDate <- startDate + as.integer(stayYears * 365.25)
       
@@ -289,12 +301,15 @@ generateDataContinuous <- function(model,
     #
     ############################################################################
     
-    tmpPatientInfo_START <- dplyr::filter(tmpPatientInfo, STATE == "START")
-    tmpPatientInfo_START$STATE_START_DATE <- min(tmpPatientInfo_START$STATE_START_DATE)
-    tmpPatientInfo_START$STATE_END_DATE <- min(tmpPatientInfo_START$STATE_END_DATE)
-    tmpPatientInfo_START <- tmpPatientInfo_START[1, ]
+    tmpPatientInfo_START <-
+      dplyr::filter(tmpPatientInfo, STATE == "START")
+    tmpPatientInfo_START$STATE_START_DATE <-
+      min(tmpPatientInfo_START$STATE_START_DATE)
+    tmpPatientInfo_START$STATE_END_DATE <-
+      min(tmpPatientInfo_START$STATE_END_DATE)
+    tmpPatientInfo_START <- tmpPatientInfo_START[1,]
     tmpPatientInfo <- rbind(tmpPatientInfo_START,
-                           dplyr::filter(tmpPatientInfo, STATE != "START"))
+                            dplyr::filter(tmpPatientInfo, STATE != "START"))
     
     genData[[patientId]] <- tmpPatientInfo
   }
@@ -317,12 +332,17 @@ generateDataContinuous <- function(model,
       else {
         start <- genData[row, "STATE_START_DATE"]
         end <- genData[row, "STATE_END_DATE"]
-        cost <- generateStateCost(observedStatistics = statisticsTable, state, duration = as.integer(as.Date(end)-as.Date(start)))
+        cost <-
+          generateStateCost(
+            observedStatistics = statisticsTable,
+            state,
+            duration = as.integer(as.Date(end) - as.Date(start))
+          )
       }
       costs <- c(costs, cost)
     }
     genData <- cbind(genData, costs)
-   colnames(genData) <- c("SUBJECT_ID",
+    colnames(genData) <- c("SUBJECT_ID",
                            "STATE",
                            "STATE_START_DATE",
                            "STATE_END_DATE",
@@ -335,7 +355,9 @@ generateDataContinuous <- function(model,
     object <- genData,
     path <- paste(
       pathToResults,
-      "/tmp/datasets/",studyName,"generatedTrajectoriesContinuous.csv",
+      "/tmp/datasets/",
+      studyName,
+      "generatedTrajectoriesContinuous.csv",
       sep = ""
     )
   )
@@ -343,7 +365,9 @@ generateDataContinuous <- function(model,
     "Saved to: ",
     paste(
       pathToResults,
-      "/tmp/datasets/",studyName,"generatedTrajectoriesDiscrete.csv",
+      "/tmp/datasets/",
+      studyName,
+      "generatedTrajectoriesDiscrete.csv",
       sep = ""
     ),
     sep = ""
@@ -369,13 +393,17 @@ generateDataContinuous <- function(model,
 #' @param generatedData The data frame of generated data
 #' @keywords internal
 compareTrajectoryData <- function(observedData, generatedData) {
-  frame1 <- as.data.frame(round(table(observedData$STATE) / nrow(observedData), 5))
-  frame2 <- as.data.frame(round(table(generatedData$STATE) / nrow(generatedData), 5))
+  frame1 <-
+    as.data.frame(round(table(observedData$STATE) / nrow(observedData), 5))
+  frame2 <-
+    as.data.frame(round(table(generatedData$STATE) / nrow(generatedData), 5))
   dataTable <- merge(frame1, frame2, by = "Var1")
   
   colnames(dataTable) <- c("STATE", "OBSERVED", "GENERATED")
-  dataTable$OBSERVED <- as.character(formattable::percent(dataTable$OBSERVED, 4))
-  dataTable$GENERATED <- as.character(formattable::percent(dataTable$GENERATED, 4))
+  dataTable$OBSERVED <-
+    as.character(formattable::percent(dataTable$OBSERVED, 4))
+  dataTable$GENERATED <-
+    as.character(formattable::percent(dataTable$GENERATED, 4))
   return(dataTable)
 }
 
@@ -394,59 +422,63 @@ compareTrajectoryData <- function(observedData, generatedData) {
 #' @param observedDataA data.frame object which is output of Cohort2Trajectory package
 #' @param generatedData the data frame of generated data
 #' @keywords internal
-compareTrajectoryDataLogRank <- function(observedData, generatedData) {
-  allStates <- sort(unique(observedData$STATE))
-  lrMatrix <- matrix(NA, length(allStates), length(allStates))
-  colnames(lrMatrix) <- allStates
-  rownames(lrMatrix) <- allStates
-  for (startCohortId in allStates) {
-    for (endCohortId in allStates) {
-      test_survival1 <- kmDataPreparation(
-        observedData,
-        startCohortId,
-        endCohortId,
-        ageInterval = 0,
-        selectedIntervals = NULL,
-        survivalType = "nearest"
-      )
-      test_survival2 <- kmDataPreparation(
-        generatedData,
-        startCohortId,
-        endCohortId,
-        ageInterval = 0,
-        selectedIntervals = NULL,
-        survivalType = "nearest"
-      )
-      if (nrow(test_survival1) == 0 |
-          nrow(test_survival2) == 0) {
-        lrMatrix[startCohortId, endCohortId] = 1
-        next
-      }
-      
-      test_survival1$GROUP <- "Observed"
-      test_survival2$GROUP <- "Generated"
-      test_survival_combined <- rbind(test_survival1, test_survival2)
-      
-      surv_object <- survminer::surv_fit(survival::Surv(DATE, OUTCOME) ~ GROUP, data = test_survival_combined)
-      p_value <- survminer::surv_pvalue(surv_object, test_survival_combined)$pval
-      ##########################################################################
-      # surv_object <-
-      #   survival::Surv(time = test_survival_combined$DATE, event =  test_survival_combined$OUTCOME)
-      # test_survival_combined$SURV_OBJECT = surv_object
-      # 
-      # diff <-
-      #   survival::survdiff(SURV_OBJECT ~ GROUP, data = test_survival_combined)
-      # p_value = pchisq(diff$chisq, length(diff$n) - 1, lower.tail = FALSE)
-      lrMatrix[startCohortId, endCohortId] <- if (is.na(p_value)) {
-        0 
-        } 
-      else {
-        p_value
+compareTrajectoryDataLogRank <-
+  function(observedData, generatedData) {
+    allStates <- sort(unique(observedData$STATE))
+    lrMatrix <- matrix(NA, length(allStates), length(allStates))
+    colnames(lrMatrix) <- allStates
+    rownames(lrMatrix) <- allStates
+    for (startCohortId in allStates) {
+      for (endCohortId in allStates) {
+        test_survival1 <- kmDataPreparation(
+          observedData,
+          startCohortId,
+          endCohortId,
+          ageInterval = 0,
+          selectedIntervals = NULL,
+          survivalType = "nearest"
+        )
+        test_survival2 <- kmDataPreparation(
+          generatedData,
+          startCohortId,
+          endCohortId,
+          ageInterval = 0,
+          selectedIntervals = NULL,
+          survivalType = "nearest"
+        )
+        if (nrow(test_survival1) == 0 |
+            nrow(test_survival2) == 0) {
+          lrMatrix[startCohortId, endCohortId] = 1
+          next
+        }
+        
+        test_survival1$GROUP <- "Observed"
+        test_survival2$GROUP <- "Generated"
+        test_survival_combined <-
+          rbind(test_survival1, test_survival2)
+        
+        surv_object <-
+          survminer::surv_fit(survival::Surv(DATE, OUTCOME) ~ GROUP, data = test_survival_combined)
+        p_value <-
+          survminer::surv_pvalue(surv_object, test_survival_combined)$pval
+        ##########################################################################
+        # surv_object <-
+        #   survival::Surv(time = test_survival_combined$DATE, event =  test_survival_combined$OUTCOME)
+        # test_survival_combined$SURV_OBJECT = surv_object
+        #
+        # diff <-
+        #   survival::survdiff(SURV_OBJECT ~ GROUP, data = test_survival_combined)
+        # p_value = pchisq(diff$chisq, length(diff$n) - 1, lower.tail = FALSE)
+        lrMatrix[startCohortId, endCohortId] <- if (is.na(p_value)) {
+          0
+        }
+        else {
+          p_value
+        }
       }
     }
+    return(lrMatrix)
   }
-  return(lrMatrix)
-}
 
 
 
@@ -464,7 +496,7 @@ compareTrajectoryDataLogRank <- function(observedData, generatedData) {
 #' @param duration Duration of the state
 #' @keywords internal
 generateStateCost <- function(observedStatistics, state, duration) {
-  index <- which(observedStatistics[,1] == state)
+  index <- which(observedStatistics[, 1] == state)
   
   # Beta distribution
   # mean = cost_data_statistics[index,2]$mean_charge/100000
@@ -476,9 +508,9 @@ generateStateCost <- function(observedStatistics, state, duration) {
   # Normal distribution
   mean <- as.numeric(observedStatistics[index, 2])
   sd <- as.numeric(observedStatistics[index, 3])
-  cost <- rnorm(1, mean = mean, sd = sd)*duration
+  cost <- rnorm(1, mean = mean, sd = sd) * duration
   if (cost < 0) {
     cost <- 0
   }
-  return(round(cost,2))
+  return(round(cost, 2))
 }

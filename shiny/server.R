@@ -38,7 +38,8 @@ server <- function(input, output, session) {
     ext <- tools::file_ext(file$datapath)
     shiny::req(file)
     validate(need(ext == "csv", "Please upload a csv file"))
-    inputData <- as.data.frame(read.csv(file$datapath, header = TRUE))
+    inputData <-
+      as.data.frame(read.csv(file$datapath, header = TRUE))
     # Temporary: show first 5 rows of the file
     rows_to_show <- if (nrow(inputData) < 5) {
       nrow(inputData)
@@ -78,17 +79,25 @@ server <- function(input, output, session) {
   
   
   output$sunburst <- sunburstR::renderSunburst({
-    if (is.null(v$patientData)) {NULL}
+    if (is.null(v$patientData)) {
+      NULL
+    }
     else {
-    sunburstDetails <- drawSunburst(v$patientData)
-    sunburstR::add_shiny(sunburstR::sunburst(sunburstDetails$freqPaths,
-                       count = TRUE,
-                       colors = list(range = c(sunburstDetails$colors, "#cccccc","#cccccc"), domain = c(sunburstDetails$labels, "OUT OF COHORT", "End")),
-                       legend = list(w =200, h = 20, s = 5),
-                       breadcrumb = htmlwidgets::JS(("function(x) {return x;}")),
-                       height = "800px",
-                       width = "100%"
-    ))
+      sunburstDetails <- drawSunburst(v$patientData)
+      sunburstR::add_shiny(
+        sunburstR::sunburst(
+          sunburstDetails$freqPaths,
+          count = TRUE,
+          colors = list(
+            range = c(sunburstDetails$colors, "#cccccc", "#cccccc"),
+            domain = c(sunburstDetails$labels, "OUT OF COHORT", "End")
+          ),
+          legend = list(w = 200, h = 20, s = 5),
+          breadcrumb = htmlwidgets::JS(("function(x) {return x;}")),
+          height = "800px",
+          width = "100%"
+        )
+      )
     }
   })
   
@@ -134,17 +143,14 @@ server <- function(input, output, session) {
     }
     isolate(# Real value
       stochasticTransitions())
-  }
-  , #rownames = T)
-  )
-  
+  })
   
   trajectoryStartStatistics <- reactive({
     validate(need(
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
     ))
-    tmpData <- getFirstState(v$patientData,input$excludedStatesDisc)
+    tmpData <- getFirstState(v$patientData, input$excludedStatesDisc)
     return(
       getFirstStateStatistics(
         connection = conn,
@@ -174,9 +180,7 @@ server <- function(input, output, session) {
         digits = 2
       ))
     
-  }
-  , #rownames = T)
-  )
+  })
   
   stateStatistics <- reactive({
     validate(need(
@@ -194,13 +198,23 @@ server <- function(input, output, session) {
       cost_domains = input$costDomainsDisc,
       excludedStates = input$excludedStatesDisc
     )
-    return(
-      v$stateStatisticsTable$table
-    )
+    return(v$stateStatisticsTable$table)
   })
   
-  output$textMean <- shiny::renderText({ paste("The mean trajectory cost of a patient:", round(as.numeric(v$stateStatisticsTable$mean,2)),"€", sep = " ")})
-  output$textMedian <- shiny::renderText({ paste("The median trajectory cost of a patient:", round(as.numeric(v$stateStatisticsTable$median,2)), "€", sep = " ") })
+  output$textMean <-
+    shiny::renderText({
+      paste("The mean trajectory cost of a patient:",
+            round(as.numeric(v$stateStatisticsTable$mean, 2)),
+            "€",
+            sep = " ")
+    })
+  output$textMedian <-
+    shiny::renderText({
+      paste("The median trajectory cost of a patient:",
+            round(as.numeric(v$stateStatisticsTable$median, 2)),
+            "€",
+            sep = " ")
+    })
   
   output$stateStatistics <- DT::renderDT({
     if (input$markovAnalyseButton == 0) {
@@ -220,9 +234,7 @@ server <- function(input, output, session) {
         digits = 2
       ))
     
-  }
-  , #rownames = T)
-  )
+  })
   
   costDistPlot <- reactive({
     validate(need(
@@ -274,7 +286,7 @@ server <- function(input, output, session) {
       matrix(1, nrow = length(v$states), ncol = length(v$states))
     diag(v$qmatrixCMC) <- 0
     v$qmatrixCMC[, 1] <- 0
-    v$qmatrixCMC[length(v$states),] <- 0
+    v$qmatrixCMC[length(v$states), ] <- 0
     # Add correct labels
     v$idStates <- dplyr::arrange(v$idStates, STATE_ID)
     
@@ -335,7 +347,8 @@ server <- function(input, output, session) {
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!"
     ))
-    table <- data.frame(unclass(msm::qmatrix.msm(v$modelCMC)$estimates))
+    table <-
+      data.frame(unclass(msm::qmatrix.msm(v$modelCMC)$estimates))
     table
   })
   
@@ -353,7 +366,8 @@ server <- function(input, output, session) {
       "Please import relevant cohorts under 'Import' tab!"
     ))
     table1 <- data.frame(unclass(msm::sojourn.msm(v$modelCMC)))
-    table2 <- data.frame(unclass(msm::totlos.msm(v$modelCMC)))[1:nrow(table1),]
+    table2 <-
+      data.frame(unclass(msm::totlos.msm(v$modelCMC)))[1:nrow(table1), ]
     table <- cbind(table1, table2)
     rownames(table) <-
       plyr::mapvalues(
@@ -362,11 +376,13 @@ server <- function(input, output, session) {
         to = v$idStates$STATE,
         warn_missing = FALSE
       )
-    colnames(table) <- c("Estimate (days)",
-                        "Standard error",
-                        "Lower",
-                        "Upper",
-                        "Estimated stay per patient (days)")
+    colnames(table) <- c(
+      "Estimate (days)",
+      "Standard error",
+      "Lower",
+      "Upper",
+      "Estimated stay per patient (days)"
+    )
     table <- table * 365.25
     table
   })
@@ -411,7 +427,7 @@ server <- function(input, output, session) {
       !is.null(v$patientData),
       "Please import relevant cohorts under 'Import' tab!!"
     ))
-    tmpData <- getFirstState(v$patientData,input$excludedStatesCon)
+    tmpData <- getFirstState(v$patientData, input$excludedStatesCon)
     return(
       getFirstStateStatistics(
         connection = conn,
@@ -441,9 +457,7 @@ server <- function(input, output, session) {
         digits = 2
       ))
     
-  }
-  , #rownames = T)
-  )
+  })
   
   
   stateStatisticsCon <- reactive({
@@ -460,9 +474,7 @@ server <- function(input, output, session) {
       cost_domains = input$costDomainsCon,
       excludedStates = input$excludedStatesCon
     )
-    return(
-      v$stateStatisticsTable$table 
-    )
+    return(v$stateStatisticsTable$table)
   })
   
   output$stateStatisticsCon <- DT::renderDT({
@@ -483,7 +495,7 @@ server <- function(input, output, session) {
         digits = 2
       ))
     
-  } , )
+  } ,)
   
   costDistPlotCon <- reactive({
     validate(need(
@@ -535,7 +547,7 @@ server <- function(input, output, session) {
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       
-      progress$set(message = "Loading personal data...", value = 1/4)
+      progress$set(message = "Loading personal data...", value = 1 / 4)
       
       v$patientData <- addPersonalData(v$patientData, conn)
       progress$set(message = "Loading  complete!", value = 1)
@@ -545,7 +557,7 @@ server <- function(input, output, session) {
   
   output$kmAgeAnalysisIntervals <- renderUI({
     if (!v$kmAgeAnalysis) {
-    return()
+      return()
     }
     # # minAge5 = (ceiling(minAge/5)-1)*5
     # # maxAge5 = (ceiling(maxAge/5))*5
@@ -597,28 +609,31 @@ server <- function(input, output, session) {
       v$kmIntervalIds <<- NULL
       
       output$inputsIntervals <- renderUI({
+        
       })
     } else {
-      v$kmIntervalIds <<- v$kmIntervalIds[v$kmIntervalIds < max(v$kmIntervalIds)]
-    minAge <- max(round(min(c(
-      v$patientData$AGE, 120
-    ))) - 1, 0)
-    maxAge <- round(max(c(v$patientData$AGE, 0))) + 1
-    output$inputsIntervals <- renderUI({
-      tagList(lapply(1:length(v$kmIntervalIds), function(i) {
-        shiny::sliderInput(
-          paste0("intervalInput", v$kmIntervalIds[i]),
-          label = sprintf("Interval #%d", v$kmIntervalIds[i]),
-          min = minAge,
-          max = maxAge,
-          value = c(minAge, maxAge),
-          step = NULL,
-          round = TRUE
-        )
-      }))
-    })}
+      v$kmIntervalIds <<-
+        v$kmIntervalIds[v$kmIntervalIds < max(v$kmIntervalIds)]
+      minAge <- max(round(min(c(
+        v$patientData$AGE, 120
+      ))) - 1, 0)
+      maxAge <- round(max(c(v$patientData$AGE, 0))) + 1
+      output$inputsIntervals <- renderUI({
+        tagList(lapply(1:length(v$kmIntervalIds), function(i) {
+          shiny::sliderInput(
+            paste0("intervalInput", v$kmIntervalIds[i]),
+            label = sprintf("Interval #%d", v$kmIntervalIds[i]),
+            min = minAge,
+            max = maxAge,
+            value = c(minAge, maxAge),
+            step = NULL,
+            round = TRUE
+          )
+        }))
+      })
+    }
   })
-
+  
   
   #TODO: NB! For combining ggsurvplots we might use ggsurvplot_combine function
   
@@ -670,7 +685,8 @@ server <- function(input, output, session) {
         )$plot  + ggplot2::labs(title = input$kmStates[i])
       }
       else {
-        p <- survminer::ggsurvplot(fit, data = v$kmData, conf.int = TRUE)$plot + ggplot2::labs(title = input$kmStates[i])#, pval = TRUE)$plot
+        p <-
+          survminer::ggsurvplot(fit, data = v$kmData, conf.int = TRUE)$plot + ggplot2::labs(title = input$kmStates[i])#, pval = TRUE)$plot
       }
       plots[[i]] <- p
     }
@@ -901,7 +917,8 @@ server <- function(input, output, session) {
               )
             
             n <- n * length(inputLayersDT [[i]])
-            labels <- c(labels, rep(inputLayersDT [[i + 1]], times = n))
+            labels <-
+              c(labels, rep(inputLayersDT [[i + 1]], times = n))
             edges <- rbind(edges, d_next)
             
             d_last <- d_next
@@ -916,7 +933,8 @@ server <- function(input, output, session) {
         v$dtreeDataFrame <- edges
         
         mygraph <- igraph::graph_from_data_frame(edges)
-        p <- ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
+        p <-
+          ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
           ggraph::geom_edge_diagonal() +
           ggraph::geom_node_text(
             ggplot2::aes(label = as.character(labels), filter = leaf),
@@ -1007,10 +1025,9 @@ server <- function(input, output, session) {
         #   cluster=sample(letters[1:4], length(name), replace=T),
         #   value=sample(seq(10,30), length(name), replace=T)
         # )
-        dTreeProbabilities <- getDTreeProbabilities(
-          cohortData <- v$patientData,
-          stateCohorts <- v$states
-        )
+        dTreeProbabilities <- getDTreeProbabilities(cohortData <-
+                                                      v$patientData,
+                                                    stateCohorts <- v$states)
         
         edges <- mergeEdgeTransition(
           cohortData = v$patientData,
@@ -1018,9 +1035,11 @@ server <- function(input, output, session) {
           stateTransitionTable = dTreeProbabilities,
           probabilityType = input$dTreeProbabilityType
         )
-        labels <- c('START', paste(edges$to_label, paste(edges$PROB, "%", sep =
-                                                          ""), sep = " "))
-        p <- ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
+        labels <-
+          c('START', paste(edges$to_label, paste(edges$PROB, "%", sep =
+                                                   ""), sep = " "))
+        p <-
+          ggraph::ggraph(mygraph, layout = 'dendrogram', circular = FALSE) +
           ggraph::geom_edge_diagonal() +
           ggraph::geom_node_text(
             ggplot2::aes(label = as.character(labels), filter = leaf),
@@ -1061,11 +1080,11 @@ server <- function(input, output, session) {
       )
     }
     else {
-#      firstStates = getFirstState(v$patientData)$FIRST_STATE
-#      startingProbabilities = as.data.frame(matrix(cumsum(prop.table(
-#        table(firstStates)
-#      )), nrow = 1))
-#      colnames(startingProbabilities) = unique(firstStates)
+      #      firstStates = getFirstState(v$patientData)$FIRST_STATE
+      #      startingProbabilities = as.data.frame(matrix(cumsum(prop.table(
+      #        table(firstStates)
+      #      )), nrow = 1))
+      #      colnames(startingProbabilities) = unique(firstStates)
       v$generatedData <- generateDataDiscrete(
         transitionMatrix = v$discreteMatrix,
         n = input$generationNrPatients,
@@ -1082,15 +1101,13 @@ server <- function(input, output, session) {
   
   generationCompareTable <- reactive({
     validate(need(!is.null(v$generatedData), "Please generate some data!"))
-    compareTrajectoryData(
-      observedData = if (input$trajectoryTypeMatrix == 2) {
-        v$dataCMC
-        }
-      else {
-        v$patientData
-        },
-      generatedData <- v$generatedData
-    )
+    compareTrajectoryData(observedData = if (input$trajectoryTypeMatrix == 2) {
+      v$dataCMC
+    }
+    else {
+      v$patientData
+    },
+    generatedData <- v$generatedData)
   })
   
   output$generationCompareTable <-  shiny::renderTable({
@@ -1105,15 +1122,13 @@ server <- function(input, output, session) {
     validate(validate(need(
       !is.null(v$generatedData), "Please generate some data!"
     )))
-    compareTrajectoryDataLogRank(
-      observedData = if (input$trajectoryTypeMatrix == 2) {
-        v$dataCMC
-      }
-      else {
-        v$patientData
-        },
-      generatedData <- v$generatedData
-    )
+    compareTrajectoryDataLogRank(observedData = if (input$trajectoryTypeMatrix == 2) {
+      v$dataCMC
+    }
+    else {
+      v$patientData
+    },
+    generatedData <- v$generatedData)
   })
   
   output$generationLRMatrix <- DT::renderDT({
