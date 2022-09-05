@@ -182,7 +182,9 @@ generateDataDiscrete <- function(transitionMatrix,
     object <- genData,
     path <- paste(
       pathToResults,
-      "/tmp/datasets/",
+      "/tmp/databases/",
+      studyName,
+      "/",
       studyName,
       "generatedTrajectoriesDiscrete.csv",
       sep = ""
@@ -192,7 +194,9 @@ generateDataDiscrete <- function(transitionMatrix,
     "Saved to: ",
     paste(
       pathToResults,
-      "/tmp/datasets/",
+      "/tmp/databases/",
+      studyName,
+      "/",
       studyName,
       "generatedTrajectoriesDiscrete.csv",
       sep = ""
@@ -355,9 +359,10 @@ generateDataContinuous <- function(model,
     object <- genData,
     path <- paste(
       pathToResults,
-      "/tmp/datasets/",
+      "/tmp/databases/",
       studyName,
-      "generatedTrajectoriesContinuous.csv",
+      "/",
+      studyName,      "generatedTrajectoriesContinuous.csv",
       sep = ""
     )
   )
@@ -365,7 +370,9 @@ generateDataContinuous <- function(model,
     "Saved to: ",
     paste(
       pathToResults,
-      "/tmp/datasets/",
+      "/tmp/databases/",
+      studyName,
+      "/",
       studyName,
       "generatedTrajectoriesDiscrete.csv",
       sep = ""

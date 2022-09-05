@@ -110,9 +110,11 @@ getStohasticMatrix <- function(cohortData,
   save_object(M, path = paste(
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_discrete_transistion_matrix.rdata",
+      "/",
+      studyName,
+      "_discrete_transition_matrix.rdata",
       sep = ""
     ),
     sep = ""
@@ -121,9 +123,11 @@ getStohasticMatrix <- function(cohortData,
     "Saved to: ",
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_discrete_transistion_matrix.rdata",
+      "/",
+      studyName,
+      "_discrete_transition_matrix.rdata",
       sep = ""
     ),
     sep = ""
@@ -291,9 +295,10 @@ LEFT JOIN tma_first_state
   save_object(table, path = paste(
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_first_state_statistics.rdata",
+      "/",
+      studyName,      "_first_state_statistics.txt",
       sep = ""
     ),
     sep = ""
@@ -302,9 +307,11 @@ LEFT JOIN tma_first_state
     "Saved to: ",
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_first_state_statistics.rdata",
+      "/",
+      studyName,
+      "_first_state_statistics.txt",
       sep = ""
     ),
     sep = ""
@@ -439,13 +446,13 @@ LEFT JOIN tma_states
   )
   save_object(data, path = paste(
     pathToResults,
-    paste("/tmp/datasets/", studyName, "_state_cost.rdata", sep = ""),
+    paste("/tmp/databases/",studyName,"/", studyName, "_state_cost.csv", sep = ""),
     sep = ""
   ))
   ParallelLogger::logInfo(paste(
     "Saved to: ",
     pathToResults,
-    paste("/tmp/datasets/", studyName, "_state_cost.rdata", sep = ""),
+    paste("/tmp/databases/",studyName,"/", studyName, "_state_cost.csv", sep = ""),
     sep = ""
   ))
   # Overall trajectories charge statistics mean & median
@@ -601,13 +608,17 @@ LEFT JOIN tma_states
   )
   save_object(table, path = paste(
     pathToResults,
-    paste("/tmp/models/", studyName, "_state_statistics.rdata", sep = ""),
+    paste("/tmp/databases/",       studyName,
+          "/",
+          studyName, "_state_statistics.txt", sep = ""),
     sep = ""
   ))
   ParallelLogger::logInfo(paste(
     "Saved to: ",
     pathToResults,
-    paste("/tmp/models/", studyName, "_state_statistics.rdata", sep = ""),
+    paste("/tmp/databases/",       studyName,
+          "/",
+          studyName, "_state_statistics.txt", sep = ""),
     sep = ""
   ))
   return(

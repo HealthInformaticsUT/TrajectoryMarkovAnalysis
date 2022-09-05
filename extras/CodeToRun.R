@@ -14,15 +14,17 @@ pathToResults <- getwd()   # TODO
 #
 ################################################################################
 pathToDriver = './Drivers'
-dbms <- "" #TODO
+dbms <- 'postgresql' #TODO
 user <- '' #TODO
 pw <- "" #TODO
 server <- 'ip/database' #TODO
 port <- '5432' #TODO
 
-cdmSchema = "" #TODO # Schema which contains the OHDSI Common Data Model
-cdmTmpSchema = "" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
-cdmResultsSchema = "" #TODO # Schema which will contain the final results
+cdmSchema <- "" #TODO # Schema which contains the OHDSI Common Data Model
+cdmTmpSchema <- "" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
+cdmResultsSchema <- "" #TODO # Schema which will contain the final results
+
+databaseDescription <- "This is a very cool database." #TODO
 
 
 ################################################################################
@@ -57,7 +59,8 @@ runGUI(
   cdmTmpSchema = cdmTmpSchema,
   cdmResultsSchema = cdmResultsSchema,
   studyName = studyName,
-  pathToResults = pathToResults
+  pathToResults = pathToResults,
+  databaseDescription = databaseDescription
 )
 ################################################################################
 #
@@ -66,18 +69,20 @@ runGUI(
 ################################################################################
 
 
-# inputData = readr::read_csv("todo") # trajectory data
-# modelType = "discrete" # "discrete" or "continuous"
-# excludedStates = c()
-
-# costDomains = c('Drug',
+# inputData <- readr::read_csv("/home/...") # trajectory data
+# modelType <- "discrete" # "discrete" or "continuous"
+# excludedStates <- c("OUT OF COHORT")
+# 
+# costDomains <- c(
+#                'Drug',
 #                'Visit',
 #                'Procedure',
 #                'Device',
 #                'Measurement',
 #                'Observation',
-#                'Specimen')
-
+#                'Specimen'
+#                )
+# 
 # TrajectoryMarkovAnalysis(
 #  conn,
 #  dbms,
@@ -88,8 +93,10 @@ runGUI(
 #  studyName,
 #  pathToResults,
 #  excludedStates,
-#  costDomains
-#)
+#  costDomains,
+#  databaseDescription
+# )
+
 
 
 ################################################################################
@@ -121,3 +128,14 @@ runGUI(
 #                      maxDate = "2021-12-31",
 #                      pathToResults = pathToResults,
 #                      studyName = studyName)
+
+
+################################################################################
+#
+# Run dashboard
+#
+################################################################################
+
+# The pathToResults variable should point to the directory with subfolders tmp/databases/... which will be created as the result of running TrajectoryMarkovanalysis package. 
+
+runDashboard(pathToResults = pathToResults)

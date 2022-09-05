@@ -249,7 +249,7 @@ getCostDistPlot <- function(connection, dbms, cdmTmpSchema) {
     sql <- SqlRender::translate(
       targetDialect <- dbms,
       sql = SqlRender::render(
-        sql = "SELECT tma_states.STATE as STATE, SUM(cost_person.total_charge) as TOTAL_CHARGE
+        sql = "SELECT tma_states.STATE as STATE, SUM(cost_person.total_cost) as TOTAL_COST
 FROM @cdmTmpSchema.cost_person
 LEFT JOIN tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
@@ -263,9 +263,9 @@ LEFT JOIN tma_states
   data[is.na(data)] <- 0
   
   plot <-
-    ggplot2::ggplot(data, ggplot2::aes(x = TOTAL_CHARGE, fill = factor(STATE))) +
-    ggplot2::geom_density(alpha = 0.4) + ggplot2::xlim(0, mean(data$TOTAL_CHARGE) + 1.96 *
-                                                         2 * sd(data$TOTAL_CHARGE)) + ggplot2::labs(fill = 'State') + ggplot2::xlab('Total charge') + ggplot2::ylab('Density')
+    ggplot2::ggplot(data, ggplot2::aes(x = TOTAL_COST, fill = factor(STATE))) +
+    ggplot2::geom_density(alpha = 0.4) + ggplot2::xlim(0, mean(data$TOTAL_COST) + 1.96 *
+                                                         2 * sd(data$TOTAL_COST)) + ggplot2::labs(fill = 'State') + ggplot2::xlab('Total cost') + ggplot2::ylab('Density')
   return(plot)
 }
 

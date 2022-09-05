@@ -17,6 +17,7 @@
 #' @param pathToResults The path where results will be saved
 #' @param excludedStates States which have to be discarded from the study
 #' @param costDomains Cost domains to include in cost analysis
+#' @param databaseDescription Information about the OMOP CDM database data
 #' @export
 
 TrajectoryMarkovAnalysis <- function(conn,
@@ -34,14 +35,15 @@ TrajectoryMarkovAnalysis <- function(conn,
                                                      'Device',
                                                      'Measurement',
                                                      'Observation',
-                                                     'Specimen')) {
+                                                     'Specimen'),
+                                     databaseDescription = 'A cool database') {
   ###############################################################################
   #
   # Creating mandatory directories if they do not exist
   #
   ###############################################################################
   
-  createMandatorySubDirs(pathToResults)
+  createMandatorySubDirs(pathToResults,databaseDescription)
   
   # Creating temp tables
   if (!DatabaseConnector::dbExistsTable(conn = conn,
@@ -71,6 +73,51 @@ TrajectoryMarkovAnalysis <- function(conn,
   idStates <- as.data.frame(idStates)
   
   markovModel <- NULL
+  ##############################################################################
+  #
+  # Saving sunburst plot
+  #
+  ##############################################################################
+  
+  ParallelLogger::logInfo("Creating and saving sunburst plot!")
+  sunburstDetails <- drawSunburst(inputData)
+  # plot <- sunburstR::sunburst(
+  #     sunburstDetails$freqPaths,
+  #     count = TRUE,
+  #     colors = list(
+  #       range = c(sunburstDetails$colors, "#cccccc", "#cccccc"),
+  #       domain = c(sunburstDetails$labels, "OUT OF COHORT", "End")
+  #     ),
+  #     legend = list(w = 200, h = 20, s = 5),
+  #     breadcrumb = htmlwidgets::JS(("function(x) {return x;}")),
+  #     height = "800px",
+  #     width = "100%"
+  #   )
+  # htmlwidgets::saveWidget(
+  #   plot,
+  #   file = paste(
+  #     pathToResults,
+  #     paste(
+  #       "/tmp/models/",
+  #       studyName,
+  #       "sunburst.rdata",
+  #       sep = ""
+  #     ),
+  #     sep = ""
+  #   ),
+  #   background = "white",
+  #   title = "Sunburst plot of trajectories"
+  # )
+  save_object(sunburstDetails, path = paste(
+    pathToResults,
+    paste("/tmp/databases/",
+          studyName,
+          "/",
+          studyName,
+          "sunburst.rdata",
+          sep = ""),
+    sep = ""
+  ))
   
   ##############################################################################
   #
@@ -79,11 +126,11 @@ TrajectoryMarkovAnalysis <- function(conn,
   ##############################################################################
   if (modelType == "discrete") {
     markovModel <- getStohasticMatrix(
-      cohortData <- inputData,
-      stateCohorts <- states,
-      pathToResults <- pathToResults,
-      studyName <- studyName,
-      excludedStates <- excludedStates
+      cohortData = inputData,
+      stateCohorts = states,
+      pathToResults = pathToResults,
+      studyName = studyName,
+      excludedStates = excludedStates
     )
     
     
@@ -121,7 +168,9 @@ TrajectoryMarkovAnalysis <- function(conn,
     save_object(markovModel, path = paste(
       pathToResults,
       paste(
-        "/tmp/models/",
+        "/tmp/databases/",
+        studyName,
+        "/",
         studyName,
         "_continuous_intensity_matrix.rdata",
         sep = ""
@@ -132,7 +181,9 @@ TrajectoryMarkovAnalysis <- function(conn,
       "Saved to: ",
       pathToResults,
       paste(
-        "/models/",
+        "/databases/",
+        studyName,
+        "/",
         studyName,
         "_continuous_intensity_matrix.rdata",
         sep = ""

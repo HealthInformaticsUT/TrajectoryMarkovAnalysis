@@ -223,7 +223,7 @@ generateTempTables <- function(connection,
                                dbms,
                                cdmSchema = "ohdsi_cdm",
                                cdmTmpSchema = "ohdsi_temp") {
-  #ParallelLogger::logInfo("Creating temp tables")
+  ParallelLogger::logInfo("Creating temp tables, this can take a while...")
   ##############################################################################
   #
   # Cost table with person_id's and approximate payment dates.

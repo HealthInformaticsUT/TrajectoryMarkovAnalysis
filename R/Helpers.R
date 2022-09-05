@@ -56,6 +56,9 @@ save_object <- function(object, path) {
   if (is.data.frame(object)) {
     utils::write.csv(object, path, row.names = FALSE)
   }
+  else if (is.table(object)) {
+    utils::write.table(object, file = path, row.names = FALSE)
+  }
   else {
     save(object, file = path)
   }
@@ -121,8 +124,14 @@ droppingTables <- function() {
 #'
 #' @param pathToResults Path to the package results
 #' @keywords internal
-createMandatorySubDirs <- function(pathToResults) {
+createMandatorySubDirs <- function(pathToResults, databaseDescription) {
   dir.create(file.path(pathToResults, "tmp"), showWarnings = FALSE)
-  dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'datasets'), showWarnings = FALSE)
-  dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'models'), showWarnings = FALSE)
+  dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'databases'), showWarnings = FALSE)
+  dir.create(file.path(paste(pathToResults, '/tmp/databases', sep = ""), studyName), showWarnings = FALSE)
+  #dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'models'), showWarnings = FALSE)
+  # Write database description file
+  fileConn<-file((paste(pathToResults, '/tmp/databases/',studyName,'/description.md', sep = "")))
+  writeLines(databaseDescription, fileConn)
+  close(fileConn)
+  
 }

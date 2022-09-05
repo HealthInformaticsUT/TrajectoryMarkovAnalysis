@@ -8,22 +8,22 @@ server <- function(input, output, session) {
   ## Retrieve patients from selected cohorts
   v <-
     reactiveValues(
-      patientData <- NULL,
-      states <- NULL,
-      idStates <- NULL,
-      profileStochasticPlot <- NULL,
-      discreteMatrix <- NULL,
-      qmatrixCMC <- NULL,
-      modelCMC <- NULL,
-      dataCMC <- NULL,
-      patientCostInfo <- NULL,
-      kmData <- NULL,
-      kmAgeAnalysis <- FALSE,
-      kmIntervalIds <- NULL,
-      dtreeIds <- NULL,
-      dtreeDataFrame <- NULL,
-      generatedData <- NULL,
-      stateStatisticsTable <- NULL
+      patientData = NULL,
+      states = NULL,
+      idStates = NULL,
+      profileStochasticPlot = NULL,
+      discreteMatrix = NULL,
+      qmatrixCMC = NULL,
+      modelCMC = NULL,
+      dataCMC = NULL,
+      patientCostInfo = NULL,
+      kmData = NULL,
+      kmAgeAnalysis = FALSE,
+      kmIntervalIds = NULL,
+      dtreeIds = NULL,
+      dtreeDataFrame = NULL,
+      generatedData = NULL,
+      stateStatisticsTable = NULL
     )
   
   ##############################################################################
@@ -83,9 +83,9 @@ server <- function(input, output, session) {
       NULL
     }
     else {
+      ParallelLogger::logInfo("Creating and saving sunburst plot!")
       sunburstDetails <- drawSunburst(v$patientData)
-      sunburstR::add_shiny(
-        sunburstR::sunburst(
+      plot <- sunburstR::sunburst(
           sunburstDetails$freqPaths,
           count = TRUE,
           colors = list(
@@ -97,7 +97,18 @@ server <- function(input, output, session) {
           height = "800px",
           width = "100%"
         )
-      )
+      
+      save_object(sunburstDetails, path = paste(
+        pathToResults,
+        paste("/tmp/databases/",
+              studyName,
+              "/",
+              studyName,
+              "sunburst.rdata",
+              sep = ""),
+        sep = ""
+      ))
+      return(sunburstR::add_shiny(plot))
     }
   })
   
@@ -322,7 +333,9 @@ server <- function(input, output, session) {
     save_object(v$modelCMC, path = paste(
       pathToResults,
       paste(
-        "/tmp/models/",
+        "/tmp/databases/",
+        studyName,
+        "/",
         studyName,
         "_continuous_intensity_matrix.rdata",
         sep = ""
@@ -333,7 +346,9 @@ server <- function(input, output, session) {
       "Saved to: ",
       pathToResults,
       paste(
-        "/models/",
+        "/databases/",
+        studyName,
+        "/",
         studyName,
         "_continuous_intensity_matrix.rdata",
         sep = ""
