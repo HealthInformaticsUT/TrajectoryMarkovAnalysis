@@ -45,5 +45,6 @@ TrajectoryMarkovAnalysis is being developed in R Studio.
 
 # Acknowledgements
 
+[Cohort2Trajectory package](https://github.com/HealthInformaticsUT/Cohort2Trajectory) by Markus Haug
 [TrajectoryViz package](https://github.com/HealthInformaticsUT/TrajectoryViz) by Maarja Pajusalu
 
