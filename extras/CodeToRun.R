@@ -20,9 +20,9 @@ pw <- "" #TODO
 server <- 'ip/database' #TODO
 port <- '5432' #TODO
 
-cdmSchema <- "" #TODO # Schema which contains the OHDSI Common Data Model
-cdmTmpSchema <- "" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
-cdmResultsSchema <- "" #TODO # Schema which will contain the final results
+cdmSchema <- "ohdsi_cdm" #TODO # Schema which contains the OHDSI Common Data Model
+cdmTmpSchema <- "ohdsi_temp" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
+cdmResultsSchema <- "ohdsi_results" #TODO # Schema which will contain the final results
 
 databaseDescription <- "This is a very cool database." #TODO
 
