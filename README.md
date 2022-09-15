@@ -19,6 +19,12 @@ Technology
 ==========
 TrajectoryMarkovAnalysis is an R package, with some functions implemented in C++.
 
+For running the package with OMOP CDM, the user must have:
+1. Permissions to select on ohdsi cdm data schema.
+2. Permissions to select on ohdsi cdm results schema.
+3. Permissions to select, create and insert ohdsi temp/scratch schema.
+
+
 System Requirements
 ===================
 
@@ -26,6 +32,9 @@ Getting Started
 ===============
 
 Package manual: [TrajectoryMarkovAnalysis.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_1.0.pdf)
+
+Package guide: [TrajectoryMarkovAnalysis_guide.pdf]
+(https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_guide.pdf)
  
 License
 =======
