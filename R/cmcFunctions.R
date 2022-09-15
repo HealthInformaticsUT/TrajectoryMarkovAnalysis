@@ -14,11 +14,11 @@ dataPreparation = function(patientData) {
   data = merge(patientData, dataTarget, by = "SUBJECT_ID")
   
   data = dplyr::filter(data, REFERENCE_DATE <= STATE_START_DATE)
-  data = dplyr::mutate(
-    data,
-    TIME_IN_COHORT = as.numeric(difftime(as.Date(STATE_START_DATE),as.Date(REFERENCE_DATE)))/365.25
-  )
- 
+  data = dplyr::mutate(data,
+                       TIME_IN_COHORT = as.numeric(difftime(
+                         as.Date(STATE_START_DATE), as.Date(REFERENCE_DATE)
+                       )) / 365.25)
+  
   states = c("START", setdiff(unique(data$STATE), c("START", "EXIT")), "END")
   
   n = length(states)
@@ -59,7 +59,15 @@ dataPreparation = function(patientData) {
   }
   data$STATE_ID = as.numeric(data$STATE_ID)
   data = dplyr::arrange(data, SUBJECT_ID, TIME_IN_COHORT, STATE_ID)
-  data = dplyr::select(data,SUBJECT_ID,STATE,STATE_ID, STATE_START_DATE,STATE_END_DATE,TIME_IN_COHORT)
-
+  data = dplyr::select(
+    data,
+    SUBJECT_ID,
+    STATE,
+    STATE_ID,
+    STATE_START_DATE,
+    STATE_END_DATE,
+    TIME_IN_COHORT
+  )
+  
   return(data)
 }

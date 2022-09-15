@@ -402,6 +402,7 @@ server <- function(input, output, session) {
       "Please import relevant cohorts under 'Import' tab!!"
     ))
     tmpData = getFirstState(v$patientData,input$excludedStatesCon)
+    print("FIRST SATE")
     return(
       getFirstStateStatistics(
         connection = conn,
