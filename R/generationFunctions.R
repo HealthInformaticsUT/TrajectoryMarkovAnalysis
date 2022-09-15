@@ -38,7 +38,7 @@ generateDataDiscrete <- function(transitionMatrix,
   for (patientId in 1:n) {
     startProbabilty <- runif(1)
     startStateIndex <-
-      which.min(transitionMatrix["START",] < startProbabilty)
+      which.min(cumsum(transitionMatrix["START",]) < startProbabilty)
     startState <- colnames(transitionMatrix)[startStateIndex]
     
     startDate <-
