@@ -15,7 +15,8 @@ TrajectoryMarkovAnalysis(
   pathToResults = getwd(),
   excludedStates = c(),
   costDomains = c("Drug", "Visit", "Procedure", "Device", "Measurement", "Observation",
-    "Specimen")
+    "Specimen"),
+  databaseDescription = "A cool database"
 )
 }
 \arguments{
@@ -38,6 +39,8 @@ TrajectoryMarkovAnalysis(
 \item{excludedStates}{States which have to be discarded from the study}
 
 \item{costDomains}{Cost domains to include in cost analysis}
+
+\item{databaseDescription}{Information about the OMOP CDM database data}
 }
 \description{
 This function outputs Markov model fitted from observed data

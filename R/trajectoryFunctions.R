@@ -12,8 +12,8 @@
 #' @param connection Connection to database
 #' @keywords internal
 #' @return A dataframe with selected patients. Columns: cohort_definition_id, subject_id, cohort_start_date, cohort_end_date
-addPersonalData = function(cohortData, connection) {
-  data = cohortData
+addPersonalData <- function(cohortData, connection) {
+  data <- cohortData
   ##############################################################################
   #
   # Add state specific person data to each row
@@ -28,8 +28,9 @@ addPersonalData = function(cohortData, connection) {
   idString <-
     toString(sprintf("%s", as.numeric(unique(data$SUBJECT_ID))))
   sql_q <- sprintf(sql_base, idString)
-  personal_data = DatabaseConnector::querySql(connection, sql_q)
-  colnames(personal_data) = c("SUBJECT_ID", "GENDER_CONCEPT_ID", "BIRTH_DATETIME")
+  personal_data <- DatabaseConnector::querySql(connection, sql_q)
+  colnames(personal_data) <-
+    c("SUBJECT_ID", "GENDER_CONCEPT_ID", "BIRTH_DATETIME")
   ##############################################################################
   #
   # Merge two datasets
@@ -47,12 +48,12 @@ addPersonalData = function(cohortData, connection) {
   # Calculate age when entering state and time in cohort
   #
   ##############################################################################
-  data_merged = dplyr::mutate(data_merged, AGE = round(as.numeric(
+  data_merged <- dplyr::mutate(data_merged, AGE = round(as.numeric(
     difftime(as.Date(STATE_START_DATE),
              as.Date(BIRTH_DATETIME),
              units = "days") / 365.25
   ), 3))
-  data_merged = dplyr::select(data_merged,!BIRTH_DATETIME)
+  data_merged <- dplyr::select(data_merged, !BIRTH_DATETIME)
   return(data_merged)
 }
 
@@ -67,53 +68,53 @@ addPersonalData = function(cohortData, connection) {
 #' @param statePriorityVector A vector of all the imported states in prioritized order, ascending
 #' @param excludedStates A vector populated with excluded states
 #' @keywords internal
-getStohasticMatrix = function(cohortData,
-                              stateCohorts,
-                              pathToResults = getwd(),
-                              statePriorityVector = NULL,
-                              studyName = 'THE-STUDY', excludedStates = NULL) {
+getStohasticMatrix <- function(cohortData,
+                               stateCohorts,
+                               pathToResults = getwd(),
+                               statePriorityVector = NULL,
+                               studyName = 'THE-STUDY',
+                               excludedStates = NULL) {
+  tmp_data <- cohortData
+  states <- as.character(c("START", setdiff(stateCohorts, c('START', 'EXIT')), "EXIT"))
   
-  tmp_data = cohortData
-  states = as.character(c("START", setdiff(
-    stateCohorts, c('START', 'EXIT')
-  ), "EXIT"))
-  
-  if(length(excludedStates) > 0){
+  if (length(excludedStates) > 0) {
     # Excluding the explicitly chosen states
-    states = setdiff(states, excludedStates)
-    tmp_data = dplyr::filter(tmp_data, STATE %in% states)
+    states <- setdiff(states, excludedStates)
+    tmp_data <- dplyr::filter(tmp_data, STATE %in% states)
   }
   
   
-  classes = 0:(length(states) - 1)
-  tmp_data$CLASS =
+  classes <- 0:(length(states) - 1)
+  tmp_data$CLASS <-
     plyr::mapvalues(
       x = tmp_data$STATE,
       from = states,
       to = classes,
       warn_missing = FALSE
     )
-  tmp_data$CLASS = as.numeric(tmp_data$CLASS)
+  tmp_data$CLASS <- as.numeric(tmp_data$CLASS)
   
   # Forward to Rcpp function
-  M = stochasticMatrix(
+  M <- stochasticMatrix(
     matrixSize = length(states),
     states = states,
     discreteTrajectories = tmp_data
   )
   # We'll divide each row by it's sum and will get transfer probabilities
-  M = round(prop.table(as.matrix(M), 1), 4)
+  M <- round(prop.table(as.matrix(M), 1), 4)
   # There is a possibility that we have NaN values (possible division with 0), therefore we will change them to zeros
   M[is.nan(M)] <- 0
   # As there is no states after "EXIT" we should explicitly state that from "EXIT" state the probability to transfer to "EXIT" state is 1
-  M[nrow(M), ncol(M)] = 1
+  M[nrow(M), ncol(M)] <- 1
   ParallelLogger::logInfo("Saving stochastic matrix!")
   save_object(M, path = paste(
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_discrete_transistion_matrix.rdata",
+      "/",
+      studyName,
+      "_discrete_transition_matrix.rdata",
       sep = ""
     ),
     sep = ""
@@ -122,9 +123,11 @@ getStohasticMatrix = function(cohortData,
     "Saved to: ",
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_discrete_transistion_matrix.rdata",
+      "/",
+      studyName,
+      "_discrete_transition_matrix.rdata",
       sep = ""
     ),
     sep = ""
@@ -139,47 +142,56 @@ getStohasticMatrix = function(cohortData,
 #' @param excludedStates A vector populated with excluded states
 #' @keywords internal
 #' @return data.frame with four columns: unique SUBJECT_ID, FIRST_STATE, SUBJECT_START_DATE, SUBJECT_END_DATE
-getFirstState = function(cohortData, excludedStates = c()) {
+getFirstState <- function(cohortData, excludedStates = c()) {
   # Lets exclude "START" and "EXIT" states as we are not interested in these
-  tmpDataState = dplyr::filter(cohortData,!STATE %in% c("START", "EXIT", excludedStates))
+  tmpDataState <-
+    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates))
   
   # Handling the case where we have 0 rows left
-  if(nrow(tmpDataState) == 0){
+  if (nrow(tmpDataState) == 0) {
     return(tmpDataState)
   }
   
-  tmpDataState = dplyr::arrange(tmpDataState, STATE_START_DATE)
-  tmpDataState = tmpDataState[!duplicated(tmpDataState$SUBJECT_ID), ]
-  tmpDataState = dplyr::select(tmpDataState, SUBJECT_ID, STATE)
+  tmpDataState <- dplyr::arrange(tmpDataState, STATE_START_DATE)
+  tmpDataState <-
+    tmpDataState[!duplicated(tmpDataState$SUBJECT_ID),]
+  tmpDataState <- dplyr::select(tmpDataState, SUBJECT_ID, STATE)
   
-  tmpDataDateMin = dplyr::filter(cohortData,!STATE %in% c("START", "EXIT", excludedStates))#cohortData
-  tmpDataDateMin$STATE_START_DATE = as.Date(tmpDataDateMin$STATE_START_DATE)
-  tmpDataDateMin = stats::aggregate(tmpDataDateMin$STATE_START_DATE,
-                                    by = list(tmpDataDateMin$SUBJECT_ID),
-                                    min)
-  colnames(tmpDataDateMin) = c("SUBJECT_ID", "STATE_START_DATE")
+  tmpDataDateMin <-
+    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates))#cohortData
+  tmpDataDateMin$STATE_START_DATE <-
+    as.Date(tmpDataDateMin$STATE_START_DATE)
+  tmpDataDateMin <-
+    stats::aggregate(tmpDataDateMin$STATE_START_DATE,
+                     by = list(tmpDataDateMin$SUBJECT_ID),
+                     min)
+  colnames(tmpDataDateMin) <- c("SUBJECT_ID", "STATE_START_DATE")
   
-  tmpData = merge(tmpDataState,
-                  tmpDataDateMin,
-                  by.x = "SUBJECT_ID",
-                  by.y = "SUBJECT_ID")
+  tmpData <- merge(tmpDataState,
+                   tmpDataDateMin,
+                   by.x = "SUBJECT_ID",
+                   by.y = "SUBJECT_ID")
   
-  tmpDataDateMax = dplyr::filter(cohortData,!STATE %in% c("START", "EXIT", excludedStates)) #cohortData
-  tmpDataDateMax$STATE_END_DATE = as.Date(tmpDataDateMax$STATE_END_DATE)
-  tmpDataDateMax = stats::aggregate(tmpDataDateMax$STATE_END_DATE,
-                                    by = list(tmpDataDateMax$SUBJECT_ID),
-                                    max)
-  colnames(tmpDataDateMax) = c("SUBJECT_ID", "STATE_END_DATE")
+  tmpDataDateMax <-
+    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates)) #cohortData
+  tmpDataDateMax$STATE_END_DATE <-
+    as.Date(tmpDataDateMax$STATE_END_DATE)
+  tmpDataDateMax <- stats::aggregate(tmpDataDateMax$STATE_END_DATE,
+                                     by = list(tmpDataDateMax$SUBJECT_ID),
+                                     max)
+  colnames(tmpDataDateMax) <- c("SUBJECT_ID", "STATE_END_DATE")
   
   
-  tmpData = merge(tmpData, tmpDataDateMax, by.x = "SUBJECT_ID", by.y = "SUBJECT_ID")
+  tmpData <-
+    merge(tmpData, tmpDataDateMax, by.x = "SUBJECT_ID", by.y = "SUBJECT_ID")
   
-  tmpData = dplyr::select(.data = tmpData, SUBJECT_ID, STATE, STATE_START_DATE, STATE_END_DATE)
-  colnames(tmpData) = c("SUBJECT_ID",
-                        "FIRST_STATE",
-                        "SUBJECT_START_DATE",
-                        "SUBJECT_END_DATE")
-  tmpData = dplyr::arrange(tmpData, FIRST_STATE)
+  tmpData <-
+    dplyr::select(.data = tmpData, SUBJECT_ID, STATE, STATE_START_DATE, STATE_END_DATE)
+  colnames(tmpData) <- c("SUBJECT_ID",
+                         "FIRST_STATE",
+                         "SUBJECT_START_DATE",
+                         "SUBJECT_END_DATE")
+  tmpData <- dplyr::arrange(tmpData, FIRST_STATE)
   return(tmpData)
 }
 
@@ -192,34 +204,36 @@ getFirstState = function(cohortData, excludedStates = c()) {
 #' @param cdmTmpSchema Temp tables' schema
 #' @keywords internal
 #' @return A data.frame with each state's statistics
-getFirstStateStatistics = function(connection,
-                                   dbms,
-                                   cohortData,
-                                   cdmTmpSchema,
-                                   studyName = "THE-STUDY") {
+getFirstStateStatistics <- function(connection,
+                                    dbms,
+                                    cohortData,
+                                    cdmTmpSchema,
+                                    studyName = "THE-STUDY") {
   ParallelLogger::logInfo("Quering information about the costs of treatment according to patients first state")
   # Handling the case where we have 0 rows left
-  if(nrow(cohortData) == 0){
-    table = as.data.frame(cbind(NA, NA, NA,NA, NA))
-    colnames(table) = c('STATE',
-                        'PERCENTAGE',
-                        'MEAN CHARGE',
-                        'MEAN COST',
-                        'MEAN PAID')
+  if (nrow(cohortData) == 0) {
+    table <- as.data.frame(cbind(NA, NA, NA, NA, NA))
+    colnames(table) <- c('STATE',
+                         'PERCENTAGE',
+                         'MEAN CHARGE',
+                         'MEAN COST',
+                         'MEAN PAID')
     return(table)
   }
- 
-  entryPercentages = prop.table(table(cohortData$FIRST_STATE))
-  entryPercentages = as.data.frame(entryPercentages)
-  colnames(entryPercentages) = c("STATE", "PERCENTAGE")
+  
+  entryPercentages <- prop.table(table(cohortData$FIRST_STATE))
+  entryPercentages <- as.data.frame(entryPercentages)
+  colnames(entryPercentages) <- c("STATE", "PERCENTAGE")
   
   # Let's query the total cost of the whole patient trajectory
   
   # First let's create a temp table with our data
-  cohortData$SUBJECT_ID = as.integer(cohortData$SUBJECT_ID)
-  cohortData$FIRST_STATE = as.character(cohortData$FIRST_STATE)
-  cohortData$SUBJECT_START_DATE = as.Date(cohortData$SUBJECT_START_DATE)
-  cohortData$SUBJECT_END_DATE = as.Date(cohortData$SUBJECT_END_DATE)
+  cohortData$SUBJECT_ID <- as.integer(cohortData$SUBJECT_ID)
+  cohortData$FIRST_STATE <- as.character(cohortData$FIRST_STATE)
+  cohortData$SUBJECT_START_DATE <-
+    as.Date(cohortData$SUBJECT_START_DATE)
+  cohortData$SUBJECT_END_DATE <-
+    as.Date(cohortData$SUBJECT_END_DATE)
   DatabaseConnector::insertTable(
     connection = connection,
     tableName = "tma_first_state",
@@ -227,12 +241,12 @@ getFirstStateStatistics = function(connection,
     dropTableIfExists = TRUE,
     createTable = TRUE,
     tempTable = TRUE,
-#    bulkLoad = TRUE,
+    #    bulkLoad = TRUE,
     progressBar = TRUE
   )
   
   # Now let's query a complete table
-  data = DatabaseConnector::querySql(
+  data <- DatabaseConnector::querySql(
     connection = connection,
     sql = SqlRender::translate(
       targetDialect = dbms,
@@ -249,36 +263,42 @@ LEFT JOIN tma_first_state
   )
   data[is.na(data)] <- 0
   if (nrow(data) == 0) {
-    mean_charge = rep(NA, length(entryPercentages$STATE))
-    mean_cost = rep(NA, length(entryPercentages$STATE))
-    mean_paid = rep(NA, length(entryPercentages$STATE))
-    table = as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
-    colnames(table) = c('STATE',
-                       'PERCENTAGE',
-                       'MEAN CHARGE',
-                       'MEAN COST',
-                       'MEAN PAID')
+    mean_charge <- rep(NA, length(entryPercentages$STATE))
+    mean_cost <- rep(NA, length(entryPercentages$STATE))
+    mean_paid <- rep(NA, length(entryPercentages$STATE))
+    table <-
+      as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
+    colnames(table) <- c('STATE',
+                         'PERCENTAGE',
+                         'MEAN CHARGE',
+                         'MEAN COST',
+                         'MEAN PAID')
     return(table)
   }
-  meanTotalCharge = aggregate(data$TOTAL_CHARGE, list(data$FIRST_STATE), mean)
-  colnames(meanTotalCharge) = c("STATE", "MEAN_TOTAL_CHARGE")
-  meanTotalCosts = aggregate(data$TOTAL_COST, list(data$FIRST_STATE), mean)
-  colnames(meanTotalCosts) = c("STATE", "MEAN_TOTAL_COST")
-  meanTotalPaid = aggregate(data$TOTAL_PAID, list(data$FIRST_STATE), mean)
-  colnames(meanTotalPaid) = c("STATE", "MEAN_TOTAL_PAID")
-  table = cbind(
+  meanTotalCharge <-
+    aggregate(data$TOTAL_CHARGE, list(data$FIRST_STATE), mean)
+  colnames(meanTotalCharge) <- c("STATE", "MEAN_TOTAL_CHARGE")
+  meanTotalCosts <-
+    aggregate(data$TOTAL_COST, list(data$FIRST_STATE), mean)
+  colnames(meanTotalCosts) <- c("STATE", "MEAN_TOTAL_COST")
+  meanTotalPaid <-
+    aggregate(data$TOTAL_PAID, list(data$FIRST_STATE), mean)
+  colnames(meanTotalPaid) <- c("STATE", "MEAN_TOTAL_PAID")
+  table <- cbind(
     entryPercentages,
     meanTotalCharge$MEAN_TOTAL_CHARGE,
     meanTotalCosts$MEAN_TOTAL_COST,
     meanTotalPaid$MEAN_TOTAL_PAID
   )
-  colnames(table) = c("STATE", "PERCENTAGE", "MEAN CHARGE", "MEAN COST", "MEAN PAID")
+  colnames(table) <-
+    c("STATE", "PERCENTAGE", "MEAN CHARGE", "MEAN COST", "MEAN PAID")
   save_object(table, path = paste(
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_first_state_statistics.rdata",
+      "/",
+      studyName,      "_first_state_statistics.txt",
       sep = ""
     ),
     sep = ""
@@ -287,9 +307,11 @@ LEFT JOIN tma_first_state
     "Saved to: ",
     pathToResults,
     paste(
-      "/tmp/models/",
+      "/tmp/databases/",
       studyName,
-      "_first_state_statistics.rdata",
+      "/",
+      studyName,
+      "_first_state_statistics.txt",
       sep = ""
     ),
     sep = ""
@@ -310,29 +332,30 @@ LEFT JOIN tma_first_state
 #' @param excludedStates A vector populated with excluded states
 #' @keywords internal
 #' @return A data.frame with each state's statistics
-getStateStatistics = function(connection,
-                              dbms,
-                              cohortData,
-                              cdmTmpSchema,
-                              stateStatistics = NULL,
-                              studyName = 'THE-STUDY',
-                              excludedStates = c(),
-                              cost_domains =  c('Drug',
-                                                'Visit',
-                                                'Procedure',
-                                                'Device',
-                                                'Measurement',
-                                                'Observation',
-                                                'Specimen')) {
+getStateStatistics <- function(connection,
+                               dbms,
+                               cohortData,
+                               cdmTmpSchema,
+                               stateStatistics = NULL,
+                               studyName = 'THE-STUDY',
+                               excludedStates = c(),
+                               cost_domains =  c('Drug',
+                                                 'Visit',
+                                                 'Procedure',
+                                                 'Device',
+                                                 'Measurement',
+                                                 'Observation',
+                                                 'Specimen')) {
   ParallelLogger::logInfo("Quering information about the costs of treatment in a state")
   
   # Lets exclude "START" and "EXIT" states as we are not interested in these
-  tmpDataState = dplyr::filter(cohortData,!STATE %in% c("START", "EXIT", excludedStates))
+  tmpDataState <-
+    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates))
   
   # Handling the case where there are zero rows left
   if (nrow(tmpDataState) == 0) {
-    summaryTable =  data.frame(matrix(ncol = 8, nrow = 0))
-    colnames(summaryTable) = c(
+    summaryTable <-  data.frame(matrix(ncol = 8, nrow = 0))
+    colnames(summaryTable) <- c(
       "STATE",
       "PERCENTAGE",
       "MEAN CHARGE",
@@ -343,24 +366,30 @@ getStateStatistics = function(connection,
       "CI PAID"
     )
     
-    return((list("table" = summaryTable, "mean" = 0, "median" = 0)))
+    return((list(
+      "table" = summaryTable,
+      "mean" = 0,
+      "median" = 0
+    )))
   }
-  entryPercentages = prop.table(table(tmpDataState$STATE))
-  entryPercentages = as.data.frame(entryPercentages)
-  colnames(entryPercentages) = c("STATE", "COUNT")
+  entryPercentages <- prop.table(table(tmpDataState$STATE))
+  entryPercentages <- as.data.frame(entryPercentages)
+  colnames(entryPercentages) <- c("STATE", "COUNT")
   
   # Let's query the total cost of the whole patient trajectory
   
   # First let's create a temp table with our data
-  tmpDataState$SUBJECT_ID = as.integer(tmpDataState$SUBJECT_ID)
-  tmpDataState$FIRST_STATE = as.character(tmpDataState$STATE)
-  tmpDataState$STATE_START_DATE = as.Date(tmpDataState$STATE_START_DATE)
-  tmpDataState$STATE_END_DATE = as.Date(tmpDataState$STATE_END_DATE)
-  tmpDataState = dplyr::select(tmpDataState,
-                               SUBJECT_ID,
-                               STATE,
-                               STATE_START_DATE,
-                               STATE_END_DATE)
+  tmpDataState$SUBJECT_ID <- as.integer(tmpDataState$SUBJECT_ID)
+  tmpDataState$FIRST_STATE <- as.character(tmpDataState$STATE)
+  tmpDataState$STATE_START_DATE <-
+    as.Date(tmpDataState$STATE_START_DATE)
+  tmpDataState$STATE_END_DATE <-
+    as.Date(tmpDataState$STATE_END_DATE)
+  tmpDataState <- dplyr::select(tmpDataState,
+                                SUBJECT_ID,
+                                STATE,
+                                STATE_START_DATE,
+                                STATE_END_DATE)
   
   DatabaseConnector::insertTable(
     connection = connection,
@@ -369,38 +398,39 @@ getStateStatistics = function(connection,
     dropTableIfExists = TRUE,
     createTable = TRUE,
     tempTable = TRUE,
-#    bulkLoad = TRUE,
+    #    bulkLoad = TRUE,
     progressBar = TRUE
   )
   # Now let's query a complete table
-  sql_s = toString(sprintf("'%s'", cost_domains))
-#   data = DatabaseConnector::querySql(
-#     connection = connection,
-#     sql = SqlRender::translate(
-#       targetDialect = dbms,
-#       sql = sprintf(SqlRender::render(
-#         sql = "select total_cost_person.STATE_ AS STATE, AVG(total_cost_person.total_charge) AS MEAN_CHARGE,stddev(total_cost_person.total_charge) AS MEAN_CHARGE_STD, AVG(total_cost_person.total_cost) AS MEAN_COST, stddev(total_cost_person.total_cost) AS MEAN_COST_STD, AVG(total_cost_person.total_paid) AS MEAN_PAID, stddev(total_cost_person.total_paid) AS MEAN_PAID_STD
-# FROM
-# (SELECT tma_states.STATE AS STATE_, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE, SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID
-# FROM @cdmTmpSchema.cost_person
-# LEFT JOIN tma_states
-#   ON cost_person.person_id = tma_states.SUBJECT_ID
-#       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.total_charge IS NOT NULL AND cost_person.cost_domain_id IN (%s)
-#     GROUP BY cost_person.person_id, tma_states.STATE, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE) as total_cost_person
-#     GROUP BY total_cost_person.STATE_;",
-#         cdmTmpSchema = cdmTmpSchema
-#       ),
-#       sql_s
-#       )
-#     )
-#   )
+  sql_s <- toString(sprintf("'%s'", cost_domains))
+  #   data = DatabaseConnector::querySql(
+  #     connection = connection,
+  #     sql = SqlRender::translate(
+  #       targetDialect = dbms,
+  #       sql = sprintf(SqlRender::render(
+  #         sql = "select total_cost_person.STATE_ AS STATE, AVG(total_cost_person.total_charge) AS MEAN_CHARGE,stddev(total_cost_person.total_charge) AS MEAN_CHARGE_STD, AVG(total_cost_person.total_cost) AS MEAN_COST, stddev(total_cost_person.total_cost) AS MEAN_COST_STD, AVG(total_cost_person.total_paid) AS MEAN_PAID, stddev(total_cost_person.total_paid) AS MEAN_PAID_STD
+  # FROM
+  # (SELECT tma_states.STATE AS STATE_, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE, SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID
+  # FROM @cdmTmpSchema.cost_person
+  # LEFT JOIN tma_states
+  #   ON cost_person.person_id = tma_states.SUBJECT_ID
+  #       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.total_charge IS NOT NULL AND cost_person.cost_domain_id IN (%s)
+  #     GROUP BY cost_person.person_id, tma_states.STATE, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE) as total_cost_person
+  #     GROUP BY total_cost_person.STATE_;",
+  #         cdmTmpSchema = cdmTmpSchema
+  #       ),
+  #       sql_s
+  #       )
+  #     )
+  #   )
   
-  data = DatabaseConnector::querySql(
+  data <- DatabaseConnector::querySql(
     connection = connection,
     sql = SqlRender::translate(
       targetDialect = dbms,
-      sql = sprintf(SqlRender::render(
-        sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) as TOTAL_CHARGE,
+      sql = sprintf(
+        SqlRender::render(
+          sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) as TOTAL_CHARGE,
         SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_PAID,
         cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
 FROM @cdmTmpSchema.cost_person
@@ -408,57 +438,73 @@ LEFT JOIN tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.cost_domain_id IN (%s)
     GROUP BY cost_person.person_id, tma_states.STATE, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE;",
-        cdmTmpSchema = cdmTmpSchema
-      ),
-      sql_s
+          cdmTmpSchema = cdmTmpSchema
+        ),
+        sql_s
       )
     )
   )
   save_object(data, path = paste(
     pathToResults,
-    paste("/tmp/datasets/", studyName, "_state_cost.rdata", sep = ""),
+    paste("/tmp/databases/",studyName,"/", studyName, "_state_cost.csv", sep = ""),
     sep = ""
   ))
   ParallelLogger::logInfo(paste(
     "Saved to: ",
     pathToResults,
-    paste("/tmp/datasets/", studyName, "_state_cost.rdata", sep = ""),
+    paste("/tmp/databases/",studyName,"/", studyName, "_state_cost.csv", sep = ""),
     sep = ""
   ))
-# Overall trajectories charge statistics mean & median
-  dataTrajectoryChargeCalculations = dplyr::summarise(dplyr::group_by(dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE), PERSON_ID), CHARGE = sum(TOTAL_STATE_CHARGE))
-  trajectoriesMeanCharge = mean(dataTrajectoryChargeCalculations$CHARGE)
-  trajectoriesMedianCharge =  stats::median(dataTrajectoryChargeCalculations$CHARGE)
+  # Overall trajectories charge statistics mean & median
+  dataTrajectoryChargeCalculations <-
+    dplyr::summarise(dplyr::group_by(
+      dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE),
+      PERSON_ID
+    ),
+    CHARGE = sum(TOTAL_STATE_CHARGE))
+  trajectoriesMeanCharge <-
+    mean(dataTrajectoryChargeCalculations$CHARGE)
+  trajectoriesMedianCharge <-
+    stats::median(dataTrajectoryChargeCalculations$CHARGE)
   # Overall state chrage, cost, paid statistics
-uniqueStates = unique(data$STATE_P)
-
-
-summaryTable =  data.frame(matrix(ncol = 7, nrow = 0))
-for (state in uniqueStates) {
-state_data <- dplyr::filter(data,STATE_P == state)
-summaryTable = rbind(summaryTable,
-      c(
-        state,
-        mean(state_data$TOTAL_CHARGE),
-        stats::sd(state_data$TOTAL_CHARGE),
-        mean(state_data$TOTAL_COST),
-        stats::sd(state_data$TOTAL_COST),
-        mean(state_data$TOTAL_PAID),
-        stats::sd(state_data$TOTAL_PAID)
-      ))
-}
-colnames(summaryTable) <-  c("STATE", "MEAN_CHARGE", "CHARGE_STD", "MEAN_COST", "COST_STD",  "MEAN_PAID", "PAID_STD")
-summaryTable[is.na(summaryTable)] <- 0
-stateStatistics = summaryTable
-# Handling the case when database returns no rows
+  uniqueStates <- unique(data$STATE_P)
+  
+  
+  summaryTable <-  data.frame(matrix(ncol = 7, nrow = 0))
+  for (state in uniqueStates) {
+    state_data <- dplyr::filter(data, STATE_P == state)
+    summaryTable <- rbind(summaryTable,
+                          c(
+                            state,
+                            mean(state_data$TOTAL_CHARGE),
+                            stats::sd(state_data$TOTAL_CHARGE),
+                            mean(state_data$TOTAL_COST),
+                            stats::sd(state_data$TOTAL_COST),
+                            mean(state_data$TOTAL_PAID),
+                            stats::sd(state_data$TOTAL_PAID)
+                          ))
+  }
+  colnames(summaryTable) <-
+    c(
+      "STATE",
+      "MEAN_CHARGE",
+      "CHARGE_STD",
+      "MEAN_COST",
+      "COST_STD",
+      "MEAN_PAID",
+      "PAID_STD"
+    )
+  summaryTable[is.na(summaryTable)] <- 0
+  stateStatistics <- summaryTable
+  # Handling the case when database returns no rows
   if (nrow(summaryTable) == 0) {
-    mean_charge = rep(NA, length(entryPercentages$STATE))
-    ci_charge = rep(NA, length(entryPercentages$STATE))
-    mean_cost = rep(NA, length(entryPercentages$STATE))
-    ci_cost = rep(NA, length(entryPercentages$STATE))
-    mean_paid = rep(NA, length(entryPercentages$STATE))
-    ci_paid = rep(NA, length(entryPercentages$STATE))
-    summaryTable = as.data.frame(
+    mean_charge <- rep(NA, length(entryPercentages$STATE))
+    ci_charge <- rep(NA, length(entryPercentages$STATE))
+    mean_cost <- rep(NA, length(entryPercentages$STATE))
+    ci_cost <- rep(NA, length(entryPercentages$STATE))
+    mean_paid <- rep(NA, length(entryPercentages$STATE))
+    ci_paid <- rep(NA, length(entryPercentages$STATE))
+    summaryTable <- as.data.frame(
       cbind(
         entryPercentages,
         mean_charge,
@@ -481,43 +527,76 @@ stateStatistics = summaryTable
       "CI PAID"
     )
     
-    return((list("table" = summaryTable, "mean" = 0, "median" = 0)))
+    return((list(
+      "table" = summaryTable,
+      "mean" = 0,
+      "median" = 0
+    )))
   }
-  table = cbind(
+  table <- cbind(
     stateStatistics$STATE,
     stateStatistics$MEAN_CHARGE,
-    paste("(", max(
-      0, round(as.numeric(stateStatistics$MEAN_CHARGE) - 1.96 * as.numeric(stateStatistics$CHARGE_STD), 2)
-    ), ", ", 
-      round(as.numeric(stateStatistics$MEAN_CHARGE) + 1.96 * as.numeric(stateStatistics$CHARGE_STD), 2)
-    , ")"),
+    paste(
+      "(",
+      max(0, round(
+        as.numeric(stateStatistics$MEAN_CHARGE) - 1.96 * as.numeric(stateStatistics$CHARGE_STD),
+        2
+      )),
+      ", ",
+      round(
+        as.numeric(stateStatistics$MEAN_CHARGE) + 1.96 * as.numeric(stateStatistics$CHARGE_STD),
+        2
+      )
+      ,
+      ")"
+    ),
     stateStatistics$MEAN_COST,
-    paste("(", max(
-      0, round(as.numeric(stateStatistics$MEAN_COST) - 1.96 * as.numeric(stateStatistics$COST_STD), 2)
-    ), ", ", round(as.numeric(stateStatistics$MEAN_COST) + 1.96 * as.numeric(stateStatistics$COST_STD), 2)
-    , ")"),
+    paste(
+      "(",
+      max(0, round(
+        as.numeric(stateStatistics$MEAN_COST) - 1.96 * as.numeric(stateStatistics$COST_STD),
+        2
+      )),
+      ", ",
+      round(
+        as.numeric(stateStatistics$MEAN_COST) + 1.96 * as.numeric(stateStatistics$COST_STD),
+        2
+      )
+      ,
+      ")"
+    ),
     stateStatistics$MEAN_PAID,
-    paste("(", max(
-      0, round(as.numeric(stateStatistics$MEAN_PAID) - 1.96 * as.numeric(stateStatistics$PAID_STD), 2)
-    ), ", ", round(as.numeric(stateStatistics$MEAN_PAID) + 1.96 * as.numeric(stateStatistics$PAID_STD), 2)
-    , ")")
+    paste(
+      "(",
+      max(0, round(
+        as.numeric(stateStatistics$MEAN_PAID) - 1.96 * as.numeric(stateStatistics$PAID_STD),
+        2
+      )),
+      ", ",
+      round(
+        as.numeric(stateStatistics$MEAN_PAID) + 1.96 * as.numeric(stateStatistics$PAID_STD),
+        2
+      )
+      ,
+      ")"
+    )
   )
-  table = as.data.frame(table)
-  colnames(table) = c(
-    "STATE",
-    "MEAN CHARGE",
-    "CI CHARGE",
-    "MEAN COST",
-    "CI COST",
-    "MEAN PAID",
-    "CI PAID"
+  table <- as.data.frame(table)
+  colnames(table) <- c("STATE",
+                       "MEAN CHARGE",
+                       "CI CHARGE",
+                       "MEAN COST",
+                       "CI COST",
+                       "MEAN PAID",
+                       "CI PAID")
+  table <- merge(
+    x = entryPercentages,
+    y = table,
+    by.x = "STATE",
+    by.y = "STATE",
+    all.x = TRUE
   )
-  table = merge(x = entryPercentages,
-          y = table,
-          by.x = "STATE",
-          by.y = "STATE",
-          all.x = TRUE)
-  colnames(table) = c(
+  colnames(table) <- c(
     "STATE",
     "PERCENTAGE",
     "MEAN CHARGE",
@@ -529,16 +608,26 @@ stateStatistics = summaryTable
   )
   save_object(table, path = paste(
     pathToResults,
-    paste("/tmp/models/", studyName, "_state_statistics.rdata", sep = ""),
+    paste("/tmp/databases/",       studyName,
+          "/",
+          studyName, "_state_statistics.txt", sep = ""),
     sep = ""
   ))
   ParallelLogger::logInfo(paste(
     "Saved to: ",
     pathToResults,
-    paste("/tmp/models/", studyName, "_state_statistics.rdata", sep = ""),
+    paste("/tmp/databases/",       studyName,
+          "/",
+          studyName, "_state_statistics.txt", sep = ""),
     sep = ""
   ))
-  return(list("table" = table, "mean" = trajectoriesMeanCharge, "median" = trajectoriesMedianCharge))
+  return(
+    list(
+      "table" = table,
+      "mean" = trajectoriesMeanCharge,
+      "median" = trajectoriesMedianCharge
+    )
+  )
 }
 
 
@@ -560,15 +649,15 @@ stateStatistics = summaryTable
 #' @param personId Person id value in person table
 #' @keywords internal
 #' @return A dataframe with selected patient's row data from OMOP database
-getProfileData = function(connection,
-                          dbms,
-                          resultsSchema,
-                          cdmSchema,
-                          personId) {
+getProfileData <- function(connection,
+                           dbms,
+                           resultsSchema,
+                           cdmSchema,
+                           personId) {
   ParallelLogger::logInfo("Quering information about the selected person")
   # Error handling
   if (!grepl("\\D", personId)) {
-    personData = DatabaseConnector::querySql(
+    personData <- DatabaseConnector::querySql(
       connection,
       loadRenderTranslateSql(
         dbms = dbms,
@@ -577,17 +666,18 @@ getProfileData = function(connection,
         cdmSchema = cdmSchema
       )
     )
-    personData$genderString = ifelse(
+    personData$genderString <- ifelse(
       personData$GENDER_CONCEPT_ID == 8532,
       "Female",
       ifelse(personData$GENDER_CONCEPT_ID == 8507, "Male", "Unknown")
     )
-    personData$birthtimeString = toString(personData$BIRTH_DATETIME)
+    personData$birthtimeString <-
+      toString(personData$BIRTH_DATETIME)
     return(personData)
   }
-  else{
-    personData = cbind(c("NA"), c("NA"), c("NA"), c("NA"), c("NA"))
-    colnames(personData) = c(
+  else {
+    personData <- cbind(c("NA"), c("NA"), c("NA"), c("NA"), c("NA"))
+    colnames(personData) <- c(
       "BIRTH_DATETIME",
       "GENDER_CONCEPT_ID",
       "RACE_CONCEPT_ID",
@@ -612,23 +702,23 @@ getProfileData = function(connection,
 #' @param cdmTmpSchema temp tables schema
 #' @keywords internal
 #' @return Value of complete cost
-getCost = function(connection,
-                   dbms,
-                   patientId,
-                   startDate,
-                   endDate,
-                   # Create a checkboxbutton box for selection
-                   domain = c('Drug',
-                              'Visit',
-                              'Procedure',
-                              'Device',
-                              'Measurement',
-                              'Observation',
-                              'Specimen'),
-                   cdmTmpSchema) {
+getCost <- function(connection,
+                    dbms,
+                    patientId,
+                    startDate,
+                    endDate,
+                    # Create a checkboxbutton box for selection
+                    domain = c('Drug',
+                               'Visit',
+                               'Procedure',
+                               'Device',
+                               'Measurement',
+                               'Observation',
+                               'Specimen'),
+                    cdmTmpSchema) {
   #ParallelLogger::logInfo("Quering information about the cost of the patients")
-  sql_s = toString(sprintf("'%s'", domain))
-  sql_r = SqlRender::render(
+  sql_s <- toString(sprintf("'%s'", domain))
+  sql_r <- SqlRender::render(
     sql = paste(
       "SELECT sum(total_cost) AS COST FROM @cdmTmpSchema.cost_person WHERE person_id = @patientId AND date BETWEEN",
       paste("'", "@startDate", "'", sep = "") ,
@@ -641,8 +731,8 @@ getCost = function(connection,
     endDate = endDate,
     cdmTmpSchema = cdmTmpSchema
   )
-  sql = sprintf(sql_r, sql_s)
-  totalCost = DatabaseConnector::querySql(connection,
-                                          sql = SqlRender::translate(sql = sql, targetDialect = dbms))
+  sql <- sprintf(sql_r, sql_s)
+  totalCost <- DatabaseConnector::querySql(connection,
+                                           sql = SqlRender::translate(sql = sql, targetDialect = dbms))
   return(totalCost)
 }

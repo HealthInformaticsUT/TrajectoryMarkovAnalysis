@@ -12,18 +12,19 @@
 #' @param cdmSchema Schema which contains the OHDSI Common Data Model.
 #' @param cdmTmpSchema Schema for temporary tables
 #' @param cdmResultsSchema Schema which has the information about the cohorts created in Atlas
+#' @param databaseDescription Information about the OMOP CDM database data
 #'
 #' @export
-runGUI = function(connection,
-                  connectionDetails,
-                  pathToDriver = './Drivers',
-                  dbms = "postgresql",
-                  cdmSchema = "ohdsi_cdm",
-                  cdmTmpSchema = "ohdsi_temp",
-                  cdmResultsSchema = "ohdsi_results",
-                  studyName = 'MarkovAnalysis',
-                  pathToResults = NULL)
-{
+runGUI <- function(connection,
+                   connectionDetails,
+                   pathToDriver = './Drivers',
+                   dbms = "postgresql",
+                   cdmSchema = "ohdsi_cdm",
+                   cdmTmpSchema = "ohdsi_temp",
+                   cdmResultsSchema = "ohdsi_results",
+                   studyName = 'MarkovAnalysis',
+                   pathToResults = NULL,
+                   databaseDescription = 'A cool database.') {
   ################################################################################
   #
   # Creating global variables
@@ -35,10 +36,10 @@ runGUI = function(connection,
   cdmSchema <<- cdmSchema
   cdmTmpSchema <<- cdmTmpSchema
   cdmResultsSchema <<- cdmResultsSchema
-  if(!is.null(pathToResults)){
+  if (!is.null(pathToResults)) {
     pathToResults <<- pathToResults
   }
-  else{
+  else {
     pathToResults <<- paste(getwd(), "/tmp", sep = "")
   }
   studyName <<- studyName
@@ -49,7 +50,7 @@ runGUI = function(connection,
   #
   ###############################################################################
   
-  createMandatorySubDirs(pathToResults)
+  createMandatorySubDirs(pathToResults, databaseDescription)
   
   ################################################################################
   #
@@ -83,7 +84,7 @@ runGUI = function(connection,
   #
   ################################################################################
   
-  ans = droppingTables()
+  ans <- droppingTables()
   if (ans == "y") {
     dropRelation(
       connection = conn,
@@ -93,8 +94,24 @@ runGUI = function(connection,
     )
   }
   
-  
-  
   DatabaseConnector::disconnect(conn)
   ParallelLogger::logInfo("The database conncetion has been closed")
+}
+
+
+
+################################################################################
+#
+# Running results dashboard
+#
+################################################################################
+
+
+#' This function starts the dashboard application for comparing results from different databases
+#'
+#' @param pathToResults Path to target directory where results will be saved
+#' @export
+runDashboard <- function(pathToResults = NULL) {
+  runDashboard <<- pathToResults
+  shiny::runApp("./resultsDashboard")
 }

@@ -4,7 +4,7 @@
 \alias{createMandatorySubDirs}
 \title{Function which creates mandatory subdirectories and files to the pathToResults directory}
 \usage{
-createMandatorySubDirs(pathToResults)
+createMandatorySubDirs(pathToResults, databaseDescription)
 }
 \arguments{
 \item{pathToResults}{Path to the package results}

@@ -3,26 +3,27 @@
 # Header content
 #
 ################################################################################
-header =  shinydashboard::dashboardHeader(title = "TrajectoryMarkovAnalysis dashboard",
-                                          tags$li(
-                                            div(
-                                              img(
-                                                src = 'images/logo.png',
-                                                title = "OHDSI PLP",
-                                                height = "40px",
-                                                width = "40px"
-                                              ),
-                                              style = "padding-top:0px; padding-bottom:0px;"
-                                            ),
-                                            class = "dropdown"
-                                          ))
+header <-
+  shinydashboard::dashboardHeader(title = "TrajectoryMarkovAnalysis dashboard",
+                                  tags$li(
+                                    div(
+                                      img(
+                                        src = 'images/logo.png',
+                                        title = "OHDSI PLP",
+                                        height = "40px",
+                                        width = "40px"
+                                      ),
+                                      style = "padding-top:0px; padding-bottom:0px;"
+                                    ),
+                                    class = "dropdown"
+                                  ))
 
 ################################################################################
 #
 # Sidebar content
 #
 ################################################################################
-sidebar = shinydashboard::dashboardSidebar(
+sidebar <- shinydashboard::dashboardSidebar(
   shinydashboard::sidebarMenu(
     shinydashboard::menuItem("Description", tabName = "description", icon = icon("home")),
     shinydashboard::menuItem("Import", tabName = "import", icon = icon("file-import")),
@@ -55,7 +56,7 @@ sidebar = shinydashboard::dashboardSidebar(
 #
 ################################################################################
 
-body = shinydashboard::dashboardBody(
+body <- shinydashboard::dashboardBody(
   id = "shinyBody",
   shinydashboard::tabItems(
     # First tab content
@@ -92,7 +93,10 @@ body = shinydashboard::dashboardBody(
         width = 12,
         status = "primary",
         solidHeader = TRUE,
-        shinycssloaders::withSpinner(sunburstR::sunburstOutput("sunburst", width = "100%", height = "800px")))
+        shinycssloaders::withSpinner(
+          sunburstR::sunburstOutput("sunburst", width = "100%", height = "800px")
+        )
+      )
     ),
     ################################################################################
     #
@@ -107,36 +111,34 @@ body = shinydashboard::dashboardBody(
         title = "Initial settings",
         status = "primary",
         solidHeader = T,
-      shiny::column(
-        width = 4,
-        shiny::checkboxGroupInput(
-          inputId = "costDomainsDisc",
-          label = h3("Select the cost domains included in analysis:"),
-          choices = list(
-            'Drug' = 'Drug',
-            'Visit' = 'Visit',
-            'Procedure' = 'Procedure',
-            'Device' = 'Device',
-            'Measurement' = 'Measurement',
-            'Observation' = 'Observation',
-            'Specimen' = 'Specimen'
-          ),
-          selected = c(
-            'Drug',
-            'Visit',
-            'Procedure',
-            'Device',
-            'Measurement',
-            'Observation',
-            'Specimen'
+        shiny::column(
+          width = 4,
+          shiny::checkboxGroupInput(
+            inputId = "costDomainsDisc",
+            label = h3("Select the cost domains included in analysis:"),
+            choices = list(
+              'Drug' = 'Drug',
+              'Visit' = 'Visit',
+              'Procedure' = 'Procedure',
+              'Device' = 'Device',
+              'Measurement' = 'Measurement',
+              'Observation' = 'Observation',
+              'Specimen' = 'Specimen'
+            ),
+            selected = c(
+              'Drug',
+              'Visit',
+              'Procedure',
+              'Device',
+              'Measurement',
+              'Observation',
+              'Specimen'
+            )
           )
-        )
-      ),
-      shiny::column(
-        width = 4,
-        shiny::uiOutput(outputId = "excludeStatesDisc")
-      ),
-      actionButton("markovAnalyseButton", "Analyze")
+        ),
+        shiny::column(width = 4,
+                      shiny::uiOutput(outputId = "excludeStatesDisc")),
+        actionButton("markovAnalyseButton", "Analyze")
       ),
       shinydashboard::box(
         width = 12,
@@ -232,10 +234,8 @@ body = shinydashboard::dashboardBody(
             shiny::radioButtons(
               inputId = "markovStatePlotFeatures",
               label = h3("Plot y-axis feature"),
-              choices = list(
-                "No feature" = 0,
-                "Cost analysis" = 1
-              )
+              choices = list("No feature" = 0,
+                             "Cost analysis" = 1)
             )
           ),
           shiny::column(
@@ -280,33 +280,32 @@ body = shinydashboard::dashboardBody(
           uiOutput(outputId = "cmcInitialQ"),
           shiny::column(
             width = 4,
-          shiny::checkboxGroupInput(
-            inputId = "costDomainsCon",
-            label = h3("Select the cost domains included in analysis:"),
-            choices = list(
-              'Drug' = 'Drug',
-              'Visit' = 'Visit',
-              'Procedure' = 'Procedure',
-              'Device' = 'Device',
-              'Measurement' = 'Measurement',
-              'Observation' = 'Observation',
-              'Specimen' = 'Specimen'
-            ),
-            selected = c(
-              'Drug',
-              'Visit',
-              'Procedure',
-              'Device',
-              'Measurement',
-              'Observation',
-              'Specimen'
+            shiny::checkboxGroupInput(
+              inputId = "costDomainsCon",
+              label = h3("Select the cost domains included in analysis:"),
+              choices = list(
+                'Drug' = 'Drug',
+                'Visit' = 'Visit',
+                'Procedure' = 'Procedure',
+                'Device' = 'Device',
+                'Measurement' = 'Measurement',
+                'Observation' = 'Observation',
+                'Specimen' = 'Specimen'
+              ),
+              selected = c(
+                'Drug',
+                'Visit',
+                'Procedure',
+                'Device',
+                'Measurement',
+                'Observation',
+                'Specimen'
+              )
             )
-          ))
+          )
           ,
-          shiny::column(
-            width = 4,
-            shiny::uiOutput(outputId = "excludeStatesCon")
-          ),
+          shiny::column(width = 4,
+                        shiny::uiOutput(outputId = "excludeStatesCon")),
           shiny::actionButton("cmcButton", "Create CMC model")
         )
       ),
@@ -457,9 +456,9 @@ body = shinydashboard::dashboardBody(
               choices = c(
                 "Probability in target cohort" = 1,
                 "Probability on layer level" = 2,
-  # TODO: Some bugs have emerged  
-             "Exact trajectory probability in data" = 3,
-              "Exact trajectory probability in data with repetitions removed" = 4
+                # TODO: Some bugs have emerged
+                "Exact trajectory probability in data" = 3,
+                "Exact trajectory probability in data with repetitions removed" = 4
               )
             )
           ),
@@ -517,8 +516,10 @@ body = shinydashboard::dashboardBody(
           shiny::radioButtons(
             inputId = "trajectoryTypeMatrix",
             label = "Matrix to use: state selection type",
-            choices = c("Discrete time trajectory" = 1,
-                        "Continuous time trajectory" = 2)
+            choices = c(
+              "Discrete time trajectory" = 1,
+              "Continuous time trajectory" = 2
+            )
           ),
           shiny::radioButtons(
             inputId = "trajectoryGenerateCost",
@@ -587,8 +588,9 @@ body = shinydashboard::dashboardBody(
         ),
         shiny::tabPanel(
           title = "Kaplan-Meier graphs",
-          shiny::includeMarkdown(path = "./www/shinyHelpKaplan.md")),
-          
+          shiny::includeMarkdown(path = "./www/shinyHelpKaplan.md")
+        ),
+        
         shiny::tabPanel(
           title = "Decision trees",
           shiny::includeMarkdown(path = "./www/shinyHelpDecisionTrees.md")

@@ -6,7 +6,7 @@
 
 
 #' This function outputs Markov model fitted from observed data
-#' 
+#'
 #' @param conn Connection to the database
 #' @param dbms Database dialect
 #' @param cdmSchema OHDSI OMOP CDM tabels' schema
@@ -17,34 +17,33 @@
 #' @param pathToResults The path where results will be saved
 #' @param excludedStates States which have to be discarded from the study
 #' @param costDomains Cost domains to include in cost analysis
+#' @param databaseDescription Information about the OMOP CDM database data
 #' @export
 
-TrajectoryMarkovAnalysis = function(conn,
-                                    dbms,
-                                    cdmSchema,
-                                    cdmTmpSchema,
-                                    inputData,
-                                    modelType,
-                                    studyName,
-                                    pathToResults = getwd(),
-                                    excludedStates = c(),
-                                    costDomains = c('Drug',
-                                                    'Visit',
-                                                    'Procedure',
-                                                    'Device',
-                                                    'Measurement',
-                                                    'Observation',
-                                                    'Specimen')
-                                    ) {
-  
-  
+TrajectoryMarkovAnalysis <- function(conn,
+                                     dbms,
+                                     cdmSchema,
+                                     cdmTmpSchema,
+                                     inputData,
+                                     modelType,
+                                     studyName,
+                                     pathToResults = getwd(),
+                                     excludedStates = c(),
+                                     costDomains = c('Drug',
+                                                     'Visit',
+                                                     'Procedure',
+                                                     'Device',
+                                                     'Measurement',
+                                                     'Observation',
+                                                     'Specimen'),
+                                     databaseDescription = 'A cool database') {
   ###############################################################################
   #
   # Creating mandatory directories if they do not exist
   #
   ###############################################################################
   
-  createMandatorySubDirs(pathToResults)
+  createMandatorySubDirs(pathToResults,databaseDescription)
   
   # Creating temp tables
   if (!DatabaseConnector::dbExistsTable(conn = conn,
@@ -61,34 +60,78 @@ TrajectoryMarkovAnalysis = function(conn,
   else {
     ParallelLogger::logInfo("Table cost_person already exists!")
   }
-################################################################################
-#
-# Getting metadata from input dataframe
-#
-################################################################################
-  inputData = as.data.frame(inputData)
-  states = unique(inputData$STATE)
-  ids = unique(inputData$STATE_ID)
-  idStates = cbind(ids, states)
-  colnames(idStates) = c("STATE_ID", "STATE")
-  idStates = as.data.frame(idStates)
+  ################################################################################
+  #
+  # Getting metadata from input dataframe
+  #
+  ################################################################################
+  inputData <- as.data.frame(inputData)
+  states <- unique(inputData$STATE)
+  ids <- unique(inputData$STATE_ID)
+  idStates <- cbind(ids, states)
+  colnames(idStates) <- c("STATE_ID", "STATE")
+  idStates <- as.data.frame(idStates)
   
-  markovModel = NULL
+  markovModel <- NULL
+  ##############################################################################
+  #
+  # Saving sunburst plot
+  #
+  ##############################################################################
+  
+  ParallelLogger::logInfo("Creating and saving sunburst plot!")
+  sunburstDetails <- drawSunburst(inputData)
+  # plot <- sunburstR::sunburst(
+  #     sunburstDetails$freqPaths,
+  #     count = TRUE,
+  #     colors = list(
+  #       range = c(sunburstDetails$colors, "#cccccc", "#cccccc"),
+  #       domain = c(sunburstDetails$labels, "OUT OF COHORT", "End")
+  #     ),
+  #     legend = list(w = 200, h = 20, s = 5),
+  #     breadcrumb = htmlwidgets::JS(("function(x) {return x;}")),
+  #     height = "800px",
+  #     width = "100%"
+  #   )
+  # htmlwidgets::saveWidget(
+  #   plot,
+  #   file = paste(
+  #     pathToResults,
+  #     paste(
+  #       "/tmp/models/",
+  #       studyName,
+  #       "sunburst.rdata",
+  #       sep = ""
+  #     ),
+  #     sep = ""
+  #   ),
+  #   background = "white",
+  #   title = "Sunburst plot of trajectories"
+  # )
+  save_object(sunburstDetails, path = paste(
+    pathToResults,
+    paste("/tmp/databases/",
+          studyName,
+          "/",
+          studyName,
+          "sunburst.rdata",
+          sep = ""),
+    sep = ""
+  ))
   
   ##############################################################################
   #
   # Discrete implementation
   #
   ##############################################################################
-  if(modelType == "discrete") {
-  
-    markovModel = getStohasticMatrix(
-    cohortData = inputData,
-    stateCohorts = states,
-    pathToResults = pathToResults,
-    studyName = studyName,
-    excludedStates = excludedStates
-  )
+  if (modelType == "discrete") {
+    markovModel <- getStohasticMatrix(
+      cohortData = inputData,
+      stateCohorts = states,
+      pathToResults = pathToResults,
+      studyName = studyName,
+      excludedStates = excludedStates
+    )
     
     
     
@@ -99,19 +142,19 @@ TrajectoryMarkovAnalysis = function(conn,
   # Continuous case
   #
   ##############################################################################
-  else{
+  else {
     qmatrixCMC <-
       matrix(1, nrow = length(states), ncol = length(states))
     diag(qmatrixCMC) <- 0
     qmatrixCMC[, 1] = 0
     qmatrixCMC[length(states),] = 0
     # Add correct labels
-    idStates = dplyr::arrange(idStates, STATE_ID)
+    idStates <- dplyr::arrange(idStates, STATE_ID)
     
     colnames(qmatrixCMC) <- idStates$STATE
     rownames(qmatrixCMC) <- idStates$STATE
     
-    markovModel =  msm::msm(
+    markovModel <-  msm::msm(
       STATE_ID ~ TIME_IN_COHORT,
       subject = SUBJECT_ID,
       data = inputData,
@@ -125,7 +168,9 @@ TrajectoryMarkovAnalysis = function(conn,
     save_object(markovModel, path = paste(
       pathToResults,
       paste(
-        "/tmp/models/",
+        "/tmp/databases/",
+        studyName,
+        "/",
         studyName,
         "_continuous_intensity_matrix.rdata",
         sep = ""
@@ -136,7 +181,9 @@ TrajectoryMarkovAnalysis = function(conn,
       "Saved to: ",
       pathToResults,
       paste(
-        "/models/",
+        "/databases/",
+        studyName,
+        "/",
         studyName,
         "_continuous_intensity_matrix.rdata",
         sep = ""
@@ -147,12 +194,12 @@ TrajectoryMarkovAnalysis = function(conn,
   
   
   
-################################################################################
-#
-# State statistics
-#
-################################################################################
-  stateStatisticsTable =  getStateStatistics(
+  ################################################################################
+  #
+  # State statistics
+  #
+  ################################################################################
+  stateStatisticsTable <-  getStateStatistics(
     conn,
     dbms = dbms,
     cohortData = inputData,
@@ -161,44 +208,44 @@ TrajectoryMarkovAnalysis = function(conn,
     cost_domains = costDomains,
     excludedStates = excludedStates
   )
-
-    tmpData = getFirstState(inputData,excludedStates)
-      getFirstStateStatistics(
-        connection = conn,
-        dbms = dbms,
-        cohortData = tmpData,
-        cdmTmpSchema = cdmTmpSchema,
-        studyName = studyName
-      )
-      
-      # getStateStatistics(
-      #   conn,
-      #   dbms = dbms,
-      #   cohortData = inputData,
-      #   cdmTmpSchema = cdmTmpSchema,
-      #   stateStatistics = stateStatistics,
-      #   studyName = studyName,
-      #   cost_domains = costDomains,
-      #   excludedStates = excludedStates
-      # )
-      
-      ################################################################################
-      #
-      # Delete temp tables & Disconnect database connection
-      #
-      ################################################################################
-      
-      ans = droppingTables()
-      if (ans == "y") {
-        dropRelation(
-          connection = conn,
-          dbms = dbms,
-          schema = cdmTmpSchema,
-          relationName = "cost_person"
-        )
-      }
-      
-      DatabaseConnector::disconnect(conn)
-      ParallelLogger::logInfo("The database conncetion has been closed")
-      
+  
+  tmpData <- getFirstState(inputData, excludedStates)
+  getFirstStateStatistics(
+    connection = conn,
+    dbms = dbms,
+    cohortData = tmpData,
+    cdmTmpSchema = cdmTmpSchema,
+    studyName = studyName
+  )
+  
+  # getStateStatistics(
+  #   conn,
+  #   dbms = dbms,
+  #   cohortData = inputData,
+  #   cdmTmpSchema = cdmTmpSchema,
+  #   stateStatistics = stateStatistics,
+  #   studyName = studyName,
+  #   cost_domains = costDomains,
+  #   excludedStates = excludedStates
+  # )
+  
+  ################################################################################
+  #
+  # Delete temp tables & Disconnect database connection
+  #
+  ################################################################################
+  
+  ans <- droppingTables()
+  if (ans == "y") {
+    dropRelation(
+      connection = conn,
+      dbms = dbms,
+      schema = cdmTmpSchema,
+      relationName = "cost_person"
+    )
+  }
+  
+  DatabaseConnector::disconnect(conn)
+  ParallelLogger::logInfo("The database conncetion has been closed")
+  
 }

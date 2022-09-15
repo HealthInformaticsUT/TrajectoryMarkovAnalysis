@@ -13,7 +13,8 @@ runGUI(
   cdmTmpSchema = "ohdsi_temp",
   cdmResultsSchema = "ohdsi_results",
   studyName = "MarkovAnalysis",
-  pathToResults = NULL
+  pathToResults = NULL,
+  databaseDescription = "A cool database."
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ runGUI(
 \item{cdmResultsSchema}{Schema which has the information about the cohorts created in Atlas}
 
 \item{pathToResults}{Path to target directory where results will be saved}
+
+\item{databaseDescription}{Information about the OMOP CDM database data}
 }
 \description{
 This function initiates the connection with database and starts Shiny application

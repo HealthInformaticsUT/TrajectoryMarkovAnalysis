@@ -18,116 +18,120 @@
 #' @param dbms Database management system's dialect
 #' @param cdmTmpSchema Temp tables' schema
 #' @keywords internal
-visualisePatient = function(patientData,
-                            patientId,
-                            trajectoryStopDays = 183,
-                            theme = 1,
-                            connection,
-                            dbms,
-                            cdmTmpSchema = "ohdsi_temp",
-                            feature = 0) {
-  newPatientData =  dplyr::filter(patientData, SUBJECT_ID == patientId)
-  newPatientData =  dplyr::arrange(newPatientData, STATE_START_DATE, STATE_END_DATE)
-  momentStart = as.numeric(
+visualisePatient <- function(patientData,
+                             patientId,
+                             trajectoryStopDays = 183,
+                             theme = 1,
+                             connection,
+                             dbms,
+                             cdmTmpSchema = "ohdsi_temp",
+                             feature = 0) {
+  newPatientData <-
+    dplyr::filter(patientData, SUBJECT_ID == patientId)
+  newPatientData <-
+    dplyr::arrange(newPatientData, STATE_START_DATE, STATE_END_DATE)
+  momentStart <- as.numeric(
     as.Date(newPatientData$STATE_START_DATE) - as.Date(newPatientData$STATE_START_DATE[1])
   )
-  momentEnd = as.numeric(
+  momentEnd <- as.numeric(
     as.Date(newPatientData$STATE_END_DATE) - as.Date(newPatientData$STATE_START_DATE[1])
   )
-  momentDuration = as.numeric(
+  momentDuration <- as.numeric(
     as.Date(newPatientData$STATE_END_DATE) - as.Date(newPatientData$STATE_START_DATE)
   )
   # Calculate the trajectories between for the given patient
-  n = length(momentStart)
-  momentInclusion = rep(TRUE, n)
+  n <- length(momentStart)
+  momentInclusion <- rep(TRUE, n)
   if (theme == 1) {
     # Will create an error if only one data row present
     if (n == 1) {
-      momentDifBoolean = c(TRUE)
+      momentDifBoolean <- c(TRUE)
     }
     else {
-      momentDif = momentEnd[-length(momentEnd)] - momentStart[-1]
+      momentDif <- momentEnd[-length(momentEnd)] - momentStart[-1]
       # Will return TRUE if momentDif element is smaller than trajectoryStopDays
-      momentDifBoolean = -momentDif > trajectoryStopDays
+      momentDifBoolean <- -momentDif > trajectoryStopDays
     }
-    groups = rep(1, n)
+    groups <- rep(1, n)
     
     for (index in 1:length(momentDifBoolean)) {
-      if (!momentDifBoolean[index])
-        groups[index + 1] =  groups[index]
+      if (!momentDifBoolean[index]) {
+        groups[index + 1] <- groups[index]
+      }
       else {
-        groups[index + 1] =  groups[index] + 1
+        groups[index + 1] <- groups[index] + 1
         # Let's crop the trajectories' durations so that every trajectory start's from 0 not some x value
-        momentStart[c(index + 1:n)] = momentStart[c(index + 1:n)] - momentStart[index + 1]
-        momentEnd[c(index + 1:n)] = momentStart[c(index + 1:n)] + momentDuration[c(index +
-                                                                                     1:n)]
-        
-        
+        momentStart[c(index + 1:n)] <-
+          momentStart[c(index + 1:n)] - momentStart[index + 1]
+        momentEnd[c(index + 1:n)] <-
+          momentStart[c(index + 1:n)] + momentDuration[c(index +
+                                                           1:n)]
         
       }
-      
     }
-    
-    
   }
   else if (theme == 2) {
-    groups = rep(1, n)
-    group = 1 # variable for iterating through groups of trajectories
+    groups <- rep(1, n)
+    group <-
+      1 # variable for iterating through groups of trajectories
     # Special case: only one data row
     if (n == 1) {
-      momentInclusion = c(TRUE)
+      momentInclusion <- c(TRUE)
     }
     else {
-      countOther = 0
+      countOther <- 0
       for (index in  1:n) {
         if (as.character(newPatientData$STATE[index]) == "0" |
-            as.character(newPatientData$STATE[index]) == "OUT OF COHORTS")
-        {
-          countOther = countOther + momentDuration[index]
+            as.character(newPatientData$STATE[index]) == "OUT OF COHORTS") {
+          countOther <- countOther + momentDuration[index]
           if (countOther > trajectoryStopDays) {
-            momentInclusion[index] = FALSE
+            momentInclusion[index] <- FALSE
             if (!(as.character(newPatientData$STATE[index + 1]) %in% c("0", "OUT OF COHORTS"))) {
-              group = group + 1
+              group <- group + 1
               
               # Let's crop the trajectories' durations so that every trajectory start's from 0 not some x value
-              momentStart[c(index + 1:n)] = momentStart[c(index + 1:n)] - momentStart[index + 1]
-              momentEnd[c(index + 1:n)] = momentStart[c(index + 1:n)] + momentDuration[c(index +
-                                                                                           1:n)]
+              momentStart[c(index + 1:n)] <-
+                momentStart[c(index + 1:n)] - momentStart[index + 1]
+              momentEnd[c(index + 1:n)] <-
+                momentStart[c(index + 1:n)] + momentDuration[c(index +
+                                                                 1:n)]
               
             }
           }
         }
-        else{
-          countOther = 0
+        else {
+          countOther <- 0
         }
-        groups[index] = group
+        groups[index] <- group
       }
     }
   }
   
   
   # Some Na's may occur
-  momentStart = as.vector(na.exclude(momentStart))
-  momentEnd = as.vector(na.exclude(momentEnd))
+  momentStart <- as.vector(na.exclude(momentStart))
+  momentEnd <- as.vector(na.exclude(momentEnd))
   
   # Color for visualisation
-  n_states = length(unique(newPatientData$STATE))
-  colors = NULL
+  n_states <- length(unique(newPatientData$STATE))
+  colors <- NULL
   # Due to RColorBrewer limitations we repeat if > 12 classes
   if (n_states > 12) {
-    n = 12
-    colors_vec = colors = RColorBrewer::brewer.pal(n = n, name = 'Paired')
+    n <- 12
+    colors_vec <-
+      colors <- RColorBrewer::brewer.pal(n = n, name = 'Paired')
     while (n < n_states) {
-      colors_vec = c(colors_vec, colors_vec[n %% 12])
-      n = n + 1
+      colors_vec <- c(colors_vec, colors_vec[n %% 12])
+      n <- n + 1
     }
-    colors = colors_vec
+    colors <- colors_vec
   }
   else {
-    colors = RColorBrewer::brewer.pal(n = n_states, name = 'Paired')
+    colors <- RColorBrewer::brewer.pal(n = n_states, name = 'Paired')
   }
-  colorTable = cbind(unique(as.vector(newPatientData$STATE)), colors)
-  colnames(colorTable) = c("STATE", "COLOR")
+  colorTable <-
+    cbind(unique(as.vector(newPatientData$STATE)), colors)
+  colnames(colorTable) <- c("STATE", "COLOR")
   
   ##############################################################################
   #
@@ -136,11 +140,10 @@ visualisePatient = function(patientData,
   ##############################################################################
   # DEV value
   # cost = rep(200, n)
-  cost = rep(NA, n)
+  cost <- rep(NA, n)
   #
   for (iteration in 1:n) {
-
-    tmp_cost = getCost(
+    tmp_cost <- getCost(
       connection = conn,
       dbms = dbms,
       patientId = patientId,
@@ -148,15 +151,16 @@ visualisePatient = function(patientData,
       endDate = as.Date(newPatientData$STATE_END_DATE[iteration]),
       cdmTmpSchema = cdmTmpSchema
     )
-    cost[iteration] = ifelse(is.na(as.numeric(tmp_cost[1])), 0, as.numeric(tmp_cost[1]))
+    cost[iteration] <-
+      ifelse(is.na(as.numeric(tmp_cost[1])), 0, as.numeric(tmp_cost[1]))
   }
-  newPatientData = cbind(newPatientData[,1:4],
-                         momentStart,
-                         momentEnd,
-                         groups,
-                         momentInclusion,
-                         cost)
-  colnames(newPatientData) = c(
+  newPatientData <- cbind(newPatientData[, 1:4],
+                          momentStart,
+                          momentEnd,
+                          groups,
+                          momentInclusion,
+                          cost)
+  colnames(newPatientData) <- c(
     "SUBJECT_ID",
     "STATE",
     "STATE_START_DATE",
@@ -167,22 +171,23 @@ visualisePatient = function(patientData,
     "INCLUDE",
     "COST"
   )
-  newPatientData = dplyr::filter(newPatientData, INCLUDE == TRUE)
-  newPatientData = merge(x = newPatientData,
-                         y = colorTable,
-                         by = "STATE",
-                         all.x = TRUE)
-  newPatientData =  dplyr::arrange(newPatientData, STATE_START_DATE, STATE_END_DATE)
-  newPatientData =  dplyr::mutate(newPatientData,
-                                  MOMENT_START = ifelse(MOMENT_START == 0 &
-                                                          STATE != 'START', 1,
-                                                        MOMENT_START))
-  blank_data = data.frame(GROUP = sort(unique(groups)),
-                          y = 1,
-                          x = as.vector(
-                            tapply(newPatientData$MOMENT_END, newPatientData$GROUP, max)
-                          ))
-  p = ggplot2::ggplot(newPatientData) +
+  newPatientData <- dplyr::filter(newPatientData, INCLUDE == TRUE)
+  newPatientData <- merge(x = newPatientData,
+                          y = colorTable,
+                          by = "STATE",
+                          all.x = TRUE)
+  newPatientData <-
+    dplyr::arrange(newPatientData, STATE_START_DATE, STATE_END_DATE)
+  newPatientData <-  dplyr::mutate(newPatientData,
+                                   MOMENT_START = ifelse(MOMENT_START == 0 &
+                                                           STATE != 'START', 1,
+                                                         MOMENT_START))
+  blank_data <- data.frame(GROUP = sort(unique(groups)),
+                           y = 1,
+                           x = as.vector(
+                             tapply(newPatientData$MOMENT_END, newPatientData$GROUP, max)
+                           ))
+  p <- ggplot2::ggplot(newPatientData) +
     # geom_line(aes(x = seq(0, MOMENT_END[nrow(newPatientData)], length.out =  4), y = rep(0, 4))) +
     ggplot2::geom_rect(
       xmin = newPatientData$MOMENT_START,
@@ -191,23 +196,26 @@ visualisePatient = function(patientData,
       ymax = rep(Inf, nrow(newPatientData)),
       fill = newPatientData$COLOR,
       alpha = (0.3)
-    ) +  ggplot2::geom_blank(data = blank_data, ggplot2::aes(x = x, y = y)) + ggplot2::facet_wrap(~ GROUP, scales = "free_x")
+    ) +  ggplot2::geom_blank(data = blank_data, ggplot2::aes(x = x, y = y)) + ggplot2::facet_wrap( ~ GROUP, scales = "free_x")
   # "h" a variable for text height
-  h = rep(1, nrow(newPatientData))
+  h <- rep(1, nrow(newPatientData))
   if (feature == 1) {
-    p = p + ggplot2::geom_line(ggplot2::aes(x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2, y = COST), size = 1)
-    h = rep(max(newPatientData$COST) / 2, nrow(newPatientData))
+    p <-
+      p + ggplot2::geom_line(ggplot2::aes(x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2, y = COST), size = 1)
+    h <- rep(max(newPatientData$COST) / 2, nrow(newPatientData))
   }
   else if (feature == 2) {
-    p = p + ggplot2::geom_line(ggplot2::aes(x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2, y = COST), size = 1)
-    h = rep(max(newPatientData$COST) / 2, nrow(newPatientData))
+    p <-
+      p + ggplot2::geom_line(ggplot2::aes(x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2, y = COST), size = 1)
+    h <- rep(max(newPatientData$COST) / 2, nrow(newPatientData))
   }
   else if (feature == 3) {
-    p = p + ggplot2::geom_line(ggplot2::aes(x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2, y = COST), size = 1)
-    h = rep(max(newPatientData$COST) / 2, nrow(newPatientData))
+    p <-
+      p + ggplot2::geom_line(ggplot2::aes(x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2, y = COST), size = 1)
+    h <- rep(max(newPatientData$COST) / 2, nrow(newPatientData))
   }
   
-  p = p + ggplot2::geom_text(ggplot2::aes(
+  p <- p + ggplot2::geom_text(ggplot2::aes(
     x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2,
     y = h,
     #rnorm(nrow(newPatientData)) + rnorm(nrow(newPatientData)) - rnorm(nrow(newPatientData)) / 2,
@@ -233,25 +241,31 @@ visualisePatient = function(patientData,
 #' @param cdmTmpSchema Temp tables' schema
 #' @keywords internal
 #' @return plotplot
-getCostDistPlot = function(connection, dbms, cdmTmpSchema){
+getCostDistPlot <- function(connection, dbms, cdmTmpSchema) {
   ParallelLogger::logInfo("Quering information about the distribution of the costs per state")
   # Now let's query a complete table
-  data = DatabaseConnector::querySql(
-    connection = connection,
-    sql = SqlRender::translate(
-      targetDialect = dbms,
-      sql = SqlRender::render(sql = "SELECT tma_states.STATE as STATE, SUM(cost_person.total_charge) as TOTAL_CHARGE
+  data <- DatabaseConnector::querySql(
+    connection <- connection,
+    sql <- SqlRender::translate(
+      targetDialect <- dbms,
+      sql = SqlRender::render(
+        sql = "SELECT tma_states.STATE as STATE, SUM(cost_person.total_cost) as TOTAL_COST
 FROM @cdmTmpSchema.cost_person
 LEFT JOIN tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE
-    GROUP BY cost_person.person_id, tma_states.STATE;", cdmTmpSchema = cdmTmpSchema)
-    ))
+    GROUP BY cost_person.person_id, tma_states.STATE;",
+        cdmTmpSchema = cdmTmpSchema
+      )
+    )
+  )
   
   data[is.na(data)] <- 0
   
-  plot = ggplot2::ggplot(data, ggplot2::aes(x = TOTAL_CHARGE, fill = factor(STATE))) +
-    ggplot2::geom_density(alpha = 0.4) + ggplot2::xlim(0,mean(data$TOTAL_CHARGE) + 1.96*2*sd(data$TOTAL_CHARGE)) + ggplot2::labs(fill='State') + ggplot2::xlab('Total charge') + ggplot2::ylab('Density') 
+  plot <-
+    ggplot2::ggplot(data, ggplot2::aes(x = TOTAL_COST, fill = factor(STATE))) +
+    ggplot2::geom_density(alpha = 0.4) + ggplot2::xlim(0, mean(data$TOTAL_COST) + 1.96 *
+                                                         2 * sd(data$TOTAL_COST)) + ggplot2::labs(fill = 'State') + ggplot2::xlab('Total cost') + ggplot2::ylab('Density')
   return(plot)
 }
 
@@ -269,17 +283,37 @@ LEFT JOIN tma_states
 #'
 #' @param pateintData A data.frame object which is output of Cohort2Trajectory package data.frame object which is resulting from
 #' @keywords internal
-drawSunburst <- function(patientData){
-  tmpInputData = dplyr::select(patientData,SUBJECT_ID, STATE, STATE_START_DATE, STATE_END_DATE)
-  labels <- c(unique(tmpInputData$STATE), "End") # "End" is required for RSunburst package input
-  labels <- labels[!labels %in% c("START", "EXIT", "OUT OF COHORT", "End")]
-  colors_all <- c("#E69F00", "#56B4E9", "#F0E442", "#009E73",
-                  "#0072B2", "#D55E00", "#CC79A7", "#004949",
-                  "#b66dff", "#924900", "#ff6db6", "#490092", "#601A4A" )
+drawSunburst <- function(patientData) {
+  tmpInputData <-
+    dplyr::select(patientData,
+                  SUBJECT_ID,
+                  STATE,
+                  STATE_START_DATE,
+                  STATE_END_DATE)
+  labels <-
+    c(unique(tmpInputData$STATE), "End") # "End" is required for RSunburst package input
+  labels <-
+    labels[!labels %in% c("START", "EXIT", "OUT OF COHORT", "End")]
+  colors_all <- c(
+    "#E69F00",
+    "#56B4E9",
+    "#F0E442",
+    "#009E73",
+    "#0072B2",
+    "#D55E00",
+    "#CC79A7",
+    "#004949",
+    "#b66dff",
+    "#924900",
+    "#ff6db6",
+    "#490092",
+    "#601A4A"
+  )
   colors <- colors_all[1:length(labels)]
-  colorsDef <- stats::setNames(c(colors,"#cccccc"), c(labels, "OUT OF COHORT"))
+  colorsDef <-
+    stats::setNames(c(colors, "#cccccc"), c(labels, "OUT OF COHORT"))
   
-
+  
   patStateLevel <-
     dplyr::mutate(
       dplyr::select(
@@ -298,11 +332,10 @@ drawSunburst <- function(patientData){
             )
           ), SUBJECT_ID),
           OtherLEVEL = with(rle(STATE), rep(seq_along(lengths), lengths))
-        )),
-        -STATE_START_DATE,
-        -STATE_END_DATE
-      ), STATEOtherLEVEL = paste(STATE, OtherLEVEL, sep = "-")
-      )
+        )),-STATE_START_DATE,-STATE_END_DATE
+      ),
+      STATEOtherLEVEL = paste(STATE, OtherLEVEL, sep = "-")
+    )
   
   data1 <-
     dplyr::mutate(dplyr::ungroup(dplyr::mutate(
@@ -319,23 +352,22 @@ drawSunburst <- function(patientData){
   patStateLevel1 <-
     dplyr::select(dplyr::arrange(dplyr::ungroup(
       dplyr::mutate(
-        dplyr::group_by(
-          dplyr::arrange(unique(
-            dplyr::select(patStateLevel, SUBJECT_ID, STATE, STATEOtherLEVEL)
-          ), STATE),
-          SUBJECT_ID,
-          grp = with(rle(STATE), rep(seq_along(lengths), lengths))
-        ),
+        dplyr::group_by(dplyr::arrange(unique(
+          dplyr::select(patStateLevel, SUBJECT_ID, STATE, STATEOtherLEVEL)
+        ), STATE),
+        SUBJECT_ID,
+        grp = with(rle(STATE), rep(
+          seq_along(lengths), lengths
+        ))),
         counts = 1:dplyr::n()
       )
-    ), SUBJECT_ID),
-    -grp,-STATE)
+    ), SUBJECT_ID),-grp, -STATE)
   
   patStateLevel <- dplyr::left_join(patStateLevel, patStateLevel1)
   
   patStateLevel <-
     dplyr::select(
-      dplyr::mutate(patStateLevel,DrugLEVEL = paste(STATE, counts, sep = "-")),
+      dplyr::mutate(patStateLevel, DrugLEVEL = paste(STATE, counts, sep = "-")),
       SUBJECT_ID,
       TIME,
       STATE,
@@ -369,10 +401,10 @@ drawSunburst <- function(patientData){
                       COUNT_CONS = 1:dplyr::n()
                     )
                   )
-                ), -grp), SUBJECT_ID, DrugLEVEL),
+                ),-grp), SUBJECT_ID, DrugLEVEL),
                 eraLen = max(COUNT_CONS)
               )
-            ), -TIME,-COUNT_CONS)
+            ),-TIME, -COUNT_CONS)
           ),
           SUBJECT_ID),
           Len = paste0(eraLen, collapse = "-")
@@ -430,11 +462,7 @@ drawSunburst <- function(patientData){
                       ),
                       COUNT_CONS = 1:dplyr::n()
                     )
-                  ), COUNT_CONS == 1),
-                  -grp,
-                  -TIME,
-                  -OtherLEVEL,
-                  -COUNT_CONS
+                  ), COUNT_CONS == 1),-grp,-TIME,-OtherLEVEL,-COUNT_CONS
                 ),
                 SUBJECT_ID
               ),
@@ -465,19 +493,19 @@ drawSunburst <- function(patientData){
                 dplyr::select(
                   dplyr::filter(dplyr::ungroup(
                     dplyr::mutate(
-                      dplyr::group_by(dplyr::filter(patStateLevel, (
-                        STATE != "OUT OF COHORT" |
-                          (STATE == "OUT OF COHORT" &
-                             OtherLEVEL == 1)
-                      )), SUBJECT_ID, grp = with(rle(STATE), rep(
-                        seq_along(lengths), lengths
-                      ))),
+                      dplyr::group_by(
+                        dplyr::filter(patStateLevel, (
+                          STATE != "OUT OF COHORT" |
+                            (STATE == "OUT OF COHORT" &
+                               OtherLEVEL == 1)
+                        )),
+                        SUBJECT_ID,
+                        grp = with(rle(STATE), rep(seq_along(lengths), lengths))
+                      ),
                       COUNT_CONS = 1:dplyr::n()
                     )
-                  ), COUNT_CONS == 1),-grp,
-                  -TIME,
-                  -OtherLEVEL,
-                  -COUNT_CONS
+                  ), COUNT_CONS == 1),
+                  -grp,-TIME,-OtherLEVEL,-COUNT_CONS
                 ),
                 SUBJECT_ID
               ),
@@ -496,12 +524,21 @@ drawSunburst <- function(patientData){
       fill = "right"
     )
   
-  patPaths2 <- dplyr::filter(dplyr::left_join(patPaths2, patStateLens),path == "OUT OF COHORT-End")
+  patPaths2 <-
+    dplyr::filter(dplyr::left_join(patPaths2, patStateLens),
+                  path == "OUT OF COHORT-End")
   
   patPaths <- dplyr::arrange(rbind(patPaths, patPaths2), SUBJECT_ID)
-    
-  ### Data prep for FREQS (sunburst input ) ----
-  freqPaths <- dplyr::arrange(dplyr::ungroup(dplyr::summarise(dplyr::group_by(patPaths, path),freq = dplyr::n())),plyr::desc(freq))
   
-  return(list("freqPaths" = freqPaths, "labels" = labels, "colors" = colors))
+  ### Data prep for FREQS (sunburst input ) ----
+  freqPaths <-
+    dplyr::arrange(dplyr::ungroup(dplyr::summarise(
+      dplyr::group_by(patPaths, path), freq = dplyr::n()
+    )), plyr::desc(freq))
+  
+  return(list(
+    "freqPaths" = freqPaths,
+    "labels" = labels,
+    "colors" = colors
+  ))
 }

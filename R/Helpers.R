@@ -56,7 +56,10 @@ save_object <- function(object, path) {
   if (is.data.frame(object)) {
     utils::write.csv(object, path, row.names = FALSE)
   }
-  else{
+  else if (is.table(object)) {
+    utils::write.table(object, file = path, row.names = FALSE)
+  }
+  else {
     save(object, file = path)
   }
 }
@@ -68,8 +71,9 @@ save_object <- function(object, path) {
 #' @param id The subject ID
 #' @keywords internal
 idExists <- function(data, id) {
-  if (as.character(id) %in% unique(as.character(data$SUBJECT_ID)))
+  if (as.character(id) %in% unique(as.character(data$SUBJECT_ID))) {
     return(TRUE)
+  }
   return(FALSE)
 }
 
@@ -80,10 +84,10 @@ idExists <- function(data, id) {
 #' @param controlStart Start of the date interval of interest
 #' @param controlEnd End of the date interval of interest
 #' @keywords internal
-daysOverlap = function(dateStart,
-                       dateEnd,
-                       controlStart,
-                       controlEnd) {
+daysOverlap <- function(dateStart,
+                        dateEnd,
+                        controlStart,
+                        controlEnd) {
   if (dateStart > controlStart &&
       dateEnd > controlEnd) {
     return(max(as.numeric(controlEnd - dateStart), 0))
@@ -100,21 +104,19 @@ daysOverlap = function(dateStart,
            dateEnd <= controlEnd) {
     return(max(as.numeric(dateEnd - dateStart), 0))
   }
-  else{
+  else {
     return(0)
   }
 }
 
 #' Function for asking from user whether to drop the package-generated tables from database
-#' 
+#'
 #' @keywords internal
-droppingTables = function() {
-  {
+droppingTables <- function() {
     ans <-
       as.character(readline(prompt = "Should we delete the cost_person table in temp schema? (y/n): "))
     cat("\n")
     return(ans)
-  }
 }
 
 
@@ -122,8 +124,14 @@ droppingTables = function() {
 #'
 #' @param pathToResults Path to the package results
 #' @keywords internal
-createMandatorySubDirs <- function(pathToResults){
-  dir.create(file.path(pathToResults, "tmp"),showWarnings = FALSE)
-  dir.create(file.path(paste(pathToResults,'/tmp', sep = ""), 'datasets'),showWarnings = FALSE)
-  dir.create(file.path(paste(pathToResults,'/tmp', sep = ""), 'models'),showWarnings = FALSE)
+createMandatorySubDirs <- function(pathToResults, databaseDescription) {
+  dir.create(file.path(pathToResults, "tmp"), showWarnings = FALSE)
+  dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'databases'), showWarnings = FALSE)
+  dir.create(file.path(paste(pathToResults, '/tmp/databases', sep = ""), studyName), showWarnings = FALSE)
+  #dir.create(file.path(paste(pathToResults, '/tmp', sep = ""), 'models'), showWarnings = FALSE)
+  # Write database description file
+  fileConn<-file((paste(pathToResults, '/tmp/databases/',studyName,'/description.md', sep = "")))
+  writeLines(databaseDescription, fileConn)
+  close(fileConn)
+  
 }
