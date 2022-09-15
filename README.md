@@ -33,8 +33,7 @@ Getting Started
 
 Package manual: [TrajectoryMarkovAnalysis.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_1.0.pdf)
 
-Package guide: [TrajectoryMarkovAnalysis_guide.pdf]
-(https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_guide.pdf)
+Package guide: [TrajectoryMarkovAnalysis_guide.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_guide.pdf)
  
 License
 =======
