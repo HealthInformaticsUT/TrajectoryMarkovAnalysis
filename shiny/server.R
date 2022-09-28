@@ -1091,7 +1091,8 @@ server <- function(input, output, session) {
         maxDate = input$generationDateRange[2],
         pathToResults = pathToResults,
         generateCost = input$trajectoryGenerateCost,
-        statisticsTable = v$stateStatisticsTable
+        statisticsTable = v$stateStatisticsTable,
+        studyName = studyName
       )
     }
     else {
@@ -1109,7 +1110,8 @@ server <- function(input, output, session) {
         stateDuration = input$generationStateDuration,
         pathToResults = pathToResults,
         generateCost = input$trajectoryGenerateCost,
-        statisticsTable = v$stateStatisticsTable
+        statisticsTable = v$stateStatisticsTable,
+        studyName = studyName
       )
     }
   })
