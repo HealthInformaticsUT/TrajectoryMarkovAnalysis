@@ -60,19 +60,7 @@ dataPreparation <- function(patientData) {
       coef <- coef + 1
     }
   }
-<<<<<<< HEAD
-  data$STATE_ID = as.numeric(data$STATE_ID)
-  data = dplyr::arrange(data, SUBJECT_ID, TIME_IN_COHORT, STATE_ID)
-  data = dplyr::select(
-    data,
-    SUBJECT_ID,
-    STATE,
-    STATE_ID,
-    STATE_START_DATE,
-    STATE_END_DATE,
-    TIME_IN_COHORT
-  )
-=======
+
   data$STATE_ID <- as.numeric(data$STATE_ID)
   data <- dplyr::arrange(data, SUBJECT_ID, TIME_IN_COHORT, STATE_ID)
   data <-
@@ -85,7 +73,6 @@ dataPreparation <- function(patientData) {
       STATE_END_DATE,
       TIME_IN_COHORT
     )
->>>>>>> 3544a84dc14ecd1fa4b6c0950f014f3531cca5e9
   
   return(data)
 }
