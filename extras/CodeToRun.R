@@ -3,7 +3,8 @@
 # Study settings
 #
 ################################################################################
-# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis")
+# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis@v1.0.0") # Run for installing release v1.0.0
+# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis") # Run for installing the HEAD
 library(TrajectoryMarkovAnalysis)
 studyName = "Temp" # TODO
 pathToResults <- getwd()   # TODO
