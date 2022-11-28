@@ -1,41 +1,20 @@
 Package: TrajectoryMarkovAnalysis
 Type: Package
-Title: Package for creating Markov models for patient-orientated trajectories. 
+Title: Package for creating Markov models for patient-orientated
+        trajectories.
 Version: 1.0
 Date: 2022-01-18
 Author: Markus Haug
 Maintainer: Markus Haug <haugmarkus@protonmail.com>
 Description: R-package TrajectoryMarkovAnalysis specializes on modelling patient trajectories using Markov chains. The package supports discrete and continuous time Markov models, Kaplan-Meier plots, Markov trees and synthetic data generation. The package is based on OMOP CDM.
 License: GPL (>= 2)
-Imports:
-  Rcpp (>= 1.0.7),
-  sunburstR,
-  htmlwidgets,
-  shiny,
-  shinydashboard,
-  shinycssloaders,
-  DT,
-  matrixcalc,
-  dplyr,
-  plyr,
-  tidyr,
-  shinyMatrix,
-  msm,
-  stringr,
-  survival,
-  survminer,
-  ggplot2,
-  ggpubr,
-  ggraph,
-  igraph,
-  stats,
-  formattable,
-  utils
-Remotes:
-  OHDSI/DatabaseConnector,
-  OHDSI/ParallelLogger,
-  OHDSI/SqlRender
-Suggests:
-  testthat
+Imports: Rcpp (>= 1.0.7), sunburstR, htmlwidgets, shiny,
+        shinydashboard, shinycssloaders, DT, matrixcalc, dplyr, plyr,
+        tidyr, shinyMatrix, msm, stringr, survival, survminer, ggplot2,
+        ggpubr, ggraph, igraph, stats, formattable, utils
+Remotes: OHDSI/DatabaseConnector, OHDSI/ParallelLogger, OHDSI/SqlRender
+Suggests: testthat
 LinkingTo: Rcpp
 RoxygenNote: 7.1.1
+NeedsCompilation: yes
+Packaged: 2022-09-08 12:24:49 UTC; mhaug
