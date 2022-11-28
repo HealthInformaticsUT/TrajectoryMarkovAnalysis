@@ -3,9 +3,9 @@
 # Study settings
 #
 ################################################################################
-# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis")
+#devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis")
 library(TrajectoryMarkovAnalysis)
-studyName = "Temp" # TODO
+studyName = "SomeStudy" # TODO
 pathToResults <- getwd()   # TODO
 
 ################################################################################
@@ -20,9 +20,9 @@ pw <- "" #TODO
 server <- 'ip/database' #TODO
 port <- '5432' #TODO
 
-cdmSchema <- "" #TODO # Schema which contains the OHDSI Common Data Model
-cdmTmpSchema <- "" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
-cdmResultsSchema <- "" #TODO # Schema which will contain the final results
+cdmSchema <- "ohdsi_cdm" #TODO # Schema which contains the OHDSI Common Data Model
+cdmTmpSchema <- "ohdsi_temp" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
+cdmResultsSchema <- "ohdsi_results" #TODO # Schema which will contain the final results
 
 databaseDescription <- "This is a very cool database." #TODO
 
@@ -32,6 +32,7 @@ databaseDescription <- "This is a very cool database." #TODO
 # Initiate the database connection
 #
 ################################################################################
+
 
 connectionDetails <-
   DatabaseConnector::createConnectionDetails(
@@ -105,9 +106,9 @@ runGUI(
 #
 ################################################################################
 
-# Discrete trajectories
+# # Discrete trajectories
 # transistionMatrix = get(load(paste(pathToResults,"/tmp/models/todo" ,sep = "")))
-
+# 
 # generateDataDiscrete(transitionMatrix = transistionMatrix,
 #                                n = 100, # TODO : Number of patients
 #                                minDate = "1900-01-01",
@@ -116,18 +117,18 @@ runGUI(
 #                                stateDuration = 30, # TODO : state duration (time in days)
 #                                pathToResults = getwd(),
 #                                studyName = studyName)
-
-
-
-# Continuous trajectories
+# 
+# 
+# 
+# # Continuous trajectories
 # intensityMatrix = get(load(paste(pathToResults,"/tmp/models/todo" ,sep = "")))
-
+# 
 # generateDataContinuous(model = intensityMatrix,
-#                      n = 100,  # TODO : Number of patients
-#                      minDate = "1900-01-01",
-#                      maxDate = "2021-12-31",
-#                      pathToResults = pathToResults,
-#                      studyName = studyName)
+#                       n = 100,  # TODO : Number of patients
+#                       minDate = "1900-01-01",
+#                       maxDate = "2021-12-31",
+#                       pathToResults = pathToResults,
+#                       studyName = studyName)
 
 
 ################################################################################

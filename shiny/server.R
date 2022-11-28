@@ -1085,13 +1085,13 @@ server <- function(input, output, session) {
     if (input$trajectoryTypeMatrix == 2) {
       v$generatedData <- generateDataContinuous(
         model = v$modelCMC,
-        stateLabels = v$idStates$STATE,
         n = input$generationNrPatients,
         minDate = input$generationDateRange[1],
         maxDate = input$generationDateRange[2],
         pathToResults = pathToResults,
         generateCost = input$trajectoryGenerateCost,
-        statisticsTable = v$stateStatisticsTable
+        statisticsTable = v$stateStatisticsTable,
+        studyName = studyName
       )
     }
     else {
@@ -1109,7 +1109,8 @@ server <- function(input, output, session) {
         stateDuration = input$generationStateDuration,
         pathToResults = pathToResults,
         generateCost = input$trajectoryGenerateCost,
-        statisticsTable = v$stateStatisticsTable
+        statisticsTable = v$stateStatisticsTable,
+        studyName = studyName
       )
     }
   })

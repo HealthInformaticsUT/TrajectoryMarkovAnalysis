@@ -275,6 +275,17 @@ LEFT JOIN tma_first_state
                          'MEAN PAID')
     return(table)
   }
+  save_object(data, path = paste(
+    pathToResults,
+    paste(
+      "/tmp/databases/",
+      studyName,
+      "/",
+      studyName,      "_first_state_statistics.csv",
+      sep = ""
+    ),
+    sep = ""
+  ))
   meanTotalCharge <-
     aggregate(data$TOTAL_CHARGE, list(data$FIRST_STATE), mean)
   colnames(meanTotalCharge) <- c("STATE", "MEAN_TOTAL_CHARGE")
@@ -430,8 +441,8 @@ getStateStatistics <- function(connection,
       targetDialect = dbms,
       sql = sprintf(
         SqlRender::render(
-          sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) as TOTAL_CHARGE,
-        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_PAID,
+          sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE,
+        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID,
         cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
 FROM @cdmTmpSchema.cost_person
 LEFT JOIN tma_states
@@ -456,6 +467,10 @@ LEFT JOIN tma_states
     sep = ""
   ))
   # Overall trajectories charge statistics mean & median
+  data_mm = readr::read_csv(paste(pathToResults,
+                                  paste("/tmp/databases/",studyName,"/", studyName, "_first_state_statistics.csv", sep = ""),
+                                  sep = ""), col_types = readr::cols())
+  
   dataTrajectoryChargeCalculations <-
     dplyr::summarise(dplyr::group_by(
       dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE),
@@ -463,9 +478,9 @@ LEFT JOIN tma_states
     ),
     CHARGE = sum(TOTAL_STATE_CHARGE))
   trajectoriesMeanCharge <-
-    mean(dataTrajectoryChargeCalculations$CHARGE)
+    mean(data_mm$TOTAL_CHARGE,na.rm = TRUE)
   trajectoriesMedianCharge <-
-    stats::median(dataTrajectoryChargeCalculations$CHARGE)
+    stats::median(data_mm$TOTAL_CHARGE,na.rm = TRUE)
   # Overall state chrage, cost, paid statistics
   uniqueStates <- unique(data$STATE_P)
   
@@ -476,12 +491,12 @@ LEFT JOIN tma_states
     summaryTable <- rbind(summaryTable,
                           c(
                             state,
-                            mean(state_data$TOTAL_CHARGE),
-                            stats::sd(state_data$TOTAL_CHARGE),
-                            mean(state_data$TOTAL_COST),
-                            stats::sd(state_data$TOTAL_COST),
-                            mean(state_data$TOTAL_PAID),
-                            stats::sd(state_data$TOTAL_PAID)
+                            mean(state_data$TOTAL_CHARGE,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_CHARGE,na.rm = TRUE),
+                            mean(state_data$TOTAL_COST,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_COST,na.rm = TRUE),
+                            mean(state_data$TOTAL_PAID,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_PAID,na.rm = TRUE)
                           ))
   }
   colnames(summaryTable) <-
