@@ -7,7 +7,7 @@
 generateDataContinuous(
   model,
   n = 100,
-  minDate = "1900-01-01",
+  minDate = "2020-01-01",
   maxDate = "2021-12-31",
   pathToResults = getwd(),
   generateCost = 0,

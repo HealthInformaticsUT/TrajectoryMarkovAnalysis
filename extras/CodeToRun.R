@@ -3,10 +3,12 @@
 # Study settings
 #
 ################################################################################
+
 # devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis@v1.0.1") # Run for installing release v1.0.1
 # devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis") # Run for installing the HEAD
+
 library(TrajectoryMarkovAnalysis)
-studyName = "Temp" # TODO
+studyName = "SomeStudy" # TODO
 pathToResults <- getwd()   # TODO
 
 ################################################################################
@@ -33,6 +35,7 @@ databaseDescription <- "This is a very cool database." #TODO
 # Initiate the database connection
 #
 ################################################################################
+
 
 connectionDetails <-
   DatabaseConnector::createConnectionDetails(
@@ -106,9 +109,9 @@ runGUI(
 #
 ################################################################################
 
-# Discrete trajectories
+# # Discrete trajectories
 # transistionMatrix = get(load(paste(pathToResults,"/tmp/models/todo" ,sep = "")))
-
+# 
 # generateDataDiscrete(transitionMatrix = transistionMatrix,
 #                                n = 100, # TODO : Number of patients
 #                                minDate = "1900-01-01",
@@ -117,18 +120,18 @@ runGUI(
 #                                stateDuration = 30, # TODO : state duration (time in days)
 #                                pathToResults = getwd(),
 #                                studyName = studyName)
-
-
-
-# Continuous trajectories
+# 
+# 
+# 
+# # Continuous trajectories
 # intensityMatrix = get(load(paste(pathToResults,"/tmp/models/todo" ,sep = "")))
-
+# 
 # generateDataContinuous(model = intensityMatrix,
-#                      n = 100,  # TODO : Number of patients
-#                      minDate = "1900-01-01",
-#                      maxDate = "2021-12-31",
-#                      pathToResults = pathToResults,
-#                      studyName = studyName)
+#                       n = 100,  # TODO : Number of patients
+#                       minDate = "1900-01-01",
+#                       maxDate = "2021-12-31",
+#                       pathToResults = pathToResults,
+#                       studyName = studyName)
 
 
 ################################################################################
