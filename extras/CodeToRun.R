@@ -73,7 +73,7 @@ runGUI(
 ################################################################################
 
 
-# inputData <- readr::read_csv("/home/...") # trajectory data
+# inputData <- readr::read_csv("Path to trajectory data") # trajectory data
 # modelType <- "discrete" # "discrete" or "continuous"
 # excludedStates <- c("OUT OF COHORT")
 # 
