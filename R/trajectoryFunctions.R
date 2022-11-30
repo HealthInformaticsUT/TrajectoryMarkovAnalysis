@@ -488,6 +488,7 @@ LEFT JOIN tma_states
   summaryTable <-  data.frame(matrix(ncol = 7, nrow = 0))
   for (state in uniqueStates) {
     state_data <- dplyr::filter(data, STATE_P == state)
+    state_data[is.na(state_data)] <- 0
     summaryTable <- rbind(summaryTable,
                           c(
                             state,
