@@ -262,19 +262,7 @@ LEFT JOIN tma_first_state
     )
   )
   data[is.na(data)] <- 0
-  if (nrow(data) == 0) {
-    mean_charge <- rep(NA, length(entryPercentages$STATE))
-    mean_cost <- rep(NA, length(entryPercentages$STATE))
-    mean_paid <- rep(NA, length(entryPercentages$STATE))
-    table <-
-      as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
-    colnames(table) <- c('STATE',
-                         'PERCENTAGE',
-                         'MEAN CHARGE',
-                         'MEAN COST',
-                         'MEAN PAID')
-    return(table)
-  }
+  
   save_object(data, path = paste(
     pathToResults,
     paste(
@@ -286,6 +274,21 @@ LEFT JOIN tma_first_state
     ),
     sep = ""
   ))
+  if (nrow(data) == 0) {
+    mean_charge <- rep(NA, length(entryPercentages$STATE))
+    mean_cost <- rep(NA, length(entryPercentages$STATE))
+    mean_paid <- rep(NA, length(entryPercentages$STATE))
+    table <-
+      as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
+    colnames(table) <- c('STATE',
+                         'PERCENTAGE',
+                         'MEAN CHARGE',
+                         'MEAN COST',
+                         'MEAN PAID')
+    
+    
+    return(table)
+  }
   meanTotalCharge <-
     aggregate(data$TOTAL_CHARGE, list(data$FIRST_STATE), mean)
   colnames(meanTotalCharge) <- c("STATE", "MEAN_TOTAL_CHARGE")
