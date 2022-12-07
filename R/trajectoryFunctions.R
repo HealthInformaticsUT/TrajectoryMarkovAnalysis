@@ -275,9 +275,9 @@ LEFT JOIN tma_first_state
     sep = ""
   ))
   if (nrow(data) == 0) {
-    mean_charge <- rep(NA, length(entryPercentages$STATE))
-    mean_cost <- rep(NA, length(entryPercentages$STATE))
-    mean_paid <- rep(NA, length(entryPercentages$STATE))
+    mean_charge <- rep(0, length(entryPercentages$STATE))
+    mean_cost <- rep(0, length(entryPercentages$STATE))
+    mean_paid <- rep(0, length(entryPercentages$STATE))
     table <-
       as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
     colnames(table) <- c('STATE',
@@ -285,8 +285,31 @@ LEFT JOIN tma_first_state
                          'MEAN CHARGE',
                          'MEAN COST',
                          'MEAN PAID')
+    ParallelLogger::logInfo(paste(
+      "Saved to: ",
+      pathToResults,
+      paste(
+        "/tmp/databases/",
+        studyName,
+        "/",
+        studyName,
+        "_first_state_statistics.txt",
+        sep = ""
+      ),
+      sep = ""
+    ))
     
-    
+    save_object(table, path = paste(
+      pathToResults,
+      paste(
+        "/tmp/databases/",
+        studyName,
+        "/",
+        studyName,      "_first_state_statistics.txt",
+        sep = ""
+      ),
+      sep = ""
+    ))
     return(table)
   }
   meanTotalCharge <-
@@ -417,27 +440,6 @@ getStateStatistics <- function(connection,
   )
   # Now let's query a complete table
   sql_s <- toString(sprintf("'%s'", cost_domains))
-  #   data = DatabaseConnector::querySql(
-  #     connection = connection,
-  #     sql = SqlRender::translate(
-  #       targetDialect = dbms,
-  #       sql = sprintf(SqlRender::render(
-  #         sql = "select total_cost_person.STATE_ AS STATE, AVG(total_cost_person.total_charge) AS MEAN_CHARGE,stddev(total_cost_person.total_charge) AS MEAN_CHARGE_STD, AVG(total_cost_person.total_cost) AS MEAN_COST, stddev(total_cost_person.total_cost) AS MEAN_COST_STD, AVG(total_cost_person.total_paid) AS MEAN_PAID, stddev(total_cost_person.total_paid) AS MEAN_PAID_STD
-  # FROM
-  # (SELECT tma_states.STATE AS STATE_, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE, SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID
-  # FROM @cdmTmpSchema.cost_person
-  # LEFT JOIN tma_states
-  #   ON cost_person.person_id = tma_states.SUBJECT_ID
-  #       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.total_charge IS NOT NULL AND cost_person.cost_domain_id IN (%s)
-  #     GROUP BY cost_person.person_id, tma_states.STATE, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE) as total_cost_person
-  #     GROUP BY total_cost_person.STATE_;",
-  #         cdmTmpSchema = cdmTmpSchema
-  #       ),
-  #       sql_s
-  #       )
-  #     )
-  #   )
-  
   data <- DatabaseConnector::querySql(
     connection = connection,
     sql = SqlRender::translate(
@@ -517,12 +519,12 @@ LEFT JOIN tma_states
   stateStatistics <- summaryTable
   # Handling the case when database returns no rows
   if (nrow(summaryTable) == 0) {
-    mean_charge <- rep(NA, length(entryPercentages$STATE))
-    ci_charge <- rep(NA, length(entryPercentages$STATE))
-    mean_cost <- rep(NA, length(entryPercentages$STATE))
-    ci_cost <- rep(NA, length(entryPercentages$STATE))
-    mean_paid <- rep(NA, length(entryPercentages$STATE))
-    ci_paid <- rep(NA, length(entryPercentages$STATE))
+    mean_charge <- rep(0, length(entryPercentages$STATE))
+    ci_charge <- rep(0, length(entryPercentages$STATE))
+    mean_cost <- rep(0, length(entryPercentages$STATE))
+    ci_cost <- rep(0, length(entryPercentages$STATE))
+    mean_paid <- rep(0, length(entryPercentages$STATE))
+    ci_paid <- rep(0, length(entryPercentages$STATE))
     summaryTable <- as.data.frame(
       cbind(
         entryPercentages,
@@ -545,6 +547,22 @@ LEFT JOIN tma_states
       "MEAN PAID",
       "CI PAID"
     )
+    
+    save_object(summaryTable, path = paste(
+      pathToResults,
+      paste("/tmp/databases/",       studyName,
+            "/",
+            studyName, "_state_statistics.txt", sep = ""),
+      sep = ""
+    ))
+    ParallelLogger::logInfo(paste(
+      "Saved to: ",
+      pathToResults,
+      paste("/tmp/databases/",       studyName,
+            "/",
+            studyName, "_state_statistics.txt", sep = ""),
+      sep = ""
+    ))
     
     return((list(
       "table" = summaryTable,
