@@ -520,16 +520,15 @@ LEFT JOIN tma_states
   # Handling the case when database returns no rows
   if (nrow(summaryTable) == 0) {
     mean_charge <- rep(0, length(entryPercentages$STATE))
-    ci_charge <- rep(0, length(entryPercentages$STATE))
+    ci_charge <- rep("(0,0)", length(entryPercentages$STATE))
     mean_cost <- rep(0, length(entryPercentages$STATE))
-    ci_cost <- rep(0, length(entryPercentages$STATE))
+    ci_cost <- rep("(0,0)", length(entryPercentages$STATE))
     mean_paid <- rep(0, length(entryPercentages$STATE))
-    ci_paid <- rep(0, length(entryPercentages$STATE))
+    ci_paid <- rep("(0,0)", length(entryPercentages$STATE))
     summaryTable <- as.data.frame(
       cbind(
         entryPercentages,
         mean_charge,
-        mean_cost,
         ci_charge,
         mean_cost,
         ci_cost,
