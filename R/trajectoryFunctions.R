@@ -476,49 +476,9 @@ LEFT JOIN tma_states
                                   paste("/tmp/databases/",studyName,"/", studyName, "_first_state_statistics.csv", sep = ""),
                                   sep = ""), col_types = readr::cols())
   
-  dataTrajectoryChargeCalculations <-
-    dplyr::summarise(dplyr::group_by(
-      dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE),
-      PERSON_ID
-    ),
-    CHARGE = sum(TOTAL_STATE_CHARGE))
-  trajectoriesMeanCharge <-
-    mean(data_mm$TOTAL_CHARGE,na.rm = TRUE)
-  trajectoriesMedianCharge <-
-    stats::median(data_mm$TOTAL_CHARGE,na.rm = TRUE)
-  # Overall state chrage, cost, paid statistics
-  uniqueStates <- unique(data$STATE_P)
   
-  
-  summaryTable <-  data.frame(matrix(ncol = 7, nrow = 0))
-  for (state in uniqueStates) {
-    state_data <- dplyr::filter(data, STATE_P == state)
-    state_data[is.na(state_data)] <- 0
-    summaryTable <- rbind(summaryTable,
-                          c(
-                            state,
-                            mean(state_data$TOTAL_CHARGE,na.rm = TRUE),
-                            stats::sd(state_data$TOTAL_CHARGE,na.rm = TRUE),
-                            mean(state_data$TOTAL_COST,na.rm = TRUE),
-                            stats::sd(state_data$TOTAL_COST,na.rm = TRUE),
-                            mean(state_data$TOTAL_PAID,na.rm = TRUE),
-                            stats::sd(state_data$TOTAL_PAID,na.rm = TRUE)
-                          ))
-  }
-  colnames(summaryTable) <-
-    c(
-      "STATE",
-      "MEAN_CHARGE",
-      "CHARGE_STD",
-      "MEAN_COST",
-      "COST_STD",
-      "MEAN_PAID",
-      "PAID_STD"
-    )
-  summaryTable[is.na(summaryTable)] <- 0
-  stateStatistics <- summaryTable
   # Handling the case when database returns no rows
-  if (nrow(summaryTable) == 0) {
+  if (nrow(data_mm) < 2) {
     mean_charge <- rep(0, length(entryPercentages$STATE))
     ci_charge <- rep("(0,0)", length(entryPercentages$STATE))
     mean_cost <- rep(0, length(entryPercentages$STATE))
@@ -569,6 +529,49 @@ LEFT JOIN tma_states
       "median" = 0
     )))
   }
+  
+  dataTrajectoryChargeCalculations <-
+    dplyr::summarise(dplyr::group_by(
+      dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE),
+      PERSON_ID
+    ),
+    CHARGE = sum(TOTAL_STATE_CHARGE))
+  trajectoriesMeanCharge <-
+    mean(data_mm$TOTAL_CHARGE,na.rm = TRUE)
+  trajectoriesMedianCharge <-
+    stats::median(data_mm$TOTAL_CHARGE,na.rm = TRUE)
+  # Overall state chrage, cost, paid statistics
+  uniqueStates <- unique(data$STATE_P)
+  
+  
+  summaryTable <-  data.frame(matrix(ncol = 7, nrow = 0))
+  for (state in uniqueStates) {
+    state_data <- dplyr::filter(data, STATE_P == state)
+    state_data[is.na(state_data)] <- 0
+    summaryTable <- rbind(summaryTable,
+                          c(
+                            state,
+                            mean(state_data$TOTAL_CHARGE,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_CHARGE,na.rm = TRUE),
+                            mean(state_data$TOTAL_COST,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_COST,na.rm = TRUE),
+                            mean(state_data$TOTAL_PAID,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_PAID,na.rm = TRUE)
+                          ))
+  }
+  colnames(summaryTable) <-
+    c(
+      "STATE",
+      "MEAN_CHARGE",
+      "CHARGE_STD",
+      "MEAN_COST",
+      "COST_STD",
+      "MEAN_PAID",
+      "PAID_STD"
+    )
+  summaryTable[is.na(summaryTable)] <- 0
+  stateStatistics <- summaryTable
+
   table <- cbind(
     stateStatistics$STATE,
     stateStatistics$MEAN_CHARGE,
