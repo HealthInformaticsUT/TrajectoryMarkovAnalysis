@@ -106,6 +106,7 @@ getStohasticMatrix <- function(cohortData,
   M[is.nan(M)] <- 0
   # As there is no states after "EXIT" we should explicitly state that from "EXIT" state the probability to transfer to "EXIT" state is 1
   M[nrow(M), ncol(M)] <- 1
+  print(M)
   ParallelLogger::logInfo("Saving stochastic matrix!")
   save_object(M, path = paste(
     pathToResults,
