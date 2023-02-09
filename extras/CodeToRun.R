@@ -3,10 +3,10 @@
 # Study settings
 #
 ################################################################################
-# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis@v1.0.1") # Run for installing release v1.0.1
-# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis") # Run for installing the HEAD
+devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis@v1.0.1") # Run for installing release v1.0.1
+devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis") # Run for installing the HEAD
 library(TrajectoryMarkovAnalysis)
-studyName = "Temp" # TODO
+studyName = "HeartFailure" # TODO
 pathToResults <- getwd()   # TODO
 
 ################################################################################
@@ -16,14 +16,14 @@ pathToResults <- getwd()   # TODO
 ################################################################################
 pathToDriver = './Drivers'
 dbms <- 'postgresql' #TODO
-user <- '' #TODO
-pw <- "" #TODO
-server <- 'ip/database' #TODO
-port <- '5432' #TODO
+user <- 'markus' #TODO
+pw <- "Konrad2021" #TODO
+server <- 'localhost/maitt' #TODO
+port <- '63333' #TODO
 
-cdmSchema <- "ohdsi_cdm" #TODO # Schema which contains the OHDSI Common Data Model
-cdmTmpSchema <- "ohdsi_temp" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
-cdmResultsSchema <- "ohdsi_results" #TODO # Schema which will contain the final results
+cdmSchema <- "ohdsi_cdm_202206" #TODO # Schema which contains the OHDSI Common Data Model
+cdmTmpSchema <- "user_markus" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
+cdmResultsSchema <- "ohdsi_results_202206" #TODO # Schema which will contain the final results
 
 databaseDescription <- "This is a very cool database." #TODO
 
@@ -70,7 +70,15 @@ runGUI(
 ################################################################################
 
 
-# inputData <- readr::read_csv("/home/...") # trajectory data
+inputData <- readr::read_csv("/home/markus/Töölaud/Doktorantuur/Birgitt_Majas/simpleTrajectoryBE/TestSchemaTrajectoriesFull.csv") # trajectory data
+inputData$STATE = substr(inputData$STATE,1,6)
+stateCohorts = unique(inputData$STATE)
+getStohasticMatrix(cohortData = inputData,
+                  stateCohorts = stateCohorts,
+                  pathToResults = getwd(),
+                  statePriorityVector = NULL,
+                  studyName = 'THE-STUDY',
+                  excludedStates = NULL)
 # modelType <- "discrete" # "discrete" or "continuous"
 # excludedStates <- c("OUT OF COHORT")
 # 
