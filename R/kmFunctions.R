@@ -20,6 +20,12 @@ kmDataPreparation <-
     if (is.null(patientData$AGE)) {
       patientData$AGE <- 0
     }
+    if (is.null(patientData$GENDER_CONCEPT_ID)) {
+      patientData$GENDER_CONCEPT_ID <- 0
+    }
+    if (is.null(patientData$TIME_IN_COHORT)) {
+      patientData$TIME_IN_COHORT <- 0
+    }
     patientData$SUBJECT_ID <- as.integer(patientData$SUBJECT_ID)
     if ("COHORT_START_DATE" %in% colnames(patientData)) {
       colnames(patientData) <-
@@ -70,7 +76,6 @@ kmDataPreparation <-
       ),
       STATE = endCohortId)
       
-      
       data_surv <-  merge(data1, data2, by = "SUBJECT_ID", all.x = T)
       data_surv <-
         dplyr::select(data_surv,-STATE_END_DATE,-ID.x,-ID.y)
@@ -85,7 +90,7 @@ kmDataPreparation <-
       data_surv <- dplyr::mutate(
         dplyr::filter(data_surv, START_DATE < END_DATE |
                         is.na(END_DATE)),
-        DIFF = difftime(START_DATE, END_DATE)
+        DIFF = difftime(as.Date(START_DATE), as.Date(END_DATE))
       )
       data_surv <- dplyr::filter(dplyr::group_by(data_surv,
                                                  SUBJECT_ID),
@@ -185,7 +190,8 @@ kmDataPreparation <-
         data_surv <- rbind(data_surv, data_clone_to_add)
       }
     }
-    
+    data_surv$START_DATE <- as.Date(data_surv$START_DATE)
+    data_surv$END_DATE <- as.Date(data_surv$END_DATE)
     data_surv <-
       dplyr::mutate(data_surv, DATE = ifelse(is.na(END_DATE), -1, as.numeric(
         difftime(END_DATE, START_DATE, units = "days")
@@ -197,6 +203,9 @@ kmDataPreparation <-
     data_surv <-
       dplyr::mutate(data_surv, DATE = ifelse(DATE == -1, max_date , DATE))
     data_surv <- dplyr::filter(data_surv, DATE >= 0)
+    
+    data_surv$START_DATE <- as.Date(data_surv$START_DATE)
+    data_surv$END_DATE <- as.Date(data_surv$END_DATE)
     
     return(data_surv)
   }

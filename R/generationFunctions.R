@@ -428,10 +428,14 @@ compareTrajectoryData <- function(observedData, generatedData) {
 #'
 #' @param observedDataA data.frame object which is output of Cohort2Trajectory package
 #' @param generatedData the data frame of generated data
-#' @keywords internal
+#' @export
 compareTrajectoryDataLogRank <-
   function(observedData, generatedData) {
-    allStates <- sort(unique(observedData$STATE))
+    observedData$START_DATE <- as.Date(observedData$STATE_START_DATE)
+    generatedData$START_DATE <- as.Date(generatedData$STATE_START_DATE)
+    observedData$END_DATE <- as.Date(observedData$STATE_END_DATE)
+    generatedData$END_DATE <- as.Date(generatedData$STATE_END_DATE)
+    allStates <- sort(setdiff(unique(observedData$STATE), c("START", "EXIT")))
     lrMatrix <- matrix(NA, length(allStates), length(allStates))
     colnames(lrMatrix) <- allStates
     rownames(lrMatrix) <- allStates
@@ -458,12 +462,10 @@ compareTrajectoryDataLogRank <-
           lrMatrix[startCohortId, endCohortId] = 1
           next
         }
-        
         test_survival1$GROUP <- "Observed"
         test_survival2$GROUP <- "Generated"
         test_survival_combined <-
           rbind(test_survival1, test_survival2)
-        
         surv_object <-
           survminer::surv_fit(survival::Surv(DATE, OUTCOME) ~ GROUP, data = test_survival_combined)
         p_value <-
@@ -484,6 +486,31 @@ compareTrajectoryDataLogRank <-
         }
       }
     }
+    ParallelLogger::logInfo("Saving logRank test matrix to a .rdata file")
+    save_object(
+      object <- lrMatrix,
+      path <- paste(
+        pathToResults,
+        "/tmp/databases/",
+        studyName,
+        "/",
+        studyName,      "logRankMatrix.rdata",
+        sep = ""
+      )
+    )
+    ParallelLogger::logInfo(paste(
+      "Saved to: ",
+      paste(
+        pathToResults,
+        "/tmp/databases/",
+        studyName,
+        "/",
+        studyName,
+        "logRankMatrix.rdata",
+        sep = ""
+      ),
+      sep = ""
+    ))
     return(lrMatrix)
   }
 
