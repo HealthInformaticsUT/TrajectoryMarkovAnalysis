@@ -263,10 +263,22 @@ LEFT JOIN tma_first_state
     )
   )
   data[is.na(data)] <- 0
+  
+  save_object(data, path = paste(
+    pathToResults,
+    paste(
+      "/tmp/databases/",
+      studyName,
+      "/",
+      studyName,      "_first_state_statistics.csv",
+      sep = ""
+    ),
+    sep = ""
+  ))
   if (nrow(data) == 0) {
-    mean_charge <- rep(NA, length(entryPercentages$STATE))
-    mean_cost <- rep(NA, length(entryPercentages$STATE))
-    mean_paid <- rep(NA, length(entryPercentages$STATE))
+    mean_charge <- rep(0, length(entryPercentages$STATE))
+    mean_cost <- rep(0, length(entryPercentages$STATE))
+    mean_paid <- rep(0, length(entryPercentages$STATE))
     table <-
       as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
     colnames(table) <- c('STATE',
@@ -274,6 +286,31 @@ LEFT JOIN tma_first_state
                          'MEAN CHARGE',
                          'MEAN COST',
                          'MEAN PAID')
+    ParallelLogger::logInfo(paste(
+      "Saved to: ",
+      pathToResults,
+      paste(
+        "/tmp/databases/",
+        studyName,
+        "/",
+        studyName,
+        "_first_state_statistics.txt",
+        sep = ""
+      ),
+      sep = ""
+    ))
+    
+    save_object(table, path = paste(
+      pathToResults,
+      paste(
+        "/tmp/databases/",
+        studyName,
+        "/",
+        studyName,      "_first_state_statistics.txt",
+        sep = ""
+      ),
+      sep = ""
+    ))
     return(table)
   }
   meanTotalCharge <-
@@ -404,35 +441,14 @@ getStateStatistics <- function(connection,
   )
   # Now let's query a complete table
   sql_s <- toString(sprintf("'%s'", cost_domains))
-  #   data = DatabaseConnector::querySql(
-  #     connection = connection,
-  #     sql = SqlRender::translate(
-  #       targetDialect = dbms,
-  #       sql = sprintf(SqlRender::render(
-  #         sql = "select total_cost_person.STATE_ AS STATE, AVG(total_cost_person.total_charge) AS MEAN_CHARGE,stddev(total_cost_person.total_charge) AS MEAN_CHARGE_STD, AVG(total_cost_person.total_cost) AS MEAN_COST, stddev(total_cost_person.total_cost) AS MEAN_COST_STD, AVG(total_cost_person.total_paid) AS MEAN_PAID, stddev(total_cost_person.total_paid) AS MEAN_PAID_STD
-  # FROM
-  # (SELECT tma_states.STATE AS STATE_, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE, SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID
-  # FROM @cdmTmpSchema.cost_person
-  # LEFT JOIN tma_states
-  #   ON cost_person.person_id = tma_states.SUBJECT_ID
-  #       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.total_charge IS NOT NULL AND cost_person.cost_domain_id IN (%s)
-  #     GROUP BY cost_person.person_id, tma_states.STATE, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE) as total_cost_person
-  #     GROUP BY total_cost_person.STATE_;",
-  #         cdmTmpSchema = cdmTmpSchema
-  #       ),
-  #       sql_s
-  #       )
-  #     )
-  #   )
-  
   data <- DatabaseConnector::querySql(
     connection = connection,
     sql = SqlRender::translate(
       targetDialect = dbms,
       sql = sprintf(
         SqlRender::render(
-          sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) as TOTAL_CHARGE,
-        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE) AS TOTAL_PAID,
+          sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE,
+        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID,
         cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
 FROM @cdmTmpSchema.cost_person
 LEFT JOIN tma_states
@@ -457,59 +473,23 @@ LEFT JOIN tma_states
     sep = ""
   ))
   # Overall trajectories charge statistics mean & median
-  dataTrajectoryChargeCalculations <-
-    dplyr::summarise(dplyr::group_by(
-      dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE),
-      PERSON_ID
-    ),
-    CHARGE = sum(TOTAL_STATE_CHARGE))
-  trajectoriesMeanCharge <-
-    mean(dataTrajectoryChargeCalculations$CHARGE)
-  trajectoriesMedianCharge <-
-    stats::median(dataTrajectoryChargeCalculations$CHARGE)
-  # Overall state chrage, cost, paid statistics
-  uniqueStates <- unique(data$STATE_P)
+  data_mm = readr::read_csv(paste(pathToResults,
+                                  paste("/tmp/databases/",studyName,"/", studyName, "_first_state_statistics.csv", sep = ""),
+                                  sep = ""), col_types = readr::cols())
   
   
-  summaryTable <-  data.frame(matrix(ncol = 7, nrow = 0))
-  for (state in uniqueStates) {
-    state_data <- dplyr::filter(data, STATE_P == state)
-    summaryTable <- rbind(summaryTable,
-                          c(
-                            state,
-                            mean(state_data$TOTAL_CHARGE),
-                            stats::sd(state_data$TOTAL_CHARGE),
-                            mean(state_data$TOTAL_COST),
-                            stats::sd(state_data$TOTAL_COST),
-                            mean(state_data$TOTAL_PAID),
-                            stats::sd(state_data$TOTAL_PAID)
-                          ))
-  }
-  colnames(summaryTable) <-
-    c(
-      "STATE",
-      "MEAN_CHARGE",
-      "CHARGE_STD",
-      "MEAN_COST",
-      "COST_STD",
-      "MEAN_PAID",
-      "PAID_STD"
-    )
-  summaryTable[is.na(summaryTable)] <- 0
-  stateStatistics <- summaryTable
   # Handling the case when database returns no rows
-  if (nrow(summaryTable) == 0) {
-    mean_charge <- rep(NA, length(entryPercentages$STATE))
-    ci_charge <- rep(NA, length(entryPercentages$STATE))
-    mean_cost <- rep(NA, length(entryPercentages$STATE))
-    ci_cost <- rep(NA, length(entryPercentages$STATE))
-    mean_paid <- rep(NA, length(entryPercentages$STATE))
-    ci_paid <- rep(NA, length(entryPercentages$STATE))
+  if (nrow(data_mm) < 2) {
+    mean_charge <- rep(0, length(entryPercentages$STATE))
+    ci_charge <- rep("(0,0)", length(entryPercentages$STATE))
+    mean_cost <- rep(0, length(entryPercentages$STATE))
+    ci_cost <- rep("(0,0)", length(entryPercentages$STATE))
+    mean_paid <- rep(0, length(entryPercentages$STATE))
+    ci_paid <- rep("(0,0)", length(entryPercentages$STATE))
     summaryTable <- as.data.frame(
       cbind(
         entryPercentages,
         mean_charge,
-        mean_cost,
         ci_charge,
         mean_cost,
         ci_cost,
@@ -528,12 +508,71 @@ LEFT JOIN tma_states
       "CI PAID"
     )
     
+    save_object(summaryTable, path = paste(
+      pathToResults,
+      paste("/tmp/databases/",       studyName,
+            "/",
+            studyName, "_state_statistics.txt", sep = ""),
+      sep = ""
+    ))
+    ParallelLogger::logInfo(paste(
+      "Saved to: ",
+      pathToResults,
+      paste("/tmp/databases/",       studyName,
+            "/",
+            studyName, "_state_statistics.txt", sep = ""),
+      sep = ""
+    ))
+    
     return((list(
       "table" = summaryTable,
       "mean" = 0,
       "median" = 0
     )))
   }
+  
+  dataTrajectoryChargeCalculations <-
+    dplyr::summarise(dplyr::group_by(
+      dplyr::select(data, PERSON_ID, TOTAL_STATE_CHARGE),
+      PERSON_ID
+    ),
+    CHARGE = sum(TOTAL_STATE_CHARGE))
+  trajectoriesMeanCharge <-
+    mean(data_mm$TOTAL_CHARGE,na.rm = TRUE)
+  trajectoriesMedianCharge <-
+    stats::median(data_mm$TOTAL_CHARGE,na.rm = TRUE)
+  # Overall state chrage, cost, paid statistics
+  uniqueStates <- unique(data$STATE_P)
+  
+  
+  summaryTable <-  data.frame(matrix(ncol = 7, nrow = 0))
+  for (state in uniqueStates) {
+    state_data <- dplyr::filter(data, STATE_P == state)
+    state_data[is.na(state_data)] <- 0
+    summaryTable <- rbind(summaryTable,
+                          c(
+                            state,
+                            mean(state_data$TOTAL_CHARGE,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_CHARGE,na.rm = TRUE),
+                            mean(state_data$TOTAL_COST,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_COST,na.rm = TRUE),
+                            mean(state_data$TOTAL_PAID,na.rm = TRUE),
+                            stats::sd(state_data$TOTAL_PAID,na.rm = TRUE)
+                          ))
+  }
+  colnames(summaryTable) <-
+    c(
+      "STATE",
+      "MEAN_CHARGE",
+      "CHARGE_STD",
+      "MEAN_COST",
+      "COST_STD",
+      "MEAN_PAID",
+      "PAID_STD"
+    )
+  summaryTable[is.na(summaryTable)] <- 0
+  stateStatistics <- summaryTable
+
   table <- cbind(
     stateStatistics$STATE,
     stateStatistics$MEAN_CHARGE,

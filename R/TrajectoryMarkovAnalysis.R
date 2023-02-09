@@ -199,15 +199,7 @@ TrajectoryMarkovAnalysis <- function(conn,
   # State statistics
   #
   ################################################################################
-  stateStatisticsTable <-  getStateStatistics(
-    conn,
-    dbms = dbms,
-    cohortData = inputData,
-    cdmTmpSchema = cdmTmpSchema,
-    studyName = studyName,
-    cost_domains = costDomains,
-    excludedStates = excludedStates
-  )
+  
   
   tmpData <- getFirstState(inputData, excludedStates)
   getFirstStateStatistics(
@@ -218,17 +210,18 @@ TrajectoryMarkovAnalysis <- function(conn,
     studyName = studyName
   )
   
-  # getStateStatistics(
-  #   conn,
-  #   dbms = dbms,
-  #   cohortData = inputData,
-  #   cdmTmpSchema = cdmTmpSchema,
-  #   stateStatistics = stateStatistics,
-  #   studyName = studyName,
-  #   cost_domains = costDomains,
-  #   excludedStates = excludedStates
-  # )
   
+  
+  stateStatisticsTable <-  getStateStatistics(
+    conn,
+    dbms = dbms,
+    cohortData = inputData,
+    cdmTmpSchema = cdmTmpSchema,
+    studyName = studyName,
+    cost_domains = costDomains,
+    excludedStates = excludedStates
+  )
+
   ################################################################################
   #
   # Delete temp tables & Disconnect database connection

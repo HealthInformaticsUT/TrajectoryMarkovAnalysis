@@ -503,13 +503,13 @@ body <- shinydashboard::dashboardBody(
           ),
           shiny::numericInput(
             inputId = "generationStateDuration",
-            label = "Duration patient spends in a state",
+            label = "Duration patient spends in a state (discrete)",
             value = 30,
             min = 0
           ),
           shiny::numericInput(
             inputId = "generationMaxOtherDuration",
-            label = "Maximum days out of cohort",
+            label = "Maximum days out of cohort (discrete)",
             value = 183,
             min = 0
           ),
