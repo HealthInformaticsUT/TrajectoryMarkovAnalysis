@@ -270,7 +270,7 @@ LEFT JOIN tma_first_state
       "/tmp/databases/",
       studyName,
       "/",
-      studyName,      "_first_state_statistics.csv",
+      studyName,      "_first_state_statistics.txt",
       sep = ""
     ),
     sep = ""
@@ -474,7 +474,7 @@ LEFT JOIN tma_states
   ))
   # Overall trajectories charge statistics mean & median
   data_mm = readr::read_csv(paste(pathToResults,
-                                  paste("/tmp/databases/",studyName,"/", studyName, "_first_state_statistics.csv", sep = ""),
+                                  paste("/tmp/databases/",studyName,"/", studyName, "_first_state_statistics.txt", sep = ""),
                                   sep = ""), col_types = readr::cols())
   
   
