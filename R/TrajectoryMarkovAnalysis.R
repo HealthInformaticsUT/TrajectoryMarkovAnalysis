@@ -230,12 +230,12 @@ TrajectoryMarkovAnalysis <- function(conn,
   
   # ans <- droppingTables()
   # if (ans == "y") {
-  #   dropRelation(
-  #     connection = conn,
-  #     dbms = dbms,
-  #     schema = cdmTmpSchema,
-  #     relationName = "cost_person"
-  #   )
+dropRelation(
+  connection = conn,
+  dbms = dbms,
+  schema = cdmTmpSchema,
+  relationName = "cost_person"
+)
   # }
   
   DatabaseConnector::disconnect(conn)
