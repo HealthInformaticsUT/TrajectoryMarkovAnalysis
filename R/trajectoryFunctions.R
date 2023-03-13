@@ -472,14 +472,9 @@ LEFT JOIN tma_states
     paste("/tmp/databases/",studyName,"/", studyName, "_state_cost.csv", sep = ""),
     sep = ""
   ))
-  # Overall trajectories charge statistics mean & median
-  data_mm = readr::read_csv(paste(pathToResults,
-                                  paste("/tmp/databases/",studyName,"/", studyName, "_first_state_statistics.txt", sep = ""),
-                                  sep = ""), col_types = readr::cols())
-  
   
   # Handling the case when database returns no rows
-  if (nrow(data_mm) < 2) {
+  if (nrow(data) < 2) {
     mean_charge <- rep(0, length(entryPercentages$STATE))
     ci_charge <- rep("(0,0)", length(entryPercentages$STATE))
     mean_cost <- rep(0, length(entryPercentages$STATE))
@@ -538,9 +533,9 @@ LEFT JOIN tma_states
     ),
     CHARGE = sum(TOTAL_STATE_CHARGE))
   trajectoriesMeanCharge <-
-    mean(data_mm$TOTAL_CHARGE,na.rm = TRUE)
+    mean(dataTrajectoryChargeCalculations$TOTAL_CHARGE,na.rm = TRUE)
   trajectoriesMedianCharge <-
-    stats::median(data_mm$TOTAL_CHARGE,na.rm = TRUE)
+    stats::median(dataTrajectoryChargeCalculations$TOTAL_CHARGE,na.rm = TRUE)
   # Overall state chrage, cost, paid statistics
   uniqueStates <- unique(data$STATE_P)
   
