@@ -20,28 +20,28 @@ getDTreeProbabilities <- function(cohortData,
   # TODO create dataframe from to count
   
   ## For the purpose of overview let's leave out the state Other as we will have this state implemented later in another style
-  #stateTransitionTable = dplyr::filter(cohortData, STATE != "0")
+  #stateTransitionTable = dplyr::filter(cohortData, STATE_LABEL != "0")
   stateTransitionTable <-
     cbind(
       c(NA, cohortData$SUBJECT_ID),
-      c(NA, cohortData$STATE),
+      c(NA, cohortData$STATE_LABEL),
       c(cohortData$SUBJECT_ID, NA),
-      c(cohortData$STATE, NA)
+      c(cohortData$STATE_LABEL, NA)
     )
   colnames(stateTransitionTable) <-
-    c("SUBJECT_ID1", "STATE1", "SUBJECT_ID2", "STATE2")
+    c("SUBJECT_ID1", "STATE_LABEL1", "SUBJECT_ID2", "STATE_LABEL2")
   TransitionTable <-
     dplyr::select(dplyr::filter(
       as.data.frame(stateTransitionTable),
       SUBJECT_ID1 == SUBJECT_ID2
     ),
-    STATE1,
-    STATE2)
+    STATE_LABEL1,
+    STATE_LABEL2)
   TransitionTable1 <-
-    dplyr::count(x = TransitionTable, STATE1, STATE2)
-  TransitionTable2 <- dplyr::count(x = TransitionTable, STATE1,)
+    dplyr::count(x = TransitionTable, STATE_LABEL1, STATE_LABEL2)
+  TransitionTable2 <- dplyr::count(x = TransitionTable, STATE_LABEL1,)
   TransitionTable <-
-    merge(x = TransitionTable1, y = TransitionTable2, by = "STATE1")
+    merge(x = TransitionTable1, y = TransitionTable2, by = "STATE_LABEL1")
   TransitionTable <-
     dplyr::select(dplyr::mutate(TransitionTable, PROB = n.x / n.y),-n.x, -n.y)
   #TransitionTable$PROB = round(TransitionTable$PROB,4)
@@ -54,15 +54,15 @@ getDTreeProbabilities <- function(cohortData,
       as.data.frame(stateTransitionTable),
       SUBJECT_ID1 != SUBJECT_ID2
     ),
-    STATE1,
-    STATE2)
-  startingPointTable$STATE1 <- NA
+    STATE_LABEL1,
+    STATE_LABEL2)
+  startingPointTable$STATE_LABEL1 <- NA
   startingPointTable1 <-
-    dplyr::count(x = startingPointTable, STATE1, STATE2)
+    dplyr::count(x = startingPointTable, STATE_LABEL1, STATE_LABEL2)
   startingPointTable2 <-
-    dplyr::count(x = startingPointTable, STATE1,)
+    dplyr::count(x = startingPointTable, STATE_LABEL1,)
   startingPointTable <-
-    merge(x = startingPointTable1, y = startingPointTable2, by = "STATE1")
+    merge(x = startingPointTable1, y = startingPointTable2, by = "STATE_LABEL1")
   startingPointTable <-
     dplyr::select(dplyr::mutate(startingPointTable, PROB = n.x / n.y),-n.x, -n.y)
   startingPointTable$PROB <- round(startingPointTable$PROB, 4)
@@ -116,9 +116,9 @@ mergeEdgeTransition <- function(cohortData,
   }
   else if (probabilityType == 3 | probabilityType == 4) {
     if (probabilityType == 4) {
-      # Lets remove all repetitions from cohortData_copy by analyzing STATE vector
+      # Lets remove all repetitions from cohortData_copy by analyzing STATE_LABEL vector
       cohortData_copy <-
-        dplyr::filter(cohortData_copy, STATE != dplyr::lag(STATE, default = "1"))
+        dplyr::filter(cohortData_copy, STATE_LABEL != dplyr::lag(STATE_LABEL, default = "1"))
     }
     # For starters let's state all the transfers we will need, ex 0-1, 0-2, 0-1-2 ...
     trajectories <- data.frame(matrix(0, ncol = 3,
@@ -156,7 +156,7 @@ mergeEdgeTransition <- function(cohortData,
       personData <-
         dplyr::filter(cohortData_copy,  SUBJECT_ID == patientId)
       fullTrajectorie <-
-        paste(c(dTreeEdges$from_label[1], personData$STATE), collapse = "%%,")
+        paste(c(dTreeEdges$from_label[1], personData$STATE_LABEL), collapse = "%%,")
       #Surpress warnings
       defaultW <- getOption("warn")
       options(warn = -1)

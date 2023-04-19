@@ -15,6 +15,6 @@ Imports: Rcpp (>= 1.0.7), sunburstR, htmlwidgets, shiny,
 Remotes: OHDSI/DatabaseConnector, OHDSI/ParallelLogger, OHDSI/SqlRender
 Suggests: testthat
 LinkingTo: Rcpp
-RoxygenNote: 7.2.1
+RoxygenNote: 7.2.3
 NeedsCompilation: yes
 Packaged: 2022-09-08 12:24:49 UTC; mhaug

@@ -139,7 +139,7 @@ generateDataDiscrete <- function(transitionMatrix,
     }
     
     colnames(tmpPatientInfo) <-  c("SUBJECT_ID",
-                                   "STATE",
+                                   "STATE_LABEL",
                                    "STATE_START_DATE",
                                    "STATE_END_DATE")
     genData[[patientId]] <- tmpPatientInfo
@@ -156,7 +156,7 @@ generateDataDiscrete <- function(transitionMatrix,
   if (generateCost == 1) {
     costs <- c()
     cost <- NA
-    for (state in genData$STATE) {
+    for (state in genData$STATE_LABEL) {
       if (state %in% c("START", "EXIT")) {
         cost <- 0
       }
@@ -170,7 +170,7 @@ generateDataDiscrete <- function(transitionMatrix,
     }
     genData <- cbind(genData, costs)
     colnames(genData) <-  c("SUBJECT_ID",
-                            "STATE",
+                            "STATE_LABEL",
                             "STATE_START_DATE",
                             "STATE_END_DATE",
                             "COST")
@@ -298,7 +298,7 @@ generateDataContinuous <- function(model,
     }
     
     colnames(tmpPatientInfo) <- c("SUBJECT_ID",
-                                  "STATE",
+                                  "STATE_LABEL",
                                   "STATE_START_DATE",
                                   "STATE_END_DATE")
     ############################################################################
@@ -309,14 +309,14 @@ generateDataContinuous <- function(model,
     ############################################################################
     
     tmpPatientInfo_START <-
-      dplyr::filter(tmpPatientInfo, STATE == "START")
+      dplyr::filter(tmpPatientInfo, STATE_LABEL == "START")
     tmpPatientInfo_START$STATE_START_DATE <-
       min(tmpPatientInfo_START$STATE_START_DATE)
     tmpPatientInfo_START$STATE_END_DATE <-
       min(tmpPatientInfo_START$STATE_END_DATE)
     tmpPatientInfo_START <- tmpPatientInfo_START[1,]
     tmpPatientInfo <- rbind(tmpPatientInfo_START,
-                            dplyr::filter(tmpPatientInfo, STATE != "START"))
+                            dplyr::filter(tmpPatientInfo, STATE_LABEL != "START"))
     
     genData[[patientId]] <- tmpPatientInfo
   }
@@ -332,7 +332,7 @@ generateDataContinuous <- function(model,
   if (generateCost == 1) {
     costs <- c()
     for (row in 1:nrow(genData)) {
-      state <- genData[row, "STATE"]
+      state <- genData[row, "STATE_LABEL"]
       if (state %in% c("START", "EXIT")) {
         cost <- 0
       }
@@ -350,7 +350,7 @@ generateDataContinuous <- function(model,
     }
     genData <- cbind(genData, costs)
     colnames(genData) <- c("SUBJECT_ID",
-                           "STATE",
+                           "STATE_LABEL",
                            "STATE_START_DATE",
                            "STATE_END_DATE",
                            "COST")
@@ -404,12 +404,12 @@ generateDataContinuous <- function(model,
 #' @keywords internal
 compareTrajectoryData <- function(observedData, generatedData) {
   frame1 <-
-    as.data.frame(round(table(observedData$STATE) / nrow(observedData), 5))
+    as.data.frame(round(table(observedData$STATE_LABEL) / nrow(observedData), 5))
   frame2 <-
-    as.data.frame(round(table(generatedData$STATE) / nrow(generatedData), 5))
+    as.data.frame(round(table(generatedData$STATE_LABEL) / nrow(generatedData), 5))
   dataTable <- merge(frame1, frame2, by = "Var1")
   
-  colnames(dataTable) <- c("STATE", "OBSERVED", "GENERATED")
+  colnames(dataTable) <- c("STATE_LABEL", "OBSERVED", "GENERATED")
   dataTable$OBSERVED <-
     as.character(formattable::percent(dataTable$OBSERVED, 4))
   dataTable$GENERATED <-
@@ -438,7 +438,7 @@ compareTrajectoryDataLogRank <-
     generatedData$START_DATE <- as.Date(generatedData$STATE_START_DATE)
     observedData$END_DATE <- as.Date(observedData$STATE_END_DATE)
     generatedData$END_DATE <- as.Date(generatedData$STATE_END_DATE)
-    allStates <- sort(setdiff(unique(observedData$STATE), c("START", "EXIT")))
+    allStates <- sort(setdiff(unique(observedData$STATE_LABEL), c("START", "EXIT")))
     lrMatrix <- matrix(NA, length(allStates), length(allStates))
     colnames(lrMatrix) <- allStates
     rownames(lrMatrix) <- allStates
