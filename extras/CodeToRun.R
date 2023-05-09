@@ -3,7 +3,7 @@
 # Study settings
 #
 ################################################################################
-# devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis@v1.0.1") # Run for installing release v1.0.1
+devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis") # Run for installing release v1.0.1
 # devtools::install_github("HealthInformaticsUT/TrajectoryMarkovAnalysis") # Run for installing the HEAD
 
 library(TrajectoryMarkovAnalysis)

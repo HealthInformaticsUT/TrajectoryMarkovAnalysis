@@ -235,13 +235,15 @@ getFirstStateStatistics <- function(connection,
     as.Date(cohortData$SUBJECT_START_DATE)
   cohortData$SUBJECT_END_DATE <-
     as.Date(cohortData$SUBJECT_END_DATE)
+  
   DatabaseConnector::insertTable(
     connection = connection,
     tableName = "tma_first_state",
+    databaseSchema = cdmTmpSchema,
     data = cohortData,
     dropTableIfExists = TRUE,
     createTable = TRUE,
-    tempTable = TRUE,
+    tempTable = FALSE,
     #    bulkLoad = TRUE,
     progressBar = TRUE
   )
@@ -254,7 +256,7 @@ getFirstStateStatistics <- function(connection,
       sql = SqlRender::render(
         sql = "SELECT tma_first_state.SUBJECT_ID AS SUBJECT_ID, tma_first_state.FIRST_STATE AS FIRST_STATE, sum(cost_person.total_charge) AS TOTAL_CHARGE, sum(cost_person.total_cost) AS TOTAL_COST, sum(cost_person.total_paid) AS TOTAL_PAID
 FROM @cdmTmpSchema.cost_person
-LEFT JOIN tma_first_state
+LEFT JOIN @cdmTmpSchema.tma_first_state
   ON cost_person.person_id = tma_first_state.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_first_state.SUBJECT_START_DATE AND tma_first_state.SUBJECT_END_DATE
       GROUP BY tma_first_state.SUBJECT_ID, tma_first_state.FIRST_STATE;",
@@ -432,10 +434,11 @@ getStateStatistics <- function(connection,
   DatabaseConnector::insertTable(
     connection = connection,
     tableName = "tma_states",
+    databaseSchema = cdmTmpSchema,
     data = tmpDataState,
     dropTableIfExists = TRUE,
     createTable = TRUE,
-    tempTable = TRUE,
+    tempTable = FALSE,
     #    bulkLoad = TRUE,
     progressBar = TRUE
   )
@@ -451,7 +454,7 @@ getStateStatistics <- function(connection,
         SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID,
         cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
 FROM @cdmTmpSchema.cost_person
-LEFT JOIN tma_states
+LEFT JOIN @cdmTmpSchema.tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.cost_domain_id IN (%s)
     GROUP BY cost_person.person_id, tma_states.STATE_LABEL, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE;",

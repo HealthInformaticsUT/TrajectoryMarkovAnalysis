@@ -2,8 +2,8 @@ Package: TrajectoryMarkovAnalysis
 Type: Package
 Title: Package for creating Markov models for patient-orientated
         trajectories.
-Version: 1.0.2
-Date: 2022-11-30
+Version: 1.0.4
+Date: 2023-05-09
 Author: Markus Haug
 Maintainer: Markus Haug <haugmarkus@protonmail.com>
 Description: R-package TrajectoryMarkovAnalysis specializes on modelling patient trajectories using Markov chains. The package supports discrete and continuous time Markov models, Kaplan-Meier plots, Markov trees and synthetic data generation. The package is based on OMOP CDM.
