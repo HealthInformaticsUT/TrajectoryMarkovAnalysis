@@ -80,14 +80,14 @@ getStohasticMatrix <- function(cohortData,
   if (length(excludedStates) > 0) {
     # Excluding the explicitly chosen states
     states <- setdiff(states, excludedStates)
-    tmp_data <- dplyr::filter(tmp_data, STATE %in% states)
+    tmp_data <- dplyr::filter(tmp_data, STATE_LABEL %in% states)
   }
   
   
   classes <- 0:(length(states) - 1)
   tmp_data$CLASS <-
     plyr::mapvalues(
-      x = tmp_data$STATE,
+      x = tmp_data$STATE_LABEL,
       from = states,
       to = classes,
       warn_missing = FALSE
@@ -146,7 +146,7 @@ getStohasticMatrix <- function(cohortData,
 getFirstState <- function(cohortData, excludedStates = c()) {
   # Lets exclude "START" and "EXIT" states as we are not interested in these
   tmpDataState <-
-    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates))
+    dplyr::filter(cohortData, !STATE_LABEL %in% c("START", "EXIT", excludedStates))
   
   # Handling the case where we have 0 rows left
   if (nrow(tmpDataState) == 0) {
@@ -156,10 +156,10 @@ getFirstState <- function(cohortData, excludedStates = c()) {
   tmpDataState <- dplyr::arrange(tmpDataState, STATE_START_DATE)
   tmpDataState <-
     tmpDataState[!duplicated(tmpDataState$SUBJECT_ID),]
-  tmpDataState <- dplyr::select(tmpDataState, SUBJECT_ID, STATE)
+  tmpDataState <- dplyr::select(tmpDataState, SUBJECT_ID, STATE_LABEL)
   
   tmpDataDateMin <-
-    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates))#cohortData
+    dplyr::filter(cohortData, !STATE_LABEL %in% c("START", "EXIT", excludedStates))#cohortData
   tmpDataDateMin$STATE_START_DATE <-
     as.Date(tmpDataDateMin$STATE_START_DATE)
   tmpDataDateMin <-
@@ -174,7 +174,7 @@ getFirstState <- function(cohortData, excludedStates = c()) {
                    by.y = "SUBJECT_ID")
   
   tmpDataDateMax <-
-    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates)) #cohortData
+    dplyr::filter(cohortData, !STATE_LABEL %in% c("START", "EXIT", excludedStates)) #cohortData
   tmpDataDateMax$STATE_END_DATE <-
     as.Date(tmpDataDateMax$STATE_END_DATE)
   tmpDataDateMax <- stats::aggregate(tmpDataDateMax$STATE_END_DATE,
@@ -187,7 +187,7 @@ getFirstState <- function(cohortData, excludedStates = c()) {
     merge(tmpData, tmpDataDateMax, by.x = "SUBJECT_ID", by.y = "SUBJECT_ID")
   
   tmpData <-
-    dplyr::select(.data = tmpData, SUBJECT_ID, STATE, STATE_START_DATE, STATE_END_DATE)
+    dplyr::select(.data = tmpData, SUBJECT_ID, STATE_LABEL, STATE_START_DATE, STATE_END_DATE)
   colnames(tmpData) <- c("SUBJECT_ID",
                          "FIRST_STATE",
                          "SUBJECT_START_DATE",
@@ -214,7 +214,7 @@ getFirstStateStatistics <- function(connection,
   # Handling the case where we have 0 rows left
   if (nrow(cohortData) == 0) {
     table <- as.data.frame(cbind(NA, NA, NA, NA, NA))
-    colnames(table) <- c('STATE',
+    colnames(table) <- c('STATE_LABEL',
                          'PERCENTAGE',
                          'MEAN CHARGE',
                          'MEAN COST',
@@ -224,7 +224,7 @@ getFirstStateStatistics <- function(connection,
   
   entryPercentages <- prop.table(table(cohortData$FIRST_STATE))
   entryPercentages <- as.data.frame(entryPercentages)
-  colnames(entryPercentages) <- c("STATE", "PERCENTAGE")
+  colnames(entryPercentages) <- c("STATE_LABEL", "PERCENTAGE")
   
   # Let's query the total cost of the whole patient trajectory
   
@@ -235,13 +235,15 @@ getFirstStateStatistics <- function(connection,
     as.Date(cohortData$SUBJECT_START_DATE)
   cohortData$SUBJECT_END_DATE <-
     as.Date(cohortData$SUBJECT_END_DATE)
+  
   DatabaseConnector::insertTable(
     connection = connection,
     tableName = "tma_first_state",
+    databaseSchema = cdmTmpSchema,
     data = cohortData,
     dropTableIfExists = TRUE,
     createTable = TRUE,
-    tempTable = TRUE,
+    tempTable = FALSE,
     #    bulkLoad = TRUE,
     progressBar = TRUE
   )
@@ -254,7 +256,7 @@ getFirstStateStatistics <- function(connection,
       sql = SqlRender::render(
         sql = "SELECT tma_first_state.SUBJECT_ID AS SUBJECT_ID, tma_first_state.FIRST_STATE AS FIRST_STATE, sum(cost_person.total_charge) AS TOTAL_CHARGE, sum(cost_person.total_cost) AS TOTAL_COST, sum(cost_person.total_paid) AS TOTAL_PAID
 FROM @cdmTmpSchema.cost_person
-LEFT JOIN tma_first_state
+LEFT JOIN @cdmTmpSchema.tma_first_state
   ON cost_person.person_id = tma_first_state.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_first_state.SUBJECT_START_DATE AND tma_first_state.SUBJECT_END_DATE
       GROUP BY tma_first_state.SUBJECT_ID, tma_first_state.FIRST_STATE;",
@@ -276,12 +278,12 @@ LEFT JOIN tma_first_state
     sep = ""
   ))
   if (nrow(data) == 0) {
-    mean_charge <- rep(0, length(entryPercentages$STATE))
-    mean_cost <- rep(0, length(entryPercentages$STATE))
-    mean_paid <- rep(0, length(entryPercentages$STATE))
+    mean_charge <- rep(0, length(entryPercentages$STATE_LABEL))
+    mean_cost <- rep(0, length(entryPercentages$STATE_LABEL))
+    mean_paid <- rep(0, length(entryPercentages$STATE_LABEL))
     table <-
       as.data.frame(cbind(entryPercentages, mean_charge, mean_cost, mean_paid))
-    colnames(table) <- c('STATE',
+    colnames(table) <- c('STATE_LABEL',
                          'PERCENTAGE',
                          'MEAN CHARGE',
                          'MEAN COST',
@@ -315,13 +317,13 @@ LEFT JOIN tma_first_state
   }
   meanTotalCharge <-
     aggregate(data$TOTAL_CHARGE, list(data$FIRST_STATE), mean)
-  colnames(meanTotalCharge) <- c("STATE", "MEAN_TOTAL_CHARGE")
+  colnames(meanTotalCharge) <- c("STATE_LABEL", "MEAN_TOTAL_CHARGE")
   meanTotalCosts <-
     aggregate(data$TOTAL_COST, list(data$FIRST_STATE), mean)
-  colnames(meanTotalCosts) <- c("STATE", "MEAN_TOTAL_COST")
+  colnames(meanTotalCosts) <- c("STATE_LABEL", "MEAN_TOTAL_COST")
   meanTotalPaid <-
     aggregate(data$TOTAL_PAID, list(data$FIRST_STATE), mean)
-  colnames(meanTotalPaid) <- c("STATE", "MEAN_TOTAL_PAID")
+  colnames(meanTotalPaid) <- c("STATE_LABEL", "MEAN_TOTAL_PAID")
   table <- cbind(
     entryPercentages,
     meanTotalCharge$MEAN_TOTAL_CHARGE,
@@ -329,7 +331,7 @@ LEFT JOIN tma_first_state
     meanTotalPaid$MEAN_TOTAL_PAID
   )
   colnames(table) <-
-    c("STATE", "PERCENTAGE", "MEAN CHARGE", "MEAN COST", "MEAN PAID")
+    c("STATE_LABEL", "PERCENTAGE", "MEAN CHARGE", "MEAN COST", "MEAN PAID")
   save_object(table, path = paste(
     pathToResults,
     paste(
@@ -388,13 +390,13 @@ getStateStatistics <- function(connection,
   
   # Lets exclude "START" and "EXIT" states as we are not interested in these
   tmpDataState <-
-    dplyr::filter(cohortData, !STATE %in% c("START", "EXIT", excludedStates))
+    dplyr::filter(cohortData, !STATE_LABEL %in% c("START", "EXIT", excludedStates))
   
   # Handling the case where there are zero rows left
   if (nrow(tmpDataState) == 0) {
     summaryTable <-  data.frame(matrix(ncol = 8, nrow = 0))
     colnames(summaryTable) <- c(
-      "STATE",
+      "STATE_LABEL",
       "PERCENTAGE",
       "MEAN CHARGE",
       "CI CHARGE",
@@ -410,32 +412,33 @@ getStateStatistics <- function(connection,
       "median" = 0
     )))
   }
-  entryPercentages <- prop.table(table(tmpDataState$STATE))
+  entryPercentages <- prop.table(table(tmpDataState$STATE_LABEL))
   entryPercentages <- as.data.frame(entryPercentages)
-  colnames(entryPercentages) <- c("STATE", "COUNT")
+  colnames(entryPercentages) <- c("STATE_LABEL", "COUNT")
   
   # Let's query the total cost of the whole patient trajectory
   
   # First let's create a temp table with our data
   tmpDataState$SUBJECT_ID <- as.integer(tmpDataState$SUBJECT_ID)
-  tmpDataState$FIRST_STATE <- as.character(tmpDataState$STATE)
+  tmpDataState$FIRST_STATE <- as.character(tmpDataState$STATE_LABEL)
   tmpDataState$STATE_START_DATE <-
     as.Date(tmpDataState$STATE_START_DATE)
   tmpDataState$STATE_END_DATE <-
     as.Date(tmpDataState$STATE_END_DATE)
   tmpDataState <- dplyr::select(tmpDataState,
                                 SUBJECT_ID,
-                                STATE,
+                                STATE_LABEL,
                                 STATE_START_DATE,
                                 STATE_END_DATE)
   
   DatabaseConnector::insertTable(
     connection = connection,
     tableName = "tma_states",
+    databaseSchema = cdmTmpSchema,
     data = tmpDataState,
     dropTableIfExists = TRUE,
     createTable = TRUE,
-    tempTable = TRUE,
+    tempTable = FALSE,
     #    bulkLoad = TRUE,
     progressBar = TRUE
   )
@@ -447,14 +450,14 @@ getStateStatistics <- function(connection,
       targetDialect = dbms,
       sql = sprintf(
         SqlRender::render(
-          sql = "SELECT tma_states.STATE AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE,
+          sql = "SELECT tma_states.STATE_LABEL AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE,
         SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID,
         cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
 FROM @cdmTmpSchema.cost_person
-LEFT JOIN tma_states
+LEFT JOIN @cdmTmpSchema.tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.cost_domain_id IN (%s)
-    GROUP BY cost_person.person_id, tma_states.STATE, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE;",
+    GROUP BY cost_person.person_id, tma_states.STATE_LABEL, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE;",
           cdmTmpSchema = cdmTmpSchema
         ),
         sql_s
@@ -475,12 +478,12 @@ LEFT JOIN tma_states
   
   # Handling the case when database returns no rows
   if (nrow(data) < 2) {
-    mean_charge <- rep(0, length(entryPercentages$STATE))
-    ci_charge <- rep("(0,0)", length(entryPercentages$STATE))
-    mean_cost <- rep(0, length(entryPercentages$STATE))
-    ci_cost <- rep("(0,0)", length(entryPercentages$STATE))
-    mean_paid <- rep(0, length(entryPercentages$STATE))
-    ci_paid <- rep("(0,0)", length(entryPercentages$STATE))
+    mean_charge <- rep(0, length(entryPercentages$STATE_LABEL))
+    ci_charge <- rep("(0,0)", length(entryPercentages$STATE_LABEL))
+    mean_cost <- rep(0, length(entryPercentages$STATE_LABEL))
+    ci_cost <- rep("(0,0)", length(entryPercentages$STATE_LABEL))
+    mean_paid <- rep(0, length(entryPercentages$STATE_LABEL))
+    ci_paid <- rep("(0,0)", length(entryPercentages$STATE_LABEL))
     summaryTable <- as.data.frame(
       cbind(
         entryPercentages,
@@ -493,7 +496,7 @@ LEFT JOIN tma_states
       )
     )
     colnames(summaryTable) = c(
-      "STATE",
+      "STATE_LABEL",
       "PERCENTAGE",
       "MEAN CHARGE",
       "CI CHARGE",
@@ -557,7 +560,7 @@ LEFT JOIN tma_states
   }
   colnames(summaryTable) <-
     c(
-      "STATE",
+      "STATE_LABEL",
       "MEAN_CHARGE",
       "CHARGE_STD",
       "MEAN_COST",
@@ -569,7 +572,7 @@ LEFT JOIN tma_states
   stateStatistics <- summaryTable
 
   table <- cbind(
-    stateStatistics$STATE,
+    stateStatistics$STATE_LABEL,
     stateStatistics$MEAN_CHARGE,
     paste(
       "(",
@@ -617,7 +620,7 @@ LEFT JOIN tma_states
     )
   )
   table <- as.data.frame(table)
-  colnames(table) <- c("STATE",
+  colnames(table) <- c("STATE_LABEL",
                        "MEAN CHARGE",
                        "CI CHARGE",
                        "MEAN COST",
@@ -627,12 +630,12 @@ LEFT JOIN tma_states
   table <- merge(
     x = entryPercentages,
     y = table,
-    by.x = "STATE",
-    by.y = "STATE",
+    by.x = "STATE_LABEL",
+    by.y = "STATE_LABEL",
     all.x = TRUE
   )
   colnames(table) <- c(
-    "STATE",
+    "STATE_LABEL",
     "PERCENTAGE",
     "MEAN CHARGE",
     "CI CHARGE",

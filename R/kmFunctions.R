@@ -31,7 +31,7 @@ kmDataPreparation <-
       colnames(patientData) <-
         c(
           "SUBJECT_ID",
-          "STATE",
+          "STATE_LABEL",
           "STATE_START_DATE",
           "STATE_END_DATE",
           "GENDER_CONCEPT_ID",
@@ -42,14 +42,14 @@ kmDataPreparation <-
     data <-
       dplyr::select(patientData,
                     SUBJECT_ID,
-                    STATE,
+                    STATE_LABEL,
                     STATE_START_DATE,
                     STATE_END_DATE,
                     AGE)
     data <- dplyr::mutate(data, ID = 1:nrow(data))
     
-    data1 <- dplyr::filter(data, STATE == startCohortId)
-    data2 <- dplyr::filter(data, STATE == endCohortId)
+    data1 <- dplyr::filter(data, STATE_LABEL == startCohortId)
+    data2 <- dplyr::filter(data, STATE_LABEL == endCohortId)
     if (nrow(data1) == 0 | nrow(data2) == 0) {
       df <- data.frame(matrix(ncol = 9, nrow = 0))
       colnames(df) <-
@@ -74,7 +74,7 @@ kmDataPreparation <-
         END_DATE = min(STATE_START_DATE),
         ID = min(ID)
       ),
-      STATE = endCohortId)
+      STATE_LABEL = endCohortId)
       
       data_surv <-  merge(data1, data2, by = "SUBJECT_ID", all.x = T)
       data_surv <-
@@ -136,7 +136,7 @@ kmDataPreparation <-
           AGE = min(AGE),
           ID = min(ID)
         ),
-        STATE = startCohortId
+        STATE_LABEL = startCohortId
       )
       # Let's exclude all rows which were used for starting states
       
@@ -147,7 +147,7 @@ kmDataPreparation <-
                         SUBJECT_ID),
         STATE_START_DATE = min(STATE_START_DATE)
       ),
-      STATE = endCohortId)
+      STATE_LABEL = endCohortId)
       data1 <- dplyr::select(data1,!ID)
       colnames(data1) <- c("SUBJECT_ID", "START_DATE", "AGE", "ID_START")
       colnames(data2) <- c("SUBJECT_ID", "END_DATE", "ID_END")

@@ -81,12 +81,12 @@ visualisePatient <- function(patientData,
     else {
       countOther <- 0
       for (index in  1:n) {
-        if (as.character(newPatientData$STATE[index]) == "0" |
-            as.character(newPatientData$STATE[index]) == "OUT OF COHORTS") {
+        if (as.character(newPatientData$STATE_LABEL[index]) == "0" |
+            as.character(newPatientData$STATE_LABEL[index]) == "OUT OF COHORTS") {
           countOther <- countOther + momentDuration[index]
           if (countOther > trajectoryStopDays) {
             momentInclusion[index] <- FALSE
-            if (!(as.character(newPatientData$STATE[index + 1]) %in% c("0", "OUT OF COHORTS"))) {
+            if (!(as.character(newPatientData$STATE_LABEL[index + 1]) %in% c("0", "OUT OF COHORTS"))) {
               group <- group + 1
               
               # Let's crop the trajectories' durations so that every trajectory start's from 0 not some x value
@@ -113,7 +113,7 @@ visualisePatient <- function(patientData,
   momentEnd <- as.vector(na.exclude(momentEnd))
   
   # Color for visualisation
-  n_states <- length(unique(newPatientData$STATE))
+  n_states <- length(unique(newPatientData$STATE_LABEL))
   colors <- NULL
   # Due to RColorBrewer limitations we repeat if > 12 classes
   if (n_states > 12) {
@@ -130,8 +130,8 @@ visualisePatient <- function(patientData,
     colors <- RColorBrewer::brewer.pal(n = n_states, name = 'Paired')
   }
   colorTable <-
-    cbind(unique(as.vector(newPatientData$STATE)), colors)
-  colnames(colorTable) <- c("STATE", "COLOR")
+    cbind(unique(as.vector(newPatientData$STATE_LABEL)), colors)
+  colnames(colorTable) <- c("STATE_LABEL", "COLOR")
   
   ##############################################################################
   #
@@ -162,7 +162,7 @@ visualisePatient <- function(patientData,
                           cost)
   colnames(newPatientData) <- c(
     "SUBJECT_ID",
-    "STATE",
+    "STATE_LABEL",
     "STATE_START_DATE",
     "STATE_END_DATE",
     "MOMENT_START",
@@ -174,13 +174,13 @@ visualisePatient <- function(patientData,
   newPatientData <- dplyr::filter(newPatientData, INCLUDE == TRUE)
   newPatientData <- merge(x = newPatientData,
                           y = colorTable,
-                          by = "STATE",
+                          by = "STATE_LABEL",
                           all.x = TRUE)
   newPatientData <-
     dplyr::arrange(newPatientData, STATE_START_DATE, STATE_END_DATE)
   newPatientData <-  dplyr::mutate(newPatientData,
                                    MOMENT_START = ifelse(MOMENT_START == 0 &
-                                                           STATE != 'START', 1,
+                                                           STATE_LABEL != 'START', 1,
                                                          MOMENT_START))
   blank_data <- data.frame(GROUP = sort(unique(groups)),
                            y = 1,
@@ -219,7 +219,7 @@ visualisePatient <- function(patientData,
     x = MOMENT_START + (MOMENT_END - MOMENT_START) / 2,
     y = h,
     #rnorm(nrow(newPatientData)) + rnorm(nrow(newPatientData)) - rnorm(nrow(newPatientData)) / 2,
-    label = STATE,
+    label = STATE_LABEL,
     #    vjust = -1.5,
     angle  = 90
   ),
@@ -249,12 +249,12 @@ getCostDistPlot <- function(connection, dbms, cdmTmpSchema) {
     sql <- SqlRender::translate(
       targetDialect <- dbms,
       sql = SqlRender::render(
-        sql = "SELECT tma_states.STATE as STATE, SUM(cost_person.total_cost) as TOTAL_COST
+        sql = "SELECT tma_states.STATE_LABEL as STATE_LABEL, SUM(cost_person.total_cost) as TOTAL_COST
 FROM @cdmTmpSchema.cost_person
 LEFT JOIN tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE
-    GROUP BY cost_person.person_id, tma_states.STATE;",
+    GROUP BY cost_person.person_id, tma_states.STATE_LABEL;",
         cdmTmpSchema = cdmTmpSchema
       )
     )
@@ -263,7 +263,7 @@ LEFT JOIN tma_states
   data[is.na(data)] <- 0
   
   plot <-
-    ggplot2::ggplot(data, ggplot2::aes(x = TOTAL_COST, fill = factor(STATE))) +
+    ggplot2::ggplot(data, ggplot2::aes(x = TOTAL_COST, fill = factor(STATE_LABEL))) +
     ggplot2::geom_density(alpha = 0.4) + ggplot2::xlim(0, mean(data$TOTAL_COST) + 1.96 *
                                                          2 * sd(data$TOTAL_COST)) + ggplot2::labs(fill = 'State') + ggplot2::xlab('Total cost') + ggplot2::ylab('Density')
   return(plot)
@@ -287,11 +287,11 @@ drawSunburst <- function(patientData) {
   tmpInputData <-
     dplyr::select(patientData,
                   SUBJECT_ID,
-                  STATE,
+                  STATE_LABEL,
                   STATE_START_DATE,
                   STATE_END_DATE)
   labels <-
-    c(unique(tmpInputData$STATE), "End") # "End" is required for RSunburst package input
+    c(unique(tmpInputData$STATE_LABEL), "End") # "End" is required for RSunburst package input
   labels <-
     labels[!labels %in% c("START", "EXIT", "OUT OF COHORT", "End")]
   colors_all <- c(
@@ -322,7 +322,7 @@ drawSunburst <- function(patientData) {
             dplyr::mutate(
               dplyr::arrange(
                 dplyr::group_by(
-                  dplyr::filter(tmpInputData, STATE != "START" & STATE != "EXIT"),
+                  dplyr::filter(tmpInputData, STATE_LABEL != "START" & STATE_LABEL != "EXIT"),
                   SUBJECT_ID
                 ),
                 SUBJECT_ID,
@@ -331,21 +331,21 @@ drawSunburst <- function(patientData) {
               TIME = 1:dplyr::n()
             )
           ), SUBJECT_ID),
-          OtherLEVEL = with(rle(STATE), rep(seq_along(lengths), lengths))
+          OtherLEVEL = with(rle(STATE_LABEL), rep(seq_along(lengths), lengths))
         )),-STATE_START_DATE,-STATE_END_DATE
       ),
-      STATEOtherLEVEL = paste(STATE, OtherLEVEL, sep = "-")
+      STATEOtherLEVEL = paste(STATE_LABEL, OtherLEVEL, sep = "-")
     )
   
   data1 <-
     dplyr::mutate(dplyr::ungroup(dplyr::mutate(
       dplyr::group_by(
-        dplyr::filter(patStateLevel, STATE != "OUT OF COHORT"),
+        dplyr::filter(patStateLevel, STATE_LABEL != "OUT OF COHORT"),
         SUBJECT_ID
       ),
-      LEVEL = with(rle(STATE), rep(seq_along(lengths), lengths))
+      LEVEL = with(rle(STATE_LABEL), rep(seq_along(lengths), lengths))
     )),
-    STATELEVEL = paste(STATE, LEVEL, sep = "-"))
+    STATELEVEL = paste(STATE_LABEL, LEVEL, sep = "-"))
   
   patStateLevel <- dplyr::left_join(patStateLevel, data1)
   
@@ -353,24 +353,24 @@ drawSunburst <- function(patientData) {
     dplyr::select(dplyr::arrange(dplyr::ungroup(
       dplyr::mutate(
         dplyr::group_by(dplyr::arrange(unique(
-          dplyr::select(patStateLevel, SUBJECT_ID, STATE, STATEOtherLEVEL)
-        ), STATE),
+          dplyr::select(patStateLevel, SUBJECT_ID, STATE_LABEL, STATEOtherLEVEL)
+        ), STATE_LABEL),
         SUBJECT_ID,
-        grp = with(rle(STATE), rep(
+        grp = with(rle(STATE_LABEL), rep(
           seq_along(lengths), lengths
         ))),
         counts = 1:dplyr::n()
       )
-    ), SUBJECT_ID),-grp, -STATE)
+    ), SUBJECT_ID),-grp, -STATE_LABEL)
   
   patStateLevel <- dplyr::left_join(patStateLevel, patStateLevel1)
   
   patStateLevel <-
     dplyr::select(
-      dplyr::mutate(patStateLevel, DrugLEVEL = paste(STATE, counts, sep = "-")),
+      dplyr::mutate(patStateLevel, DrugLEVEL = paste(STATE_LABEL, counts, sep = "-")),
       SUBJECT_ID,
       TIME,
-      STATE,
+      STATE_LABEL,
       OtherLEVEL,
       STATEOtherLEVEL,
       LEVEL,
@@ -391,10 +391,10 @@ drawSunburst <- function(patientData) {
                     dplyr::group_by(
                       dplyr::filter(
                         dplyr::arrange(
-                          dplyr::select(patStateLevel, SUBJECT_ID, STATE, TIME, DrugLEVEL),
+                          dplyr::select(patStateLevel, SUBJECT_ID, STATE_LABEL, TIME, DrugLEVEL),
                           SUBJECT_ID
                         ),
-                        STATE != "OUT OF COHORT"
+                        STATE_LABEL != "OUT OF COHORT"
                       ),
                       SUBJECT_ID,
                       grp = with(rle(DrugLEVEL), rep(seq_along(lengths), lengths)),
@@ -456,9 +456,9 @@ drawSunburst <- function(patientData) {
                   dplyr::filter(dplyr::ungroup(
                     dplyr::mutate(
                       dplyr::group_by(
-                        dplyr::filter(patStateLevel, STATE != "OUT OF COHORT"),
+                        dplyr::filter(patStateLevel, STATE_LABEL != "OUT OF COHORT"),
                         SUBJECT_ID,
-                        grp = with(rle(STATE), rep(seq_along(lengths), lengths))
+                        grp = with(rle(STATE_LABEL), rep(seq_along(lengths), lengths))
                       ),
                       COUNT_CONS = 1:dplyr::n()
                     )
@@ -466,7 +466,7 @@ drawSunburst <- function(patientData) {
                 ),
                 SUBJECT_ID
               ),
-              path = paste0(STATE, collapse = "-")
+              path = paste0(STATE_LABEL, collapse = "-")
             )
           ), SUBJECT_ID),
           path = paste0(path, "-End", collapse = "-")
@@ -495,12 +495,12 @@ drawSunburst <- function(patientData) {
                     dplyr::mutate(
                       dplyr::group_by(
                         dplyr::filter(patStateLevel, (
-                          STATE != "OUT OF COHORT" |
-                            (STATE == "OUT OF COHORT" &
+                          STATE_LABEL != "OUT OF COHORT" |
+                            (STATE_LABEL == "OUT OF COHORT" &
                                OtherLEVEL == 1)
                         )),
                         SUBJECT_ID,
-                        grp = with(rle(STATE), rep(seq_along(lengths), lengths))
+                        grp = with(rle(STATE_LABEL), rep(seq_along(lengths), lengths))
                       ),
                       COUNT_CONS = 1:dplyr::n()
                     )
@@ -509,7 +509,7 @@ drawSunburst <- function(patientData) {
                 ),
                 SUBJECT_ID
               ),
-              path = paste0(STATE, collapse = "-")
+              path = paste0(STATE_LABEL, collapse = "-")
             )
           ), SUBJECT_ID),
           path = paste0(path, "-End", collapse = "-")

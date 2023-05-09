@@ -15,7 +15,6 @@ NumericMatrix stochasticMatrix(int matrixSize,
   // Initiate the transition matrix with zeros
   NumericMatrix M(matrixSize, matrixSize);
   // We need values of subject id and state
-  
   NumericVector patientIDs = discreteTrajectories["SUBJECT_ID"];
   NumericVector stateClasses = discreteTrajectories["CLASS"];
   

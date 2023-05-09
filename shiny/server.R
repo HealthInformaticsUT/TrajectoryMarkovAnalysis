@@ -47,11 +47,11 @@ server <- function(input, output, session) {
     else {
       5
     }
-    v$states <- unique(inputData$STATE)
+    v$states <- unique(inputData$STATE_LABEL)
     ids <- unique(inputData$STATE_ID)
     states <- v$states
     idStates <- cbind(ids, states)
-    colnames(idStates) <- c("STATE_ID", "STATE")
+    colnames(idStates) <- c("STATE_ID", "STATE_LABEL")
     v$idStates <- as.data.frame(idStates)
     ##############################################################################
     #
@@ -301,8 +301,8 @@ server <- function(input, output, session) {
     # Add correct labels
     v$idStates <- dplyr::arrange(v$idStates, STATE_ID)
     
-    colnames(v$qmatrixCMC) <- v$idStates$STATE
-    rownames(v$qmatrixCMC) <- v$idStates$STATE
+    colnames(v$qmatrixCMC) <- v$idStates$STATE_LABEL
+    rownames(v$qmatrixCMC) <- v$idStates$STATE_LABEL
   })
   
   
@@ -388,7 +388,7 @@ server <- function(input, output, session) {
       plyr::mapvalues(
         rownames(table),
         from = v$idStates$STATE_ID,
-        to = v$idStates$STATE,
+        to = v$idStates$STATE_LABEL,
         warn_missing = FALSE
       )
     colnames(table) <- c(

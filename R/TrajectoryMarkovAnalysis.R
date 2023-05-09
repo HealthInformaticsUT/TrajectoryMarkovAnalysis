@@ -66,10 +66,10 @@ TrajectoryMarkovAnalysis <- function(conn,
   #
   ################################################################################
   inputData <- as.data.frame(inputData)
-  states <- unique(inputData$STATE)
+  states <- unique(inputData$STATE_LABEL)
   ids <- unique(inputData$STATE_ID)
   idStates <- cbind(ids, states)
-  colnames(idStates) <- c("STATE_ID", "STATE")
+  colnames(idStates) <- c("STATE_ID", "STATE_LABEL")
   idStates <- as.data.frame(idStates)
   
   markovModel <- NULL
@@ -81,33 +81,7 @@ TrajectoryMarkovAnalysis <- function(conn,
   
   ParallelLogger::logInfo("Creating and saving sunburst plot!")
   sunburstDetails <- drawSunburst(inputData)
-  # plot <- sunburstR::sunburst(
-  #     sunburstDetails$freqPaths,
-  #     count = TRUE,
-  #     colors = list(
-  #       range = c(sunburstDetails$colors, "#cccccc", "#cccccc"),
-  #       domain = c(sunburstDetails$labels, "OUT OF COHORT", "End")
-  #     ),
-  #     legend = list(w = 200, h = 20, s = 5),
-  #     breadcrumb = htmlwidgets::JS(("function(x) {return x;}")),
-  #     height = "800px",
-  #     width = "100%"
-  #   )
-  # htmlwidgets::saveWidget(
-  #   plot,
-  #   file = paste(
-  #     pathToResults,
-  #     paste(
-  #       "/tmp/models/",
-  #       studyName,
-  #       "sunburst.rdata",
-  #       sep = ""
-  #     ),
-  #     sep = ""
-  #   ),
-  #   background = "white",
-  #   title = "Sunburst plot of trajectories"
-  # )
+
   save_object(sunburstDetails, path = paste(
     pathToResults,
     paste("/tmp/databases/",
@@ -151,8 +125,8 @@ TrajectoryMarkovAnalysis <- function(conn,
     # Add correct labels
     idStates <- dplyr::arrange(idStates, STATE_ID)
     
-    colnames(qmatrixCMC) <- idStates$STATE
-    rownames(qmatrixCMC) <- idStates$STATE
+    colnames(qmatrixCMC) <- idStates$STATE_LABEL
+    rownames(qmatrixCMC) <- idStates$STATE_LABEL
     
     markovModel <-  msm::msm(
       STATE_ID ~ TIME_IN_COHORT,
@@ -230,12 +204,26 @@ TrajectoryMarkovAnalysis <- function(conn,
   
   # ans <- droppingTables()
   # if (ans == "y") {
-dropRelation(
-  connection = conn,
-  dbms = dbms,
-  schema = cdmTmpSchema,
-  relationName = "cost_person"
-)
+  dropRelation(
+    connection = conn,
+    dbms = dbms,
+    schema = cdmTmpSchema,
+    relationName = "tma_states"
+  )
+  
+  dropRelation(
+    connection = conn,
+    dbms = dbms,
+    schema = cdmTmpSchema,
+    relationName = "tma_first_state"
+  )
+
+  dropRelation(
+    connection = conn,
+    dbms = dbms,
+    schema = cdmTmpSchema,
+    relationName = "cost_person"
+  )
   # }
   
   DatabaseConnector::disconnect(conn)
