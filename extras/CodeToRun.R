@@ -19,7 +19,7 @@ pathToDriver = './Drivers'
 dbms <- 'postgresql' #TODO
 user <- '' #TODO
 pw <- "" #TODO
-server <- 'localhost/database' #TODO
+server <- 'ip/database' #TODO
 port <- '5432' #TODO
 
 cdmSchema <- "ohdsi_cdm" #TODO # Schema which contains the OHDSI Common Data Model

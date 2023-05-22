@@ -251,7 +251,7 @@ getCostDistPlot <- function(connection, dbms, cdmTmpSchema) {
       sql = SqlRender::render(
         sql = "SELECT tma_states.STATE_LABEL as STATE_LABEL, SUM(cost_person.total_cost) as TOTAL_COST
 FROM @cdmTmpSchema.cost_person
-LEFT JOIN tma_states
+LEFT JOIN @cdmTmpSchema.tma_states
   ON cost_person.person_id = tma_states.SUBJECT_ID
       WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE
     GROUP BY cost_person.person_id, tma_states.STATE_LABEL;",
