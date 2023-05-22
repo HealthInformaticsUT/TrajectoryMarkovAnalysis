@@ -450,14 +450,25 @@ getStateStatistics <- function(connection,
       targetDialect = dbms,
       sql = sprintf(
         SqlRender::render(
-          sql = "SELECT tma_states.STATE_LABEL AS STATE_P, SUM(cost_person.total_charge)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) as TOTAL_CHARGE,
-        SUM(cost_person.total_cost)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_COST, SUM(cost_person.total_paid)/(tma_states.STATE_END_DATE-tma_states.STATE_START_DATE+1) AS TOTAL_PAID,
-        cost_person.person_id AS PERSON_ID, SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
-FROM @cdmTmpSchema.cost_person
-LEFT JOIN @cdmTmpSchema.tma_states
-  ON cost_person.person_id = tma_states.SUBJECT_ID
-      WHERE cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE AND cost_person.cost_domain_id IN (%s)
-    GROUP BY cost_person.person_id, tma_states.STATE_LABEL, tma_states.STATE_START_DATE,tma_states.STATE_END_DATE;",
+          sql = "SELECT tma_states.STATE_LABEL AS STATE_P, 
+    SUM(cost_person.total_charge) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_CHARGE,
+    SUM(cost_person.total_cost) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_COST, 
+    SUM(cost_person.total_paid) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_PAID,
+    cost_person.person_id AS PERSON_ID, 
+    SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
+FROM 
+    @cdmTmpSchema.cost_person
+LEFT JOIN 
+    @cdmTmpSchema.tma_states
+    ON cost_person.person_id = tma_states.SUBJECT_ID
+WHERE 
+    cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE 
+    AND cost_person.cost_domain_id IN (%s)
+GROUP BY 
+    cost_person.person_id, 
+    tma_states.STATE_LABEL, 
+    tma_states.STATE_START_DATE,
+    tma_states.STATE_END_DATE;",
           cdmTmpSchema = cdmTmpSchema
         ),
         sql_s
