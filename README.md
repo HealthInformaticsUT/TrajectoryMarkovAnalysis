@@ -43,6 +43,10 @@ Development
 ===========
 TrajectoryMarkovAnalysis is being developed in R Studio.
 
+Citation
+===========
+Haug, M. (2023, May). TrajectoryMarkovAnalysis, v1.0.5. GitHub. https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/releases/tag/v1.0.5
+
 # Acknowledgements
 
 1. [Cohort2Trajectory package](https://github.com/HealthInformaticsUT/Cohort2Trajectory) by Markus Haug
