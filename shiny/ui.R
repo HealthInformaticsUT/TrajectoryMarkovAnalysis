@@ -8,27 +8,28 @@ header <-
                                   tags$li(
                                     div(
                                       img(
-                                        src = 'images/logo.png',
-                                        title = "OHDSI PLP",
+                                        src = 'images/UT.png',
+                                        title = "UNIVERSITY OF TARTU",
                                         height = "40px",
-                                        width = "40px"
+                                        width = "184px"
                                       ),
-                                      style = "padding-top:0px; padding-bottom:0px;"
+                                      style = "padding-top:5px; padding-bottom:0px; margin-right:15px;"  # Added margin-right here
                                     ),
                                     class = "dropdown"
                                   ),
                                   tags$li(
                                     div(
                                       img(
-                                        src = 'images/UT.png',
-                                        title = "UNIVERSITY OF TARTU",
+                                        src = 'images/logo.png',
+                                        title = "OHDSI PLP",
                                         height = "40px",
-                                        width = "184px"
+                                        width = "40px"
                                       ),
-                                      style = "padding-top:0px; padding-bottom:0px;"
+                                      style = "padding-top:5px; padding-bottom:0px;"
                                     ),
                                     class = "dropdown"
-                                  )                           )
+                                  )
+                                 )
 
 ################################################################################
 #
