@@ -43,6 +43,10 @@ Development
 ===========
 TrajectoryMarkovAnalysis is being developed in R Studio.
 
+Publications
+============
+Markus Haug, Marek Oja, Maarja Pajusalu, Kerli Mooses, Sulev Reisberg, Jaak Vilo, Antonio Fernández Giménez, Thomas Falconer, Ana Danilović, Filip Maljkovic, Dalia Dawoud, Raivo Kolde, Markov modeling for cost-effectiveness using federated health data network, Journal of the American Medical Informatics Association, 2024;, ocae044, https://doi.org/10.1093/jamia/ocae044
+
 Citation
 ===========
 Haug, M. (2023, May). TrajectoryMarkovAnalysis, v1.0.5. GitHub. https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/releases/tag/v1.0.5
