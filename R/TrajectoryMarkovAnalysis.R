@@ -16,6 +16,7 @@
 #' @param studyName Customized study name
 #' @param pathToResults The path where results will be saved
 #' @param excludedStates States which have to be discarded from the study
+#' @param generateCostPatientTable Boolean for generating cost_person table
 #' @param costDomains Cost domains to include in cost analysis
 #' @param databaseDescription Information about the OMOP CDM database data
 #' @export
@@ -29,6 +30,7 @@ TrajectoryMarkovAnalysis <- function(conn,
                                      studyName,
                                      pathToResults = getwd(),
                                      excludedStates = c(),
+                                     generateCostPatientTable = TRUE,
                                      costDomains = c('Drug',
                                                      'Visit',
                                                      'Procedure',
@@ -46,9 +48,8 @@ TrajectoryMarkovAnalysis <- function(conn,
   createMandatorySubDirs(pathToResults,databaseDescription)
   
   # Creating temp tables
-  if (!DatabaseConnector::dbExistsTable(conn = conn,
-                                        name = "cost_person",
-                                        schema = cdmTmpSchema)) {
+  if (generateCostPatientTable) {
+  ParallelLogger::logInfo("Creating cost_person table, takes time ...!")
     generateTempTables(
       connection = conn,
       dbms = dbms,
@@ -58,7 +59,7 @@ TrajectoryMarkovAnalysis <- function(conn,
     ParallelLogger::logInfo(paste("Table cost_person created to", cdmTmpSchema, "schema", sep = " "))
   }
   else {
-    ParallelLogger::logInfo("Table cost_person already exists!")
+    ParallelLogger::logInfo("Table cost_person is not updated/created, to allow this set generateCostPatientTable = TRUE")
   }
   ################################################################################
   #

@@ -23,7 +23,7 @@ server <- 'ip/database' #TODO
 port <- '5432' #TODO
 
 cdmSchema <- "ohdsi_cdm" #TODO # Schema which contains the OHDSI Common Data Model
-cdmTmpSchema <- "ohdsi_temp" #TODO # Schema for temporary tables, will be deleted # should be ohdsi_temp
+cdmTmpSchema <- "ohdsi_temp" #TODO # Schema for temporary tables, will be deleted
 cdmResultsSchema <- "ohdsi_results" #TODO # Schema which will contain the final results
 
 databaseDescription <- "This is a very cool database." #TODO
@@ -53,50 +53,53 @@ conn <- DatabaseConnector::connect(connectionDetails)
 # Start the GUI application
 #
 ################################################################################
-runGUI(
-  connection = conn,
-  connectionDetails = connectionDetails,
-  pathToDriver = pathToDriver,
-  dbms = dbms,
-  cdmSchema = cdmSchema,
-  cdmTmpSchema = cdmTmpSchema,
-  cdmResultsSchema = cdmResultsSchema,
-  studyName = studyName,
-  pathToResults = pathToResults,
-  databaseDescription = databaseDescription
-)
+# runGUI(
+#   connection = conn,
+#   connectionDetails = connectionDetails,
+#   pathToDriver = pathToDriver,
+#   dbms = dbms,
+#   cdmSchema = cdmSchema,
+#   cdmTmpSchema = cdmTmpSchema,
+#   cdmResultsSchema = cdmResultsSchema,
+#   studyName = studyName,
+#   pathToResults = pathToResults,
+#   databaseDescription = databaseDescription
+# )
 ################################################################################
 #
 # Run without GUI
 #
 ################################################################################
 
-# modelType <- "discrete" # "discrete" or "continuous"
-# excludedStates <- c("OUT OF COHORT")
-# 
-# costDomains <- c(
-#                'Drug',
-#                'Visit',
-#                'Procedure',
-#                'Device',
-#                'Measurement',
-#                'Observation',
-#                'Specimen'
-#                )
-# 
-# TrajectoryMarkovAnalysis(
-#  conn,
-#  dbms,
-#  cdmSchema,
-#  cdmTmpSchema,
-#  inputData,
-#  modelType,
-#  studyName,
-#  pathToResults,
-#  excludedStates,
-#  costDomains,
-#  databaseDescription
-# )
+modelType <- "discrete" # "discrete" or "continuous"
+excludedStates <- c("OUT OF COHORT")
+data = readr::read_csv("<Path to C2T output>")
+
+
+costDomains <- c(
+               'Drug',
+               'Visit',
+               'Procedure',
+               'Device',
+               'Measurement',
+               'Observation',
+               'Specimen'
+               )
+
+TrajectoryMarkovAnalysis(
+ conn = conn,
+ dbms = dbms,
+ cdmSchema = cdmSchema,
+ cdmTmpSchema = cdmTmpSchema,
+ inputData = data,
+ modelType = modelType,
+ studyName = studyName,
+ pathToResults = pathToResults,
+ excludedStates = excludedStates,
+ generateCostPatientTable = TRUE,
+ costDomains = costDomains,
+ databaseDescription = databaseDescription
+)
 
 
 

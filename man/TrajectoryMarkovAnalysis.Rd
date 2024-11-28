@@ -14,6 +14,7 @@ TrajectoryMarkovAnalysis(
   studyName,
   pathToResults = getwd(),
   excludedStates = c(),
+  generateCostPatientTable = TRUE,
   costDomains = c("Drug", "Visit", "Procedure", "Device", "Measurement", "Observation",
     "Specimen"),
   databaseDescription = "A cool database"
@@ -37,6 +38,8 @@ TrajectoryMarkovAnalysis(
 \item{pathToResults}{The path where results will be saved}
 
 \item{excludedStates}{States which have to be discarded from the study}
+
+\item{generateCostPatientTable}{Boolean for generating cost_person table}
 
 \item{costDomains}{Cost domains to include in cost analysis}
 
