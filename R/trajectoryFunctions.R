@@ -254,12 +254,21 @@ getFirstStateStatistics <- function(connection,
     sql = SqlRender::translate(
       targetDialect = dbms,
       sql = SqlRender::render(
-        sql = "SELECT tma_first_state.SUBJECT_ID AS SUBJECT_ID, tma_first_state.FIRST_STATE AS FIRST_STATE, sum(cost_person.total_charge) AS TOTAL_CHARGE, sum(cost_person.total_cost) AS TOTAL_COST, sum(cost_person.total_paid) AS TOTAL_PAID
-FROM @cdmTmpSchema.cost_person
-LEFT JOIN @cdmTmpSchema.tma_first_state
-  ON cost_person.person_id = tma_first_state.SUBJECT_ID
-      WHERE cost_person.date BETWEEN tma_first_state.SUBJECT_START_DATE AND tma_first_state.SUBJECT_END_DATE
-      GROUP BY tma_first_state.SUBJECT_ID, tma_first_state.FIRST_STATE;",
+        sql = "SELECT 
+    tma_first_state.SUBJECT_ID AS SUBJECT_ID, 
+    tma_first_state.FIRST_STATE AS FIRST_STATE, 
+    COALESCE(SUM(cost_person.total_charge), 0) AS TOTAL_CHARGE, 
+    COALESCE(SUM(cost_person.total_cost), 0) AS TOTAL_COST, 
+    COALESCE(SUM(cost_person.total_paid), 0) AS TOTAL_PAID
+FROM 
+    @cdmTmpSchema.tma_first_state tma_first_state
+LEFT JOIN 
+    @cdmTmpSchema.cost_person cost_person
+    ON cost_person.person_id = tma_first_state.SUBJECT_ID
+    AND cost_person.date BETWEEN tma_first_state.SUBJECT_START_DATE AND tma_first_state.SUBJECT_END_DATE
+GROUP BY 
+    tma_first_state.SUBJECT_ID, 
+    tma_first_state.FIRST_STATE;",
         cdmTmpSchema = cdmTmpSchema
       )
     )
@@ -450,22 +459,22 @@ getStateStatistics <- function(connection,
       targetDialect = dbms,
       sql = sprintf(
         SqlRender::render(
-          sql = "SELECT tma_states.STATE_LABEL AS STATE_P, 
-    SUM(cost_person.total_charge) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_CHARGE,
-    SUM(cost_person.total_cost) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_COST, 
-    SUM(cost_person.total_paid) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_PAID,
-    cost_person.person_id AS PERSON_ID, 
-    SUM(cost_person.total_charge) AS TOTAL_STATE_CHARGE
+          sql = "SELECT 
+    tma_states.STATE_LABEL AS STATE_P, 
+    COALESCE(SUM(cost_person.total_charge), 0) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_CHARGE,
+    COALESCE(SUM(cost_person.total_cost), 0) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_COST, 
+    COALESCE(SUM(cost_person.total_paid), 0) / (DATEDIFF(DAY, tma_states.STATE_START_DATE, tma_states.STATE_END_DATE) + 1) AS TOTAL_PAID,
+    tma_states.SUBJECT_ID AS PERSON_ID, 
+    COALESCE(SUM(cost_person.total_charge), 0) AS TOTAL_STATE_CHARGE
 FROM 
-    @cdmTmpSchema.cost_person
+    @cdmTmpSchema.tma_states tma_states
 LEFT JOIN 
-    @cdmTmpSchema.tma_states
+    @cdmTmpSchema.cost_person cost_person
     ON cost_person.person_id = tma_states.SUBJECT_ID
-WHERE 
-    cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE 
+    AND cost_person.date BETWEEN tma_states.STATE_START_DATE AND tma_states.STATE_END_DATE
     AND cost_person.cost_domain_id IN (%s)
 GROUP BY 
-    cost_person.person_id, 
+    tma_states.SUBJECT_ID, 
     tma_states.STATE_LABEL, 
     tma_states.STATE_START_DATE,
     tma_states.STATE_END_DATE;",
