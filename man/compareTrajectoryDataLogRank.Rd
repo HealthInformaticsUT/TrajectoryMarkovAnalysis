@@ -7,9 +7,9 @@
 compareTrajectoryDataLogRank(observedData, generatedData)
 }
 \arguments{
-\item{generatedData}{the data frame of generated data}
+\item{observedData}{data.frame object which is output of Cohort2Trajectory package}
 
-\item{observedDataA}{data.frame object which is output of Cohort2Trajectory package}
+\item{generatedData}{the data frame of generated data}
 }
 \description{
 This function outputs a matrix table comparing two patient trajectory dataframes with logRank tests

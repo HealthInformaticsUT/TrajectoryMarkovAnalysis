@@ -28,6 +28,8 @@ generateDataDiscrete(
 
 \item{maxOut}{Maximum nr of days patient can be out of cohort}
 
+\item{stateDuration}{Integer for declaring state duration in days}
+
 \item{pathToResults}{Path to temp folder for saving objects}
 
 \item{generateCost}{Value [0,1] indicating whether to generate cost of states}

@@ -20,7 +20,6 @@
 #' @param costDomains Cost domains to include in cost analysis
 #' @param databaseDescription Information about the OMOP CDM database data
 #' @export
-
 TrajectoryMarkovAnalysis <- function(conn,
                                      dbms,
                                      cdmSchema,

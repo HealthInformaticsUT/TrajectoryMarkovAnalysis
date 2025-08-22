@@ -10,7 +10,6 @@
 #' This function outputs a data.frame object which describes the movement of patients between the defined states and state duration
 #'
 #' @param transitionMatrix The transition matrix for states
-#  @param startingProbabilities State starting probabilities derived from data
 #' @param n Number of patients' trajectories to generate
 #' @param minDate Smallest possible trajectory start date
 #' @param maxDate Largest possible trajectory start date
@@ -19,9 +18,9 @@
 #' @param generateCost Value [0,1] indicating whether to generate cost of states
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
+#' @param stateDuration  Integer for declaring state duration in days
 #' @export
 generateDataDiscrete <- function(transitionMatrix,
-                                 #startingProbabilities,
                                  n = 100,
                                  minDate = "1900-01-01",
                                  maxDate = "2021-12-31",
@@ -429,7 +428,7 @@ compareTrajectoryData <- function(observedData, generatedData) {
 #'
 #' This function outputs a matrix table comparing two patient trajectory dataframes with logRank tests
 #'
-#' @param observedDataA data.frame object which is output of Cohort2Trajectory package
+#' @param observedData data.frame object which is output of Cohort2Trajectory package
 #' @param generatedData the data frame of generated data
 #' @export
 compareTrajectoryDataLogRank <-
