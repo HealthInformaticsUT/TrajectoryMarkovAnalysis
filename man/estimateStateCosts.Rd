@@ -4,7 +4,12 @@
 \alias{estimateStateCosts}
 \title{Summarise recorded costs independently of transition estimation}
 \usage{
-estimateStateCosts(trajectories, costData)
+estimateStateCosts(
+  trajectories,
+  costData,
+  periodBreaks = NULL,
+  periodLabels = NULL
+)
 }
 \arguments{
 \item{trajectories}{Current Cohort2Trajectory output or the result of
@@ -14,10 +19,16 @@ prepareTrajectories().}
 with subject_id, event_date and amount. Optional columns are cost_id,
 currency_concept_id and measure. Supply currency and measure information
 when known. Missing currency is reported as unknown, not converted.}
+
+\item{periodBreaks}{Follow-up day boundaries relative to each subject's index
+date, starting with 0 and ending with Inf. NULL pools all follow-up.}
+
+\item{periodLabels}{Optional names for the periods between periodBreaks.}
 }
 \value{
 A list with state estimates, interval costs, unallocated cost records,
-  diagnostics and metadata. Each currency is summarised separately. Costs
+  periods, diagnostics and metadata. Each period and currency is summarised
+  separately. Costs
   with missing amounts make the corresponding interval and state total
   unknown. known_recorded_cost reports only the observed monetary amounts.
 }
@@ -32,6 +43,15 @@ An interval with no matching cost record has zero recorded cost.
   day divides the state total by observed days, including intervals without
   records. A missing amount produces an NA total and daily mean rather than
   being treated as zero. No confidence interval is calculated.
+
+  Periods include their starting day and exclude their ending day. Clinical
+  intervals spanning a boundary are split: intervalCosts contains the clipped
+  dates and observed days, retaining the original .row_id. Costs are assigned
+  by their event date. The intervals and intervals_without_records estimates
+  count fragments within each period; an original interval can contribute to
+  multiple periods. Deduplicate .row_id to count original intervals across
+  periods. Period-state combinations without observed days are absent, not
+  estimated as zero. Period boundaries need not match a Markov cycle length.
 
   START and EXIT are not clinical intervals. Costs in OUT OF COHORT rows,
   gaps or outside observation remain unallocated and are returned for review.

@@ -18,13 +18,17 @@
 #'   Supply either cdm or costData for costing, not both.
 #' @param costMeasure Cost column to extract from the CDM, such as "total_charge".
 #' @param costDomains Optional cost domains to extract from the CDM.
+#' @param periodBreaks Follow-up boundaries in days since index, starting at 0
+#'   and ending at Inf. NULL pools follow-up. Transition boundaries must align
+#'   with cycleLength. Cost-only analyses may split intervals at any whole day.
+#' @param periodLabels Optional unique names for the follow-up periods.
 #' @return A list containing transitions, costs and the prepared trajectories.
 #'   An analysis not requested has a NULL result. No connection is stored.
 #' @details This interface replaces the former database-driven workflow.
 #'   It does not run the legacy GUI, continuous-time model, simulation or
-#'   first-state cost reports. Transition estimates currently pool the observed
-#'   cycles. Cost estimates use inclusive observed days. Period-specific and
-#'   within-cycle models require separate, explicit rules.
+#'   first-state cost reports. Transitions use the source cycle's period.
+#'   Costs use each record's event date and split observed days at period
+#'   boundaries. Within-cycle models require separate, explicit rules.
 #' @export
 TrajectoryMarkovAnalysis <- function(trajectories,
                                      cycleLength = NULL,
@@ -34,7 +38,9 @@ TrajectoryMarkovAnalysis <- function(trajectories,
                                      cdm = NULL,
                                      costData = NULL,
                                      costMeasure = "total_charge",
-                                     costDomains = NULL) {
+                                     costDomains = NULL,
+                                     periodBreaks = NULL,
+                                     periodLabels = NULL) {
   if (!is.character(analyses) || !length(analyses) || anyNA(analyses) ||
       anyDuplicated(analyses) || any(!analyses %in% c("transitions", "costs"))) {
     stop("analyses must contain 'transitions', 'costs', or both, without duplicates.", call. = FALSE)
@@ -51,13 +57,18 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   if (!missing(absorbingStates)) args$absorbingStates <- absorbingStates
   if (!missing(states)) args$states <- states
   prepared <- do.call(prepareTrajectories, args)
-  transitions <- if ("transitions" %in% analyses) estimateTransitions(prepared) else NULL
+  .tmaPeriods(periodBreaks, periodLabels,
+              if ("transitions" %in% analyses) prepared$cycleLength else NULL)
+  transitions <- if ("transitions" %in% analyses) {
+    estimateTransitions(prepared, periodBreaks = periodBreaks, periodLabels = periodLabels)
+  } else NULL
   costs <- NULL
   if (costing) {
     if (!is.null(cdm)) {
       costData <- extractCosts(cdm, prepared, measure = costMeasure, domains = costDomains)
     }
-    costs <- estimateStateCosts(prepared, costData)
+    costs <- estimateStateCosts(prepared, costData,
+                                periodBreaks = periodBreaks, periodLabels = periodLabels)
   }
   list(transitions = transitions, costs = costs, trajectories = prepared)
 }

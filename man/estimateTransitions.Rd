@@ -2,13 +2,15 @@
 % Please edit documentation in R/estimateTransitions.R
 \name{estimateTransitions}
 \alias{estimateTransitions}
-\title{Estimate pooled adjacent-cycle transition probabilities}
+\title{Estimate adjacent-cycle transition probabilities by follow-up period}
 \usage{
 estimateTransitions(
   trajectories,
   cycleLength = NULL,
   absorbingStates = character(),
-  states = NULL
+  states = NULL,
+  periodBreaks = NULL,
+  periodLabels = NULL
 )
 }
 \arguments{
@@ -20,18 +22,34 @@ already recorded in prepared trajectories.}
 \item{absorbingStates}{Clinical absorbing state labels.}
 
 \item{states}{Optional ordered clinical state dictionary.}
+
+\item{periodBreaks}{Period boundaries in days since each patient's index.
+Supply increasing whole days starting at 0 and ending at Inf, for example
+c(0, 7, 35, Inf). Finite boundaries must align with cycleLength. NULL pools
+all follow-up.}
+
+\item{periodLabels}{Optional unique names for the periods between boundaries.}
 }
 \value{
-A list with estimates, matrix, entryCounts, diagnostics and metadata.
+A list with estimates, matrices, periods, entryCounts, diagnostics and
+  metadata. matrices contains one named matrix per period. matrix contains
+  that matrix only when one period is requested, otherwise it is NULL.
   Unestimated nonabsorbing rows contain NA probabilities. Absorbing identity
   rows are structural, with zero observed counts and denominators.
 }
 \description{
-Estimate pooled adjacent-cycle transition probabilities
+Estimate adjacent-cycle transition probabilities by follow-up period
 }
 \details{
 Only a full source cycle followed immediately by an observed known
   state contributes a transition. Gaps, OUT OF COHORT and administrative EXIT
   never create transitions. Entry counts describe known states at index_date;
   a first-cycle death does not create an unobserved preceding state.
+
+  Each transition belongs to the period containing the source cycle's start.
+  Periods include their lower boundary and exclude their upper boundary.
+  A transition into the next period is counted under its source period, not
+  discarded. Denominators count observed outgoing pairs, not all patients or
+  all source cycles. This does not correct for informative censoring or recover
+  event dates within a cycle. Periods are not landmark eligibility rules.
 }

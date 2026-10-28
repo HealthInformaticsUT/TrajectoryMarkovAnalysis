@@ -13,7 +13,9 @@ TrajectoryMarkovAnalysis(
   cdm = NULL,
   costData = NULL,
   costMeasure = "total_charge",
-  costDomains = NULL
+  costDomains = NULL,
+  periodBreaks = NULL,
+  periodLabels = NULL
 )
 }
 \arguments{
@@ -39,6 +41,12 @@ Supply either cdm or costData for costing, not both.}
 \item{costMeasure}{Cost column to extract from the CDM, such as "total_charge".}
 
 \item{costDomains}{Optional cost domains to extract from the CDM.}
+
+\item{periodBreaks}{Follow-up boundaries in days since index, starting at 0
+and ending at Inf. NULL pools follow-up. Transition boundaries must align
+with cycleLength. Cost-only analyses may split intervals at any whole day.}
+
+\item{periodLabels}{Optional unique names for the follow-up periods.}
 }
 \value{
 A list containing transitions, costs and the prepared trajectories.
@@ -52,7 +60,7 @@ created, and supplied database connections remain open.
 \details{
 This interface replaces the former database-driven workflow.
   It does not run the legacy GUI, continuous-time model, simulation or
-  first-state cost reports. Transition estimates currently pool the observed
-  cycles. Cost estimates use inclusive observed days. Period-specific and
-  within-cycle models require separate, explicit rules.
+  first-state cost reports. Transitions use the source cycle's period.
+  Costs use each record's event date and split observed days at period
+  boundaries. Within-cycle models require separate, explicit rules.
 }

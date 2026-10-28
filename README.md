@@ -8,12 +8,13 @@ from a database through CDMConnector.
 ## Refactor status
 
 The new interface accepts the current lowercase Cohort2Trajectory output. It
-supports pooled adjacent-cycle transition probabilities and descriptive costs
-by state. It returns R objects without opening plots, writing files, dropping
+supports adjacent-cycle transition probabilities and descriptive costs
+by state, either pooled or separated into follow-up periods. It returns R objects
+without opening plots, writing files, dropping
 database tables or closing the caller's connection.
 
-This is not yet a release. Period-specific estimates, terminal-cycle cost
-allocation and within-cycle models remain to be implemented. The older GUI,
+This is not yet a release. Terminal-cycle cost allocation and within-cycle
+models remain to be implemented. The older GUI,
 continuous-time model, survival functions and simulation code have not been
 migrated or validated against the new interface. Do not use those functions to
 validate the new estimates.
@@ -81,9 +82,47 @@ transitions. Calculations retain their precision until you format the results.
 from an assumed pre-entry state. A death in the first cycle stays in these
 counts. The estimator does not invent a preceding alive-to-death transition.
 
-These are pooled transitions between cycle labels. They are not yet the
+These are transitions between cycle labels. They are not yet the
 two-step pneumonia-onset and mortality probabilities used in the thesis.
 Weekly labels cannot recover the exact order or dates of events within a week.
+
+## Separate early and later follow-up
+
+Use the same period boundaries for transition and cost analyses. Boundaries are
+days since each patient's index date, not calendar dates or row numbers.
+
+```r
+period_breaks <- 7 * c(0, 1, 5, 13, Inf)
+period_labels <- c("Week 0", "Weeks 1-4", "Weeks 5-12", "Week 13 onward")
+
+transitions <- estimateTransitions(
+  histories,
+  periodBreaks = period_breaks,
+  periodLabels = period_labels
+)
+
+transitions$estimates
+transitions$matrices[["Weeks 1-4"]]
+transitions$periods
+```
+
+Each period includes its first day and stops before the next boundary. In this
+example, Week 0 covers days 0 through 6. All follow-up must be covered, so breaks
+start at 0 and end at `Inf`. The last period includes any remaining observed
+follow-up. It does not extrapolate beyond the data. Omit both arguments for one
+pooled estimate.
+
+A transition belongs to the period in which its source cycle starts. For example,
+the pair from days 0-6 to days 7-13 belongs to Week 0. Crossing a period boundary
+does not discard a pair. Transition boundaries must align with the cycle length.
+The denominator counts observed outgoing pairs in that period, not everyone
+alive at its start. This does not correct for informative censoring.
+
+Every requested period has a matrix with the same state order. Without observed
+transitions, a nonabsorbing row stays `NA`. Absorbing rows remain explicitly
+structural. `matrices` is always a named list. `matrix` is available only for a
+single period and is `NULL` when several periods are requested. Baseline
+`entryCounts` are reported once, not repeated for each period.
 
 ## Extract costs through CDMConnector
 
@@ -132,6 +171,29 @@ costs$unallocatedCosts
 costs$diagnostics
 ```
 
+For costs over the same follow-up periods:
+
+```r
+costs <- estimateStateCosts(
+  histories,
+  cost_events,
+  periodBreaks = period_breaks,
+  periodLabels = period_labels
+)
+```
+
+Costs follow the event date, not the source-cycle rule used for transitions.
+An interval that spans a boundary is split so each period receives only its
+observed days. An event's amount stays on its recorded date and is not prorated.
+For cost-only analyses, boundaries can fall inside an interval without requiring
+a cycle length. A state with no observed days in a period has no estimate there.
+This is different from an observed interval with no recorded cost.
+
+`intervalCosts` retains the original `.row_id` alongside the period and clipped
+dates. A split interval appears in more than one period, so interval counts
+across periods are not counts of unique original intervals. Patient counts are
+also not additive across periods.
+
 You can supply a local data frame instead of using `extractCosts()`. It needs
 `subject_id`, `event_date` and `amount`. Include `currency_concept_id`, `measure`
 and unique `cost_id` values when available. Currency is kept separate in every
@@ -155,7 +217,9 @@ or distribute that cycle's costs between clinical events.
 results <- TrajectoryMarkovAnalysis(
   histories,
   analyses = c("transitions", "costs"),
-  costData = cost_events
+  costData = cost_events,
+  periodBreaks = period_breaks,
+  periodLabels = period_labels
 )
 ```
 
