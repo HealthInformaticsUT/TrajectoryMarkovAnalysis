@@ -1,3 +1,4 @@
 useDynLib(TrajectoryMarkovAnalysis, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
+importFrom(rlang, .data)
 exportPattern("^[[:alpha:]]+")
