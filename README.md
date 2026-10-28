@@ -9,8 +9,9 @@ from a database through CDMConnector.
 
 The new interface accepts the current lowercase Cohort2Trajectory output. It
 supports adjacent-cycle transition probabilities and descriptive costs
-by state, either pooled or separated into follow-up periods. It returns R objects
-without opening plots, writing files, dropping
+by state, either pooled or separated into follow-up periods. A deterministic
+projection follows the resulting matrices over a specified number of cycles.
+These functions return R objects without opening plots, writing files, dropping
 database tables or closing the caller's connection.
 
 This is not yet a release. Within-cycle models remain to be implemented. The older GUI,
@@ -122,6 +123,56 @@ transitions, a nonabsorbing row stays `NA`. Absorbing rows remain explicitly
 structural. `matrices` is always a named list. `matrix` is available only for a
 single period and is `NULL` when several periods are requested. Baseline
 `entryCounts` are reported once, not repeated for each period.
+
+## Project the expected state distribution
+
+Use a finite number of transition steps to examine the fitted model:
+
+```r
+projection <- projectCohort(transitions, nCycles = 52)
+
+projection$occupancy
+projection$steps
+```
+
+This is a deterministic calculation, not a random sample of patient paths. The
+output contains the initial distribution and one distribution after each step.
+For weekly data, 52 steps end at elapsed day 364. Each step uses the matrix for
+its source cycle, so the first step uses the period containing day 0. `steps`
+records which period was used. `cohortSize` defaults to 1. Set it to a population
+size to also report expected patient counts, which can be fractional.
+
+By default, the initial distribution comes from `entryCounts`. These are first
+cycle labels, including any first-cycle deaths, not the states before index-week
+events. The projection keeps that initial death probability and does not apply
+the first-cycle deaths again. A warning identifies a default distribution based
+on only the patients with known first-cycle labels. To supply a different starting
+assumption, use a named probability vector:
+
+```r
+projection <- projectCohort(
+  transitions,
+  nCycles = 52,
+  initial = c("Alive, no recorded pneumonia" = 1)
+)
+```
+
+Omitted known states receive zero initial probability. This does not recover the
+first-week event risk or turn the model into a pre-event baseline model. The
+starting assumption is retained in the result metadata.
+
+No probabilities are rounded or filled in. An unestimated transition row can
+remain unused while its state has exactly zero probability. If the projection
+needs that row, it stops and identifies the state, period and source cycle.
+Invalid row sums and nonabsorbing behavior in declared absorbing states are also
+rejected. There is no automatic normalization or replacement with a later matrix.
+
+The last period's matrix continues for the requested horizon. This is a modelling
+assumption, not evidence that the matrix remains appropriate indefinitely.
+Projection does not add observational censoring or remove patients when their
+original follow-up ended. Observed proportions with changing follow-up
+denominators are therefore not a direct validation of this fixed-cohort trace.
+Costs and utilities are not applied by this function.
 
 ## Extract costs through CDMConnector
 
