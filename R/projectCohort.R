@@ -14,6 +14,8 @@
 #'   operations or file writes are performed.
 #' @return A list containing occupancy, steps, metadata and diagnostics.
 #'   Occupancy includes cycle zero and nCycles subsequent distributions.
+#'   Metadata preserves the source subject count when available and the entry
+#'   denominator when default initialisation uses entryCounts.
 #' @export
 projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1) {
   tolerance <- 1e-10
@@ -109,8 +111,19 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1) 
   }
   initialDistribution <- stats::setNames(rep(0, length(states)), states)
   initialDistribution[names(initial)] <- initial
+  denominator <- NULL
+  if (!is.null(transitions$diagnostics) && !is.list(transitions$diagnostics)) {
+    stop("transitions$diagnostics must be a list when provided.", call. = FALSE)
+  }
+  preparation <- transitions$diagnostics$preparation
+  if (!is.null(preparation) && !is.list(preparation)) {
+    stop("diagnostics$preparation must be a list when provided.", call. = FALSE)
+  }
+  totalSubjects <- preparation$n_subjects
+  if (!is.null(totalSubjects)) {
+    totalSubjects <- .tmaProjectionInteger(totalSubjects, "preparation$n_subjects", minimum = 1)
+  }
   if (initialSource == "entryCounts") {
-    denominator <- NULL
     if ("denominator" %in% names(entries)) {
       if (!is.numeric(entries$denominator) || is.complex(entries$denominator) ||
           inherits(entries$denominator, "integer64") || anyNA(entries$denominator) ||
@@ -119,17 +132,6 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1) 
       }
       denominator <- .tmaProjectionInteger(entries$denominator[1L],
                                             "entryCounts$denominator", minimum = 1)
-    }
-    if (!is.null(transitions$diagnostics) && !is.list(transitions$diagnostics)) {
-      stop("transitions$diagnostics must be a list when provided.", call. = FALSE)
-    }
-    preparation <- transitions$diagnostics$preparation
-    if (!is.null(preparation) && !is.list(preparation)) {
-      stop("diagnostics$preparation must be a list when provided.", call. = FALSE)
-    }
-    totalSubjects <- preparation$n_subjects
-    if (!is.null(totalSubjects)) {
-      totalSubjects <- .tmaProjectionInteger(totalSubjects, "preparation$n_subjects", minimum = 1)
     }
     if (!is.null(denominator) && !is.null(totalSubjects)) {
       if (denominator > totalSubjects) {
@@ -178,6 +180,7 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1) 
   occupancy$expected_count <- occupancy$probability * cohortSize
   list(occupancy = occupancy, steps = steps,
        metadata = list(initial_distribution = initialDistribution, initial_source = initialSource,
+                       initial_denominator = denominator, source_n_subjects = totalSubjects,
                        nCycles = nCycles, cohortSize = cohortSize, cycleLength = cycleLength,
                        states = states, absorbingStates = absorbingStates, periods = periods),
        diagnostics = list(max_probability_sum_error = maxError))

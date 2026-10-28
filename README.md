@@ -150,7 +150,7 @@ on only the patients with known first-cycle labels. To supply a different starti
 assumption, use a named probability vector:
 
 ```r
-projection <- projectCohort(
+alternative_projection <- projectCohort(
   transitions,
   nCycles = 52,
   initial = c("Alive, no recorded pneumonia" = 1)
@@ -173,6 +173,49 @@ Projection does not add observational censoring or remove patients when their
 original follow-up ended. Observed proportions with changing follow-up
 denominators are therefore not a direct validation of this fixed-cohort trace.
 Costs and utilities are not applied by this function.
+
+## Compare the projection with recorded states
+
+```r
+observed <- summariseOccupancy(histories)
+check <- compareOccupancy(histories, projection)
+
+check$comparison
+check$coverage
+check$diagnostics
+```
+
+`summariseOccupancy()` counts the supplied labels in each cycle. Once an
+absorbing state has been recorded, that patient remains in it for later cycles.
+These carried counts are separate from newly observed labels. Living patients
+are not carried forward after their follow-up ends. A shortened final cycle
+contributes its label once, just like a full cycle.
+
+The observed proportion divides each state's known count by all available known
+states in that cycle, including retained absorbing states. `coverage` reports
+that denominator and the numbers censored, unresolved or missing within their
+observation window. `cohort_fraction` instead divides by the original population
+size. Neither measure fills in the unknown states of censored patients.
+
+`compareOccupancy()` adds the projected probabilities and expected counts.
+By default, it keeps only patients with a known first-cycle state throughout the
+comparison and reports any exclusions. This matches the population used for
+default projection entry probabilities. Use `population = "all"` explicitly
+to include histories whose first cycle is missing or unresolved. Those patients
+may contribute known labels later. The standalone observed summary includes
+all supplied patients. Selecting a comparison population does not refit the
+transition model.
+
+The comparison reports different starting distributions and source counts.
+Matching counts do not prove that the two objects describe the same patients.
+Observed and projected cohort sizes are kept separate, with no automatic
+rescaling.
+
+Use this as a descriptive check, not a formal test of fit. The projection keeps
+a fixed cohort, while the available-state denominator can shrink. In particular,
+the observed death proportion can rise when living patients are censored, even
+without new deaths. Always inspect the coverage alongside the proportions.
+The functions return tables and do not open plots or write files.
 
 ## Extract costs through CDMConnector
 

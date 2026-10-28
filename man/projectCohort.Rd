@@ -20,6 +20,8 @@ labels, including first-cycle terminal labels, not a pre-event baseline.}
 \value{
 A list containing occupancy, steps, metadata and diagnostics.
   Occupancy includes cycle zero and nCycles subsequent distributions.
+  Metadata preserves the source subject count when available and the entry
+  denominator when default initialisation uses entryCounts.
 }
 \description{
 Project a cohort through period-specific transition matrices
