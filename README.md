@@ -17,8 +17,11 @@ These functions return R objects without opening plots, writing files, dropping
 database tables or closing the caller's connection.
 A separate costing function applies explicit cycle charges, state-change
 charges and a startup fee to a projection.
+Optional ordered stages combine analyst-supplied probabilities into one cycle
+model and report the expected movements within each stage.
 
-This is not yet a release. Within-cycle models remain to be implemented. The older GUI,
+This is not yet a release. Estimation of separate within-cycle stages from
+patient records remains to be implemented. The older GUI,
 continuous-time model, survival functions and simulation code have not been
 migrated or validated against the new interface. Do not use those functions to
 validate the new estimates.
@@ -86,9 +89,10 @@ transitions. Calculations retain their precision until you format the results.
 from an assumed pre-entry state. A death in the first cycle stays in these
 counts. The estimator does not invent a preceding alive-to-death transition.
 
-These are transitions between cycle labels. They are not yet the
-two-step pneumonia-onset and mortality probabilities used in the thesis.
-Weekly labels cannot recover the exact order or dates of events within a week.
+These are transitions between cycle labels, not separate probabilities for
+events within a cycle. Weekly labels cannot recover the exact order or dates
+of events within a week. The optional stage composer below combines explicitly
+supplied probabilities. It does not infer intermediate states from these labels.
 
 ## Estimate outcomes during the first cycle
 
@@ -249,6 +253,86 @@ Do not supply `initial` together with `entry`. Entry uses the baseline state mix
 among its eligible subjects. The entry matrix, baseline mix and eligible patient
 identifiers are retained in the projection. A different intervention effect or
 within-cycle event sequence is not inferred by applying this entry model.
+
+## Compose stages within a cycle
+
+Use `composeTransitionStages()` when a model has explicitly defined steps within
+each cycle. The package applies stages in list order. It does not infer stages,
+clinical meaning or event dates from the state names.
+
+For example, a model could allow an episode to begin and then resolve in the
+same cycle. These probabilities are illustrative, not estimates:
+
+```r
+states <- c("Stable", "Episode")
+onset <- matrix(
+  c(0.8, 0.2,
+    0.0, 1.0),
+  nrow = 2, byrow = TRUE, dimnames = list(states, states)
+)
+recovery <- matrix(
+  c(1.0, 0.0,
+    0.5, 0.5),
+  nrow = 2, byrow = TRUE, dimnames = list(states, states)
+)
+
+staged_model <- composeTransitionStages(
+  stages = list(onset = onset, recovery = recovery),
+  cycleLength = 7
+)
+staged_projection <- projectCohort(
+  staged_model, nCycles = 1,
+  initial = c(Stable = 1), cohortSize = 100
+)
+
+staged_model$matrix
+staged_projection$occupancy
+staged_projection$stageFlows
+```
+
+Among 100 initially stable patients, the first stage gives 20 expected episodes.
+The second gives 10 expected recoveries. The cycle therefore ends with 90 stable
+patients and 10 in the episode state. The net cycle outcomes alone would hide
+the episodes that resolved. Reversing the stages changes the result, so their
+order is part of the model definition. No absorbing state is required.
+
+Every stage uses the same state dictionary. Rows and columns are matched by
+name, not by their supplied order. An identity row leaves a state unchanged in
+that stage. If a state must remain absorbing throughout the model, declare it
+in `absorbingStates` and supply identity rows for it in every stage. If a later
+step depends on earlier history, that history must remain in the state
+definitions. The package does not reconstruct it after states have been merged.
+
+Use `periodBreaks` and `periodLabels` for changing stage probabilities. Each stage
+can supply one matrix for all periods or a named list with one matrix per period.
+All stages use the period containing the source cycle's start day. One pass
+through all stages advances one cycle, not one cycle per stage.
+
+The composer retains the supplied stage matrices and their combined products.
+Projection checks they still agree. To change a stage, compose a new model rather
+than editing only its combined matrix. Entire `NA` rows remain unavailable.
+A combined starting-state row is unavailable if its paths reach such a row at
+any stage. Unknown rows on paths with exactly zero probability do not affect it.
+
+`flows` still describes net cycle changes. `stageFlows` separately reports the
+conditional probabilities, whole-cohort probability masses and expected counts
+for each stage. These are expected movements, not reconstructed patient paths
+or distinct patient counts across stages. Stages add no person-time. Existing
+`projectCosts()` rules use net cycle outcomes and do not charge intermediate
+events or add recurring charges for stages. Stage-specific costing remains a
+separate extension.
+
+These inputs specify a model. They do not estimate the stages from C2T output or
+show that component probabilities apply to the same population. Ordinary
+full-cycle estimates must not be reinterpreted as stage probabilities. Changing
+one stage while retaining later probabilities is also an explicit assumption,
+not an automatically estimated intervention effect.
+
+Supply `initial` explicitly, or use a separately estimated `entry` model. No
+starting population is inferred from the stage matrices. Entry still occurs
+once before cycle zero and is not decomposed into the recurring stages. With
+`nCycles = 0`, a staged projection has no stage movements. Ordinary models need
+no stage specification and continue to work as before.
 
 ## Compare the projection with recorded states
 
@@ -494,6 +578,11 @@ There are three additive components:
   straight to a death-with-history state does not invent an intermediate event.
 - `entryCost` charges the projection's `cohortSize` once. It requires an explicit
   entry model. It is a single startup amount, not a baseline-state-specific fee.
+
+For composed models, `transitionCosts` still charges net cycle changes, not
+`stageFlows`. A path that leaves a state and returns within the cycle has no
+net change, even though the stage ledger records both movements. Stage-specific
+charges are not applied automatically.
 
 Set a component to `NULL` to omit it intentionally. Missing supplied amounts are
 errors. Charges for the same cycle add together, so choose recurring and event

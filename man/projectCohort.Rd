@@ -13,7 +13,9 @@ projectCohort(
 )
 }
 \arguments{
-\item{transitions}{A result from estimateTransitions().}
+\item{transitions}{A result from estimateTransitions() or
+composeTransitionStages(). A composed model needs an explicit initial
+distribution or a separate entry model.}
 
 \item{nCycles}{Number of transition steps, a finite nonnegative integer.}
 
@@ -29,6 +31,9 @@ cycle zero. Do not supply a non-NULL initial together with entry.}
 }
 \value{
 A list containing occupancy, steps, flows, metadata and diagnostics.
+  For composed models, stageMatrices and stageFlows retain the stage models
+  and their expected movements. Both are NULL for ordinary models. stageFlows
+  is an empty table when a composed model takes no adjacent steps.
   Occupancy includes cycle zero and nCycles subsequent distributions.
   Metadata preserves the source subject count when available and the entry
   denominator when default initialisation uses entryCounts.
@@ -63,4 +68,12 @@ Each step uses the matrix for the source cycle's start day. An
   existing occupancy; they are not new deaths or other terminal events.
   Entry flows occur once before cycle zero, with missing source cycle, source
   day and period. With no entry and nCycles = 0, flows is an empty table.
+
+  Composed models also return stageFlows. These are movements within each
+  adjacent step, not additional cycles or person-time. The existing flows
+  table still describes net cycle outcomes. Intermediate changes can occur
+  even when the net outcome is a self-transition. Stage matrices are applied
+  in their declared order using the source cycle's period. Entry remains a
+  separate operation and is not decomposed into stages. Existing costing and
+  occupancy comparisons use cycle outcomes, not stageFlows.
 }

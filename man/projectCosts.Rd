@@ -27,7 +27,9 @@ When supplied, every state and cost period must be covered, including zeros.}
 columns, and optionally period. Each rule charges the represented state
 change, including changes during the entry step. Omitted pairs have no
 additional charge. Self-pairs are not allowed. Costs are additive to state
-costs and do not imply intermediate events that are absent from the model.}
+costs and do not imply intermediate events that are absent from the model.
+These rules charge net cycle outcomes only. They do not use stageFlows from
+a composed model. A path A to B to A has two stage changes but no net change.}
 
 \item{entryCost}{Optional scalar startup cost per projected patient, charged
 once in cycle zero. Requires a projection with an explicit entry model.}
@@ -70,6 +72,8 @@ Charges follow the destination cycle label's start day. Recurring
   State charges are stipulated amounts per full cycle label, not daily rates
   or observed person-time estimates. They are not prorated for shortened
   observed cycles and are not automatically calibrated from estimateStateCosts().
+  Intermediate stages receive no extra recurring charges or person-time.
+  Stage-specific event costing is not implemented by this function.
   For nCycles = k, labels 0 through k receive charges, representing k + 1
   labelled cycles. No discounting, utilities, random sampling or database
   operations are performed.

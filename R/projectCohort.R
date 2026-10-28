@@ -1,6 +1,8 @@
 #' Project a cohort through period-specific transition matrices
 #'
-#' @param transitions A result from estimateTransitions().
+#' @param transitions A result from estimateTransitions() or
+#'   composeTransitionStages(). A composed model needs an explicit initial
+#'   distribution or a separate entry model.
 #' @param nCycles Number of transition steps, a finite nonnegative integer.
 #' @param initial Optional named probability vector. Omitted known states receive
 #'   zero probability. NULL uses entryCounts probabilities for known first-cycle
@@ -32,7 +34,18 @@
 #'   existing occupancy; they are not new deaths or other terminal events.
 #'   Entry flows occur once before cycle zero, with missing source cycle, source
 #'   day and period. With no entry and nCycles = 0, flows is an empty table.
+#'
+#'   Composed models also return stageFlows. These are movements within each
+#'   adjacent step, not additional cycles or person-time. The existing flows
+#'   table still describes net cycle outcomes. Intermediate changes can occur
+#'   even when the net outcome is a self-transition. Stage matrices are applied
+#'   in their declared order using the source cycle's period. Entry remains a
+#'   separate operation and is not decomposed into stages. Existing costing and
+#'   occupancy comparisons use cycle outcomes, not stageFlows.
 #' @return A list containing occupancy, steps, flows, metadata and diagnostics.
+#'   For composed models, stageMatrices and stageFlows retain the stage models
+#'   and their expected movements. Both are NULL for ordinary models. stageFlows
+#'   is an empty table when a composed model takes no adjacent steps.
 #'   Occupancy includes cycle zero and nCycles subsequent distributions.
 #'   Metadata preserves the source subject count when available and the entry
 #'   denominator when default initialisation uses entryCounts.
@@ -117,6 +130,34 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
       }
     }
     matrices[[i]] <- matrix
+  }
+
+  stageMatrices <- NULL
+  if (identical(transitions$metadata$estimator, "specified_stages") &&
+      is.null(transitions$stageMatrices)) {
+    stop("A composed model must retain its stageMatrices. Rebuild it with composeTransitionStages().", call. = FALSE)
+  }
+  if (!is.null(transitions$stageMatrices)) {
+    stageDefinition <- .tmaStageDefinition(transitions$stageMatrices, periods, states, absorbingStates)
+    stageMatrices <- stageDefinition$stageMatrices
+    if (!identical(transitions$metadata$stage_order, names(stageMatrices))) {
+      stop("The declared stage order must match stageMatrices. Rebuild the composed model after changing its stages.", call. = FALSE)
+    }
+    for (i in seq_along(matrices)) {
+      expected <- stageDefinition$matrices[[i]]
+      actual <- matrices[[i]]
+      if (any(is.na(actual) != is.na(expected)) ||
+          any(abs(actual[!is.na(actual)] - expected[!is.na(expected)]) > tolerance)) {
+        stop("The combined matrix disagrees with its stages in period '", periods$period[i],
+             "'. Rebuild it with composeTransitionStages() after changing probabilities.", call. = FALSE)
+      }
+    }
+    if (nCycles * length(stageMatrices) * length(states)^2 > .Machine$integer.max) {
+      stop("The requested horizon exceeds supported stage-flow indexing.", call. = FALSE)
+    }
+    if (is.null(initial) && is.null(entry)) {
+      stop("A composed stage model needs an explicit initial distribution or a separate entry model.", call. = FALSE)
+    }
   }
 
   entryDetails <- NULL
@@ -252,13 +293,59 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   }
   flows$expected_count <- flows$probability_mass * cohortSize
   rownames(flows) <- NULL
+  stageResult <- if (!is.null(stageMatrices)) {
+    .tmaProjectStageFlows(stageMatrices, steps, probability, states, cohortSize)
+  } else NULL
   list(occupancy = occupancy, steps = steps, flows = flows, entry = entryDetails,
+       stageMatrices = stageMatrices, stageFlows = stageResult$flows,
        metadata = list(initial_distribution = initialDistribution, initial_source = initialSource,
                        initial_denominator = denominator, source_n_subjects = totalSubjects,
                        nCycles = nCycles, cohortSize = cohortSize, cycleLength = cycleLength,
-                       states = states, absorbingStates = absorbingStates, periods = periods),
+                       states = states, absorbingStates = absorbingStates, periods = periods,
+                       stage_order = names(stageMatrices)),
        diagnostics = list(max_probability_sum_error = maxError,
+                          max_stage_endpoint_error = stageResult$max_endpoint_error,
                           entry_source_subject_count_matches = entrySourceMatches))
+}
+
+.tmaProjectStageFlows <- function(stageMatrices, steps, probability, states, cohortSize) {
+  nStages <- length(stageMatrices)
+  nStates <- length(states)
+  nPairs <- nStates^2
+  flows <- steps[rep(seq_len(nrow(steps)), each = nStages * nPairs), , drop = FALSE]
+  flows$stage_index <- rep(rep(seq_len(nStages), each = nPairs), times = nrow(steps))
+  flows$stage <- names(stageMatrices)[flows$stage_index]
+  flows$from_state <- rep(states, times = nStates * nStages * nrow(steps))
+  flows$to_state <- rep(rep(states, each = nStates), times = nStages * nrow(steps))
+  flows$transition_probability <- rep(NA_real_, nrow(flows))
+  flows$probability_mass <- numeric(nrow(flows))
+  maxError <- 0
+  for (i in seq_len(nrow(steps))) {
+    source <- probability[i, ]
+    for (j in seq_len(nStages)) {
+      conditional <- stageMatrices[[j]][[steps$period[i]]]
+      occupied <- which(source > 0)
+      if (anyNA(conditional[occupied, , drop = FALSE])) {
+        stop("Missing probabilities in reachable stage '", names(stageMatrices)[j],
+             "' at source cycle ", steps$source_cycle[i], ".", call. = FALSE)
+      }
+      joint <- matrix(0, nStates, nStates)
+      joint[occupied, ] <- conditional[occupied, , drop = FALSE] * source[occupied]
+      rows <- ((i - 1) * nStages + j - 1) * nPairs + seq_len(nPairs)
+      flows$transition_probability[rows] <- as.vector(conditional)
+      flows$probability_mass[rows] <- as.vector(joint)
+      source <- colSums(joint)
+    }
+    error <- max(abs(source - probability[i + 1L, ]))
+    if (!is.finite(error) || error > 1e-8) {
+      stop("Stage movements disagree with the combined cycle projection at destination cycle ",
+           steps$destination_cycle[i], ".", call. = FALSE)
+    }
+    maxError <- max(maxError, error)
+  }
+  flows$expected_count <- flows$probability_mass * cohortSize
+  rownames(flows) <- NULL
+  list(flows = flows, max_endpoint_error = maxError)
 }
 
 .tmaProjectionInteger <- function(x, name, minimum) {
