@@ -12,8 +12,10 @@ compareOccupancy(trajectories, projection, population = "initial")
 \item{projection}{A result from projectCohort().}
 
 \item{population}{"initial" (default) keeps patients with a known clinical
-label in cycle zero throughout the comparison. "all" uses every supplied
-patient, including those whose first label is missing or unresolved.}
+label in cycle zero throughout the comparison. When projection used an
+entry model, it instead keeps that model's exact entry-eligible subjects.
+"all" uses every supplied patient, including those whose first label is
+missing, unresolved or incomplete.}
 }
 \value{
 A list with comparison, coverage, initialComparison, diagnostics and
@@ -39,4 +41,8 @@ Known absorbing states are retained after their recorded cycle.
   distribution or source-count mismatches are reported, but aggregate counts
   cannot establish that the projection came from these same patients.
   Selecting a comparison population does not refit the transition model.
+  Entry-mode default comparison requires the entry-eligible patient identifiers
+  to be present, with evaluable first cycles. It is a same-patient descriptive
+  comparison, not external validation. Use population = "all" explicitly to
+  describe a different supplied population.
 }

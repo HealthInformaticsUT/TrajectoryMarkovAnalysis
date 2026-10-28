@@ -11,6 +11,8 @@ The new interface accepts the current lowercase Cohort2Trajectory output. It
 supports adjacent-cycle transition probabilities and descriptive costs
 by state, either pooled or separated into follow-up periods. A deterministic
 projection follows the resulting matrices over a specified number of cycles.
+An optional entry model estimates first-cycle outcomes from starting states
+supplied by the analyst.
 These functions return R objects without opening plots, writing files, dropping
 database tables or closing the caller's connection.
 
@@ -86,6 +88,43 @@ These are transitions between cycle labels. They are not yet the
 two-step pneumonia-onset and mortality probabilities used in the thesis.
 Weekly labels cannot recover the exact order or dates of events within a week.
 
+## Estimate outcomes during the first cycle
+
+The first weekly label can already contain a complication or death. To model
+that first week's outcomes from a state defined before the week, estimate a
+separate entry matrix:
+
+```r
+entry <- estimateEntryTransitions(
+  histories,
+  entryState = "Alive, no recorded pneumonia"
+)
+
+entry$estimates
+entry$coverage
+entry$subjects
+```
+
+The starting label is an explicit analyst definition, not something inferred
+from a patient's later outcome. If patients start in different states, supply
+an `entryState` data frame with `subject_id` and `entry_state` columns. It must
+cover every trajectory subject exactly once. Starting states must belong to the
+declared dictionary. Include a state in `prepareTrajectories(states = ...)` if
+it is needed at entry but never appears in the recorded histories.
+
+A complete first cycle contributes its known label. A shortened cycle also
+contributes if it ends in an explicitly absorbing state, such as death. A
+shortened living cycle is not counted as a complete event-free week. Missing
+first cycles and unresolved labels are excluded as well. `subjects` records
+each patient's inclusion or exclusion and `coverage` gives the counts.
+
+Entry probabilities are conditional on an evaluable first cycle, separately
+for each starting state. The default baseline mix uses these same patients.
+This does not correct for censoring or establish that excluded patients have
+the same risks. The probabilities describe first-cycle outcomes, not the exact
+timing or ordering of events within that week. The existing adjacent-cycle
+estimates remain separate and unchanged.
+
 ## Separate early and later follow-up
 
 Use the same period boundaries for transition and cost analyses. Boundaries are
@@ -137,7 +176,9 @@ projection$steps
 
 This is a deterministic calculation, not a random sample of patient paths. The
 output contains the initial distribution and one distribution after each step.
-For weekly data, 52 steps end at elapsed day 364. Each step uses the matrix for
+For weekly data, 52 steps produce labels 0 through 52, with the last label
+starting at elapsed day 364. These days locate cycle labels, not exact event
+times. Each step uses the matrix for
 its source cycle, so the first step uses the period containing day 0. `steps`
 records which period was used. `cohortSize` defaults to 1. Set it to a population
 size to also report expected patient counts, which can be fractional.
@@ -174,6 +215,31 @@ original follow-up ended. Observed proportions with changing follow-up
 denominators are therefore not a direct validation of this fixed-cohort trace.
 Costs and utilities are not applied by this function.
 
+To include the entry matrix, supply it separately:
+
+```r
+projection_from_entry <- projectCohort(
+  transitions,
+  nCycles = 51,
+  entry = entry,
+  cohortSize = entry$diagnostics$eligible_subjects
+)
+
+projection_from_entry$entry$baseline_distribution
+projection_from_entry$occupancy
+```
+
+The entry matrix is applied once, before the first label. Cycle 0 then contains
+the first-cycle outcomes, including any first-cycle deaths. The next 51 steps
+use the adjacent-cycle matrices as before. This produces 52 weekly labels,
+numbered 0 through 51. With `nCycles = 0`, only the entry step is applied.
+The baseline is stored separately and is not an extra week in `occupancy`.
+
+Do not supply `initial` together with `entry`. Entry uses the baseline state mix
+among its eligible subjects. The entry matrix, baseline mix and eligible patient
+identifiers are retained in the projection. A different intervention effect or
+within-cycle event sequence is not inferred by applying this entry model.
+
 ## Compare the projection with recorded states
 
 ```r
@@ -205,6 +271,15 @@ to include histories whose first cycle is missing or unresolved. Those patients
 may contribute known labels later. The standalone observed summary includes
 all supplied patients. Selecting a comparison population does not refit the
 transition model.
+
+If the projection used an entry matrix, the default comparison instead keeps
+that entry model's exact eligible patients throughout follow-up. In particular,
+it does not bring excluded patients with shortened living first cycles back
+into the comparison. Their identifiers must be present in the supplied
+histories and their first cycles must still be evaluable. Use `population =
+"all"` explicitly to describe a different population. Both `entry$subjects`
+and the projection's entry-eligible identifiers are patient-level outputs, not
+disclosure-controlled summaries for sharing across sites.
 
 The comparison reports different starting distributions and source counts.
 Matching counts do not prove that the two objects describe the same patients.

@@ -3,8 +3,10 @@
 #' @param trajectories Current Cohort2Trajectory output or prepared trajectories.
 #' @param projection A result from projectCohort().
 #' @param population "initial" (default) keeps patients with a known clinical
-#'   label in cycle zero throughout the comparison. "all" uses every supplied
-#'   patient, including those whose first label is missing or unresolved.
+#'   label in cycle zero throughout the comparison. When projection used an
+#'   entry model, it instead keeps that model's exact entry-eligible subjects.
+#'   "all" uses every supplied patient, including those whose first label is
+#'   missing, unresolved or incomplete.
 #' @details Known absorbing states are retained after their recorded cycle.
 #'   Living states are never carried beyond follow-up. The observed proportion
 #'   uses currently known labels plus retained absorbing labels as its
@@ -21,6 +23,10 @@
 #'   distribution or source-count mismatches are reported, but aggregate counts
 #'   cannot establish that the projection came from these same patients.
 #'   Selecting a comparison population does not refit the transition model.
+#'   Entry-mode default comparison requires the entry-eligible patient identifiers
+#'   to be present, with evaluable first cycles. It is a same-patient descriptive
+#'   comparison, not external validation. Use population = "all" explicitly to
+#'   describe a different supplied population.
 #' @return A list with comparison, coverage, initialComparison, diagnostics and
 #'   metadata. No plots, files, hypothesis tests or model refitting are produced.
 #' @export
@@ -46,10 +52,37 @@ compareOccupancy <- function(trajectories, projection, population = "initial") {
     prepared$data$state_start_date == origins & prepared$data$state_label != "OUT OF COHORT"]
   nInput <- nrow(prepared$patients)
   nInitial <- length(initialSubjects)
-  if (population == "initial" && !nInitial) {
+  entryMode <- identical(model$initial_source, "entry_model")
+  comparisonSubjects <- initialSubjects
+  entrySubjectsPresent <- NA
+  if (entryMode) {
+    entrySubjects <- projection$entry$eligible_subject_ids
+    entrySubjectsPresent <- all(entrySubjects %in% prepared$patients$subject_id)
+    if (population == "initial") {
+      if (!entrySubjectsPresent) {
+        stop("Entry-eligible patients are missing from trajectories. Supply the matching histories or explicitly use population = 'all' for a different population.", call. = FALSE)
+      }
+      evaluable <- prepared$data$state_start_date == origins &
+        prepared$data$state_label != "OUT OF COHORT" &
+        (prepared$data$observed_days == model$cycleLength |
+           prepared$data$state_label %in% model$absorbingStates)
+      if (any(!entrySubjects %in% prepared$data$subject_id[evaluable])) {
+        stop("The entry-eligible patients no longer have evaluable first cycles in these histories. Recheck the entry model and trajectories.", call. = FALSE)
+      }
+      comparisonSubjects <- entrySubjects
+    }
+  }
+  if (population == "initial" && !length(comparisonSubjects)) {
     stop("No patients have a known first-cycle state. Use population = 'all' for an available-state summary of all histories.", call. = FALSE)
   }
-  if (nInitial < nInput) {
+  if (entryMode) {
+    if (population == "initial" && length(comparisonSubjects) < nInput) {
+      warning("Excluding ", nInput - length(comparisonSubjects),
+              " patients outside the entry model's evaluable first-cycle population from every comparison cycle.", call. = FALSE)
+    } else if (population == "all" && !setequal(projection$entry$eligible_subject_ids, prepared$patients$subject_id)) {
+      warning("With population = 'all', the comparison population differs from the entry model's eligible subjects.", call. = FALSE)
+    }
+  } else if (nInitial < nInput) {
     if (population == "initial") {
       warning("Excluding ", nInput - nInitial,
               " patients without a known first-cycle state from every comparison cycle.", call. = FALSE)
@@ -58,7 +91,7 @@ compareOccupancy <- function(trajectories, projection, population = "initial") {
     }
   }
   observed <- .tmaSummariseOccupancy(prepared, nCycles = model$nCycles,
-                                    subjectIds = if (population == "initial") initialSubjects else NULL)
+                                    subjectIds = if (population == "initial") comparisonSubjects else NULL)
   comparison <- observed$occupancy
   names(comparison)[names(comparison) == "proportion"] <- "observed_proportion"
   names(comparison)[names(comparison) == "denominator"] <- "observed_denominator"
@@ -87,16 +120,25 @@ compareOccupancy <- function(trajectories, projection, population = "initial") {
     initialCountMatches <- model$initial_denominator == nInitial
     if (!initialCountMatches) warning("The projection's entry denominator differs from the supplied known first-cycle count.", call. = FALSE)
   }
+  entrySourceMatches <- NA
+  if (entryMode) {
+    entrySourceMatches <- projection$entry$source_subjects == nInput
+    if (!entrySourceMatches) warning("The entry model's source subject count differs from the supplied trajectories.", call. = FALSE)
+  }
   list(comparison = comparison, coverage = observed$coverage,
        initialComparison = initialComparison,
        diagnostics = list(input_subjects = nInput, known_initial_subjects = nInitial,
                           compared_subjects = observed$metadata$n_subjects,
-                          excluded_initial_subjects = if (population == "initial") nInput - nInitial else 0L,
+                          excluded_initial_subjects = if (population == "initial") nInput - length(comparisonSubjects) else 0L,
                           initial_distribution_matches = initialMatches,
                           source_subject_count_matches = sourceMatches,
                           initial_subject_count_matches = initialCountMatches,
+                          entry_source_subject_count_matches = entrySourceMatches,
+                          entry_eligible_subjects_present = entrySubjectsPresent,
                           count_scales_match = model$cohortSize == observed$metadata$n_subjects),
-       metadata = list(population = population, observed = observed$metadata, projection = model,
+       metadata = list(population = population,
+                       population_rule = if (population == "all") "all supplied subjects" else if (entryMode) "entry model's eligible subjects" else "known first-cycle subjects",
+                       observed = observed$metadata, projection = model,
                        interpretation = "descriptive available-state proportions versus fixed-cohort projection; no censoring adjustment",
                        provenance = "matching aggregate counts cannot establish patient-level identity"))
 }
@@ -153,6 +195,21 @@ compareOccupancy <- function(trajectories, projection, population = "initial") {
   initialRows <- values[values$cycle == 0, , drop = FALSE]
   if (any(abs(initialRows$probability - initial[initialRows$state]) > 1e-8)) {
     stop("Projection cycle-zero probabilities differ from initial_distribution.", call. = FALSE)
+  }
+  if (identical(model$initial_source, "entry_model")) {
+    entry <- projection$entry
+    if (!is.list(entry) || !all(c("eligible_subject_ids", "eligible_subjects", "source_subjects") %in% names(entry))) {
+      stop("An entry-mode projection must preserve its eligible subjects and source count.", call. = FALSE)
+    }
+    ids <- .tmaSubjectIds(entry$eligible_subject_ids, "entry eligible_subject_ids")
+    nEligible <- .tmaProjectionInteger(entry$eligible_subjects, "entry eligible_subjects", 1)
+    nSource <- .tmaProjectionInteger(entry$source_subjects, "entry source_subjects", 1)
+    if (anyDuplicated(ids) || length(ids) != nEligible || nEligible > nSource) {
+      stop("Entry-mode projection subject counts and identifiers disagree.", call. = FALSE)
+    }
+    projection$entry$eligible_subject_ids <- ids
+  } else if (!is.null(projection$entry)) {
+    stop("Projection entry information requires initial_source = 'entry_model'.", call. = FALSE)
   }
   projection
 }

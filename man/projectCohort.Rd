@@ -4,7 +4,13 @@
 \alias{projectCohort}
 \title{Project a cohort through period-specific transition matrices}
 \usage{
-projectCohort(transitions, nCycles, initial = NULL, cohortSize = 1)
+projectCohort(
+  transitions,
+  nCycles,
+  initial = NULL,
+  cohortSize = 1,
+  entry = NULL
+)
 }
 \arguments{
 \item{transitions}{A result from estimateTransitions().}
@@ -16,12 +22,19 @@ zero probability. NULL uses entryCounts probabilities for known first-cycle
 labels, including first-cycle terminal labels, not a pre-event baseline.}
 
 \item{cohortSize}{Positive exact integer cohort size. Defaults to 1.}
+
+\item{entry}{Optional result from estimateEntryTransitions(). Its eligible
+baseline distribution passes through its entry matrix once to initialise
+cycle zero. Do not supply a non-NULL initial together with entry.}
 }
 \value{
 A list containing occupancy, steps, metadata and diagnostics.
   Occupancy includes cycle zero and nCycles subsequent distributions.
   Metadata preserves the source subject count when available and the entry
   denominator when default initialisation uses entryCounts.
+  When used, entry retains its baseline distribution, matrix, eligibility
+  description, coverage and eligible subject identifiers. These identifiers
+  must remain within the permitted patient-level analysis environment.
 }
 \description{
 Project a cohort through period-specific transition matrices
@@ -33,4 +46,12 @@ Each step uses the matrix for the source cycle's start day. An
   an infinite final period does not establish empirical lifetime validity.
   Probabilities are never normalised. No costs, random sampling, database
   operations or file writes are performed.
+
+  With entry supplied, cycle zero still means the first recorded cycle label.
+  Entry adds no timepoint and nCycles still counts subsequent adjacent-cycle
+  steps. Thus nCycles = 0 applies entry only. Entry outcome probabilities are
+  conditional on an evaluable first cycle, without censoring adjustment or
+  reconstruction of within-cycle event timing. Initialising from the eligible
+  subset does not refit the adjacent-cycle matrices. Matching source counts
+  cannot establish that the two models used identical patients.
 }
