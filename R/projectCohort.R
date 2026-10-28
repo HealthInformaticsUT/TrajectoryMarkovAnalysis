@@ -23,7 +23,16 @@
 #'   reconstruction of within-cycle event timing. Initialising from the eligible
 #'   subset does not refit the adjacent-cycle matrices. Matching source counts
 #'   cannot establish that the two models used identical patients.
-#' @return A list containing occupancy, steps, metadata and diagnostics.
+#'
+#'   Flows report every state pair at each step. transition_probability is
+#'   conditional on the source state; probability_mass is the share of the
+#'   whole projected cohort taking that step, and expected_count multiplies
+#'   that share by cohortSize. Unoccupied unestimated rows retain NA conditional
+#'   probabilities but have zero joint mass. Absorbing self-transitions retain
+#'   existing occupancy; they are not new deaths or other terminal events.
+#'   Entry flows occur once before cycle zero, with missing source cycle, source
+#'   day and period. With no entry and nCycles = 0, flows is an empty table.
+#' @return A list containing occupancy, steps, flows, metadata and diagnostics.
 #'   Occupancy includes cycle zero and nCycles subsequent distributions.
 #'   Metadata preserves the source subject count when available and the entry
 #'   denominator when default initialisation uses entryCounts.
@@ -53,6 +62,7 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   cycleLength <- .tmaProjectionInteger(transitions$metadata$cycleLength,
                                         "metadata$cycleLength", minimum = 1)
   if ((nCycles + 1) * length(states) > .Machine$integer.max ||
+      (nCycles + as.integer(!is.null(entry))) * length(states)^2 > .Machine$integer.max ||
       nCycles * cycleLength >= 2^53) {
     stop("The requested horizon exceeds supported output indexing or exact elapsed days.", call. = FALSE)
   }
@@ -209,7 +219,40 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
                            state = rep(states, times = nCycles + 1),
                            probability = as.vector(t(probability)), stringsAsFactors = FALSE)
   occupancy$expected_count <- occupancy$probability * cohortSize
-  list(occupancy = occupancy, steps = steps, entry = entryDetails,
+  flowSteps <- data.frame(stage = rep("transition", nCycles), steps,
+                          stringsAsFactors = FALSE)
+  if (!is.null(entryDetails)) {
+    flowSteps <- rbind(data.frame(stage = "entry", source_cycle = NA_integer_,
+                                  source_day = NA_real_, destination_cycle = 0L,
+                                  destination_day = 0, period = NA_character_,
+                                  stringsAsFactors = FALSE), flowSteps)
+  }
+  nStates <- length(states)
+  nPairs <- nStates^2
+  flows <- flowSteps[rep(seq_len(nrow(flowSteps)), each = nPairs), , drop = FALSE]
+  flows$from_state <- rep(states, times = nStates * nrow(flowSteps))
+  flows$to_state <- rep(rep(states, each = nStates), times = nrow(flowSteps))
+  flows$transition_probability <- rep(NA_real_, nrow(flows))
+  flows$probability_mass <- numeric(nrow(flows))
+  for (i in seq_len(nrow(flowSteps))) {
+    if (flowSteps$stage[i] == "entry") {
+      sourceProbability <- entryDetails$baseline_distribution
+      conditional <- entryDetails$matrix
+    } else {
+      sourceRow <- flowSteps$source_cycle[i] + 1L
+      sourceProbability <- probability[sourceRow, ]
+      conditional <- matrices[[periodIndex[sourceRow]]]
+    }
+    joint <- matrix(0, nStates, nStates)
+    occupied <- which(sourceProbability > 0)
+    joint[occupied, ] <- conditional[occupied, , drop = FALSE] * sourceProbability[occupied]
+    rows <- (i - 1) * nPairs + seq_len(nPairs)
+    flows$transition_probability[rows] <- as.vector(conditional)
+    flows$probability_mass[rows] <- as.vector(joint)
+  }
+  flows$expected_count <- flows$probability_mass * cohortSize
+  rownames(flows) <- NULL
+  list(occupancy = occupancy, steps = steps, flows = flows, entry = entryDetails,
        metadata = list(initial_distribution = initialDistribution, initial_source = initialSource,
                        initial_denominator = denominator, source_n_subjects = totalSubjects,
                        nCycles = nCycles, cohortSize = cohortSize, cycleLength = cycleLength,

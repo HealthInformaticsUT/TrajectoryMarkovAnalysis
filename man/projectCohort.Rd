@@ -28,7 +28,7 @@ baseline distribution passes through its entry matrix once to initialise
 cycle zero. Do not supply a non-NULL initial together with entry.}
 }
 \value{
-A list containing occupancy, steps, metadata and diagnostics.
+A list containing occupancy, steps, flows, metadata and diagnostics.
   Occupancy includes cycle zero and nCycles subsequent distributions.
   Metadata preserves the source subject count when available and the entry
   denominator when default initialisation uses entryCounts.
@@ -54,4 +54,13 @@ Each step uses the matrix for the source cycle's start day. An
   reconstruction of within-cycle event timing. Initialising from the eligible
   subset does not refit the adjacent-cycle matrices. Matching source counts
   cannot establish that the two models used identical patients.
+
+  Flows report every state pair at each step. transition_probability is
+  conditional on the source state; probability_mass is the share of the
+  whole projected cohort taking that step, and expected_count multiplies
+  that share by cohortSize. Unoccupied unestimated rows retain NA conditional
+  probabilities but have zero joint mass. Absorbing self-transitions retain
+  existing occupancy; they are not new deaths or other terminal events.
+  Entry flows occur once before cycle zero, with missing source cycle, source
+  day and period. With no entry and nCycles = 0, flows is an empty table.
 }

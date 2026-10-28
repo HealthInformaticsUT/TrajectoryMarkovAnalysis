@@ -15,6 +15,8 @@ An optional entry model estimates first-cycle outcomes from starting states
 supplied by the analyst.
 These functions return R objects without opening plots, writing files, dropping
 database tables or closing the caller's connection.
+A separate costing function applies explicit cycle charges, state-change
+charges and a startup fee to a projection.
 
 This is not yet a release. Within-cycle models remain to be implemented. The older GUI,
 continuous-time model, survival functions and simulation code have not been
@@ -172,6 +174,7 @@ projection <- projectCohort(transitions, nCycles = 52)
 
 projection$occupancy
 projection$steps
+projection$flows
 ```
 
 This is a deterministic calculation, not a random sample of patient paths. The
@@ -214,6 +217,13 @@ Projection does not add observational censoring or remove patients when their
 original follow-up ended. Observed proportions with changing follow-up
 denominators are therefore not a direct validation of this fixed-cohort trace.
 Costs and utilities are not applied by this function.
+
+`flows` reports the expected number taking each represented transition. Its
+`transition_probability` is conditional on the source state, while
+`probability_mass` is the share of the whole projected cohort taking that step.
+`expected_count` scales that share by `cohortSize`. Absorbing self-transitions
+retain patients in their state. They are not new deaths. Unoccupied unestimated
+rows keep their `NA` conditional probabilities and have zero flow.
 
 To include the entry matrix, supply it separately:
 
@@ -428,6 +438,94 @@ Clinical trajectories and transition estimates do not change. A simulation must
 use a compatible terminal-cycle charging rule. Multiplying these daily rates by
 unchanged living-state occupancy alone will not generally reproduce observed
 expenditure, because the cost denominator also includes the mapped terminal days.
+
+## Calculate projected costs
+
+`projectCosts()` applies explicit model charges to a projection. It does not
+fit a cost model or convert the descriptive daily means above into cycle costs.
+Transition and recorded-cost estimation remain independent.
+
+The following amounts are only an arithmetic example, not clinical estimates:
+
+```r
+cycle_costs <- c(
+  "Alive, no recorded pneumonia" = 100,
+  "Alive, pneumonia history" = 150,
+  "Death, no pneumonia history" = 0,
+  "Death, pneumonia history" = 0
+)
+
+terminal_costs <- data.frame(
+  from_state = c(
+    "Alive, no recorded pneumonia",
+    "Alive, no recorded pneumonia",
+    "Alive, pneumonia history"
+  ),
+  to_state = c(
+    "Death, no pneumonia history",
+    "Death, pneumonia history",
+    "Death, pneumonia history"
+  ),
+  cost = c(500, 800, 800)
+)
+
+projected_costs <- projectCosts(
+  projection_from_entry,
+  stateCosts = cycle_costs,
+  transitionCosts = terminal_costs,
+  entryCost = 1000,
+  currency = "EUR",
+  priceYear = 2026
+)
+
+projected_costs$byCycle
+projected_costs$totals
+```
+
+There are three additive components:
+
+- `stateCosts` charges each patient represented by each cycle's state label,
+  including cycle zero. Supply every defined state, with explicit zeros where
+  appropriate. These are amounts per full labelled cycle, not per day.
+- `transitionCosts` adds a charge for each specified state change, including
+  changes in the entry step. Omitted pairs have no additional charge. Self-pairs
+  are rejected, so a terminal-care charge does not recur merely because a patient
+  remains dead. The rule applies only to the represented direct change. A change
+  straight to a death-with-history state does not invent an intermediate event.
+- `entryCost` charges the projection's `cohortSize` once. It requires an explicit
+  entry model. It is a single startup amount, not a baseline-state-specific fee.
+
+Set a component to `NULL` to omit it intentionally. Missing supplied amounts are
+errors. Charges for the same cycle add together, so choose recurring and event
+amounts that do not count the same care twice. A nonzero recurring cost assigned
+to an absorbing state will continue in later cycles. In the example, death-state
+recurring costs are zero and terminal care is charged only on entry into death.
+
+Without an entry model, the initial state mix does not create first-cycle state
+changes. An initial death label therefore does not receive a transition charge.
+With `nCycles = 0`, the function still charges the cycle-zero labels and any
+explicit entry changes and startup fee. The separate pre-entry baseline never
+receives another recurring cycle charge.
+
+For changing prices or care costs, supply `stateCosts` as a table with `state`,
+`cost` and `period`, and optionally add `period` to `transitionCosts`. Define the
+cost periods with `periodBreaks` and `periodLabels`, just as for estimation.
+State tables must cover every state in every cost period, including zeros.
+Without a period column, the supplied charges apply in all cost periods.
+
+Cost periods follow the destination label's start day, not the source period
+used to select a transition matrix. Their boundaries must align with cycles.
+The transition ledger retains both `probability_period` and `cost_period` so
+this distinction can be checked. A rule applies to matching entry and later
+changes alike, with the amount selected by its cost period.
+
+These rules assume a full labelled cycle. They do not recover actual care days
+from a shortened terminal interval or automatically reconcile with observed
+expenditure. Calibrating charges from the recorded data requires compatible
+denominators and timing. Currency and price year label the supplied amounts.
+No inflation adjustment, currency conversion, discounting or utilities are
+applied. `totals` reports expected cohort costs and costs per projected patient.
+Detailed ledgers contain aggregate counts, not patient identifiers.
 
 ## Optional combined call
 
