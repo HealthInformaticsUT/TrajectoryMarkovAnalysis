@@ -2,49 +2,57 @@
 % Please edit documentation in R/TrajectoryMarkovAnalysis.R
 \name{TrajectoryMarkovAnalysis}
 \alias{TrajectoryMarkovAnalysis}
-\title{This function outputs Markov model fitted from observed data}
+\title{Run independent trajectory analyses}
 \usage{
 TrajectoryMarkovAnalysis(
-  conn,
-  dbms,
-  cdmSchema,
-  cdmTmpSchema,
-  inputData,
-  modelType,
-  studyName,
-  pathToResults = getwd(),
-  excludedStates = c(),
-  generateCostPatientTable = TRUE,
-  costDomains = c("Drug", "Visit", "Procedure", "Device", "Measurement", "Observation",
-    "Specimen"),
-  databaseDescription = "A cool database"
+  trajectories,
+  cycleLength = NULL,
+  absorbingStates = character(),
+  states = NULL,
+  analyses = "transitions",
+  cdm = NULL,
+  costData = NULL,
+  costMeasure = "total_charge",
+  costDomains = NULL
 )
 }
 \arguments{
-\item{conn}{Connection to the database}
+\item{trajectories}{Current Cohort2Trajectory output or prepared trajectories.}
 
-\item{dbms}{Database dialect}
+\item{cycleLength}{Days per cycle. Required for transition estimation unless
+already recorded by prepareTrajectories().}
 
-\item{cdmSchema}{OHDSI OMOP CDM tabels' schema}
+\item{absorbingStates}{Explicit clinical terminal-state labels. START and
+EXIT are administrative markers, not clinical states.}
 
-\item{cdmTmpSchema}{Table for creating temp tables}
+\item{states}{Optional complete state-label vector, including unobserved states.}
 
-\item{inputData}{Observed trajectories data outputted by Cohort2Trajectory package}
+\item{analyses}{One or both of "transitions" and "costs". The default only
+estimates transitions and does not need a database.}
 
-\item{modelType}{Markov model type can be "discrete" or "continuous"}
+\item{cdm}{CDMConnector reference used only to extract costs. Not required
+when costData is supplied. The caller owns its connection.}
 
-\item{studyName}{Customized study name}
+\item{costData}{Optional local cost records accepted by estimateStateCosts().
+Supply either cdm or costData for costing, not both.}
 
-\item{pathToResults}{The path where results will be saved}
+\item{costMeasure}{Cost column to extract from the CDM, such as "total_charge".}
 
-\item{excludedStates}{States which have to be discarded from the study}
-
-\item{generateCostPatientTable}{Boolean for generating cost_person table}
-
-\item{costDomains}{Cost domains to include in cost analysis}
-
-\item{databaseDescription}{Information about the OMOP CDM database data}
+\item{costDomains}{Optional cost domains to extract from the CDM.}
+}
+\value{
+A list containing transitions, costs and the prepared trajectories.
+  An analysis not requested has a NULL result. No connection is stored.
 }
 \description{
-This function outputs Markov model fitted from observed data
+A convenience interface to the transition and cost estimators. Use either
+estimator directly when only that result is needed. No plots or files are
+created, and supplied database connections remain open.
+}
+\details{
+This interface replaces the former database-driven workflow.
+  It does not run the legacy GUI, continuous-time model, simulation or
+  first-state cost reports. Transition estimates currently pool the observed
+  cycles. Cost estimates use inclusive observed days. Period-specific and
+  within-cycle models require separate, explicit rules.
 }

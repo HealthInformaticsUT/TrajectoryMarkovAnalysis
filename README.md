@@ -1,60 +1,173 @@
-TrajectoryMarkovAnalysis
-======================
+# TrajectoryMarkovAnalysis
 
-Introduction
-============
+TrajectoryMarkovAnalysis estimates transitions and recorded costs from patient
+histories. The two workflows are independent. Transition estimation needs only
+trajectories. Cost estimation can use a local expenditure table or records read
+from a database through CDMConnector.
 
-R-package TrajectoryMarkovAnalysis specializes on modelling patient trajectories using Markov chains.
-The package supports discrete and continuous time Markov models, Kaplan-Meier plots, Markov trees and synthetic data generation.
-The package is based on OMOP CDM.
-The package can be run as GUI/CLI.
+## Refactor status
 
-Features
-========
+The new interface accepts the current lowercase Cohort2Trajectory output. It
+supports pooled adjacent-cycle transition probabilities and descriptive costs
+by state. It returns R objects without opening plots, writing files, dropping
+database tables or closing the caller's connection.
 
-Screenshots
-===========
+This is not yet a release. Period-specific estimates, terminal-cycle cost
+allocation and within-cycle models remain to be implemented. The older GUI,
+continuous-time model, survival functions and simulation code have not been
+migrated or validated against the new interface. Do not use those functions to
+validate the new estimates.
 
-Technology
-==========
-TrajectoryMarkovAnalysis is an R package, with some functions implemented in C++.
+## Prepare the histories once
 
-For running the package with OMOP CDM, the user must have:
-1. Permissions to select on ohdsi cdm data schema.
-2. Permissions to select on ohdsi cdm results schema.
-3. Permissions to select, create and insert on ohdsi temp/scratch schema.
+Use the data frame returned by `Cohort2Trajectory::createTrajectories()`.
+Only four columns are required: `subject_id`, `state_label`, `state_start_date`
+and `state_end_date`. Other columns are preserved. Patient identifiers retain
+their values, including leading zeros and large identifiers supplied as text.
 
+```r
+library(TrajectoryMarkovAnalysis)
 
-System Requirements
-===================
+histories <- prepareTrajectories(
+  trajectories,
+  cycleLength = 7,
+  absorbingStates = c(
+    "Death, no pneumonia history",
+    "Death, pneumonia history"
+  )
+)
+```
 
-Getting Started
-===============
+State labels must describe the analyst's definitions. The package does not
+infer that a label means death or that pneumonia history persists. Specify
+absorbing states explicitly. You can supply `states` to include states that
+are defined but absent from the current data.
 
-Package manual: [TrajectoryMarkovAnalysis.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_1.0.pdf)
+`START` and `EXIT` mark observation boundaries. They are not clinical states.
+`OUT OF COHORT` is an unresolved observed interval, not death or loss of
+observation. Dates include both endpoints. Only the final weekly cycle may
+be shorter than the declared cycle length. Overlapping intervals and duplicate
+rows must be resolved before estimation.
 
-Package guide: [TrajectoryMarkovAnalysis_guide.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_guide.pdf)
- 
-License
-=======
-TrajectoryMarkovAnalysis is licensed under Apache License 2.0
+Each patient must have at least one observed interval. Boundary-only continuous
+histories are not supported by this first version of the preparation step.
 
-Development
-===========
-TrajectoryMarkovAnalysis is being developed in R Studio.
+For interval-based costing without a discrete model, leave `cycleLength` unset.
+If boundary markers are absent, the package uses the observed interval bounds
+and reports that the original observation boundaries could not be checked.
 
-Publications
-============
-Markus Haug, Marek Oja, Maarja Pajusalu, Kerli Mooses, Sulev Reisberg, Jaak Vilo, Antonio Fernández Giménez, Thomas Falconer, Ana Danilović, Filip Maljkovic, Dalia Dawoud, Raivo Kolde, Markov modeling for cost-effectiveness using federated health data network, Journal of the American Medical Informatics Association, 2024;, ocae044, https://doi.org/10.1093/jamia/ocae044
+## Estimate transitions without a database
 
-Citation
-===========
-Haug, M. (2023, May). TrajectoryMarkovAnalysis, v1.0.5. GitHub. https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/releases/tag/v1.0.5
+```r
+transitions <- estimateTransitions(histories)
 
-# Acknowledgements
+transitions$estimates
+transitions$matrix
+transitions$entryCounts
+transitions$diagnostics
+```
 
-1. [Cohort2Trajectory package](https://github.com/HealthInformaticsUT/Cohort2Trajectory) by Markus Haug
-2. [TrajectoryViz package](https://github.com/HealthInformaticsUT/TrajectoryViz) by Maarja Pajusalu
+The estimator counts transitions from a full cycle to the immediately following
+observed cycle. It never connects states across a missing or unresolved cycle.
+A final living cycle without an observed next state does not imply another
+living cycle or a death. `seq_ordinal` is not used as a cycle number.
 
-Research group of Health-Informatics in University of Tartu https://health-informatics.cs.ut.ee/
+Each estimate includes the transition count, source denominator and probability.
+Unobserved nonabsorbing rows have `NA` probabilities. Explicit absorbing states
+have structural identity rows, labelled as structural rather than observed
+transitions. Calculations retain their precision until you format the results.
 
+`entryCounts` describes known labels in the first cycle, not a risk estimated
+from an assumed pre-entry state. A death in the first cycle stays in these
+counts. The estimator does not invent a preceding alive-to-death transition.
+
+These are pooled transitions between cycle labels. They are not yet the
+two-step pneumonia-onset and mortality probabilities used in the thesis.
+Weekly labels cannot recover the exact order or dates of events within a week.
+
+## Extract costs through CDMConnector
+
+Pass an existing database-backed CDMConnector reference:
+
+```r
+cost_events <- extractCosts(
+  cdm,
+  trajectories = histories,
+  measure = "total_charge",
+  domains = c("Visit", "Drug", "Procedure")
+)
+
+attr(cost_events, "diagnostics")
+```
+
+Choose `total_charge`, `total_cost` or `total_paid`. They are different measures,
+not interchangeable estimates of expenditure. With `domains = NULL`, all
+observed supported cost domains are selected. Unsupported domains and missing
+source tables raise errors so that omissions require an explicit choice.
+
+Costs are linked to events within their domain. A drug and a visit can share
+an event ID without their costs being mixed. Patient and event identifiers are
+kept as text when collected. The event's source date is used for allocation.
+It is not necessarily a payment date, and a visit's amount is not automatically
+spread over the visit's duration.
+
+The extractor reads only. It does not create scratch tables or disconnect the
+CDM. Patients and their follow-up dates are filtered in SQL before records are
+collected. Queries use patient batches, so database latency can matter for large
+cohorts. Server benchmarking is still needed.
+
+Diagnostics report missing amounts, missing event dates and records outside the
+selected patients' windows. Unmatched event references are counted across the
+database for the selected domains because their patients cannot be identified.
+An empty extraction is not proof that the source captures all expenditure.
+
+## Estimate costs without a transition model
+
+```r
+costs <- estimateStateCosts(histories, cost_events)
+
+costs$estimates
+costs$intervalCosts
+costs$unallocatedCosts
+costs$diagnostics
+```
+
+You can supply a local data frame instead of using `extractCosts()`. It needs
+`subject_id`, `event_date` and `amount`. Include `currency_concept_id`, `measure`
+and unique `cost_id` values when available. Currency is kept separate in every
+summary. Missing currency remains unknown. No conversion is performed.
+
+Costs are assigned to the supplied non-overlapping intervals. An interval with
+no matching event has zero **recorded** cost. A missing monetary amount remains
+missing and makes the corresponding state total and daily mean `NA`.
+`known_recorded_cost` separately reports the available amounts. The daily mean
+uses total observed days, including intervals with no recorded cost.
+
+Costs falling in unresolved intervals or outside the supplied intervals are
+returned for review, not silently reassigned. For weekly trajectories, the
+selected label describes the entire cycle. At this stage, a death-labelled
+cycle retains its own costs. The function does not infer the last living state
+or distribute that cycle's costs between clinical events.
+
+## Optional combined call
+
+```r
+results <- TrajectoryMarkovAnalysis(
+  histories,
+  analyses = c("transitions", "costs"),
+  costData = cost_events
+)
+```
+
+The default `analyses = "transitions"` does not use a database. For costing,
+supply either `costData` or `cdm`, not both. The result contains `transitions`,
+`costs` and the prepared `trajectories`. No connection is stored in it.
+
+## Publication
+
+Haug M, Oja M, Pajusalu M, et al. Markov modeling for cost-effectiveness using
+federated health data network. Journal of the American Medical Informatics
+Association. 2024. [doi:10.1093/jamia/ocae044](https://doi.org/10.1093/jamia/ocae044).
+
+The publication describes the earlier implementation. See `DESCRIPTION` for
+the package's licence declaration. This refactor has not changed that declaration.
