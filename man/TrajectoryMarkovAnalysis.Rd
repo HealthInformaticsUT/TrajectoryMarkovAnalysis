@@ -15,7 +15,8 @@ TrajectoryMarkovAnalysis(
   costMeasure = "total_charge",
   costDomains = NULL,
   periodBreaks = NULL,
-  periodLabels = NULL
+  periodLabels = NULL,
+  terminalCostMap = NULL
 )
 }
 \arguments{
@@ -47,6 +48,10 @@ and ending at Inf. NULL pools follow-up. Transition boundaries must align
 with cycleLength. Cost-only analyses may split intervals at any whole day.}
 
 \item{periodLabels}{Optional unique names for the follow-up periods.}
+
+\item{terminalCostMap}{Optional named mapping from declared absorbing states
+to defined nonabsorbing cost states, as in estimateStateCosts(). Only used
+when analyses includes "costs". Clinical trajectories remain unchanged.}
 }
 \value{
 A list containing transitions, costs and the prepared trajectories.

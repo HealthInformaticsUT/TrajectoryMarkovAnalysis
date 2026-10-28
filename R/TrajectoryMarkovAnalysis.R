@@ -22,6 +22,9 @@
 #'   and ending at Inf. NULL pools follow-up. Transition boundaries must align
 #'   with cycleLength. Cost-only analyses may split intervals at any whole day.
 #' @param periodLabels Optional unique names for the follow-up periods.
+#' @param terminalCostMap Optional named mapping from declared absorbing states
+#'   to defined nonabsorbing cost states, as in estimateStateCosts(). Only used
+#'   when analyses includes "costs". Clinical trajectories remain unchanged.
 #' @return A list containing transitions, costs and the prepared trajectories.
 #'   An analysis not requested has a NULL result. No connection is stored.
 #' @details This interface replaces the former database-driven workflow.
@@ -40,7 +43,8 @@ TrajectoryMarkovAnalysis <- function(trajectories,
                                      costMeasure = "total_charge",
                                      costDomains = NULL,
                                      periodBreaks = NULL,
-                                     periodLabels = NULL) {
+                                     periodLabels = NULL,
+                                     terminalCostMap = NULL) {
   if (!is.character(analyses) || !length(analyses) || anyNA(analyses) ||
       anyDuplicated(analyses) || any(!analyses %in% c("transitions", "costs"))) {
     stop("analyses must contain 'transitions', 'costs', or both, without duplicates.", call. = FALSE)
@@ -48,6 +52,9 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   costing <- "costs" %in% analyses
   if (!costing && (!is.null(cdm) || !is.null(costData))) {
     stop("Include 'costs' in analyses to use cdm or costData.", call. = FALSE)
+  }
+  if (!costing && !is.null(terminalCostMap)) {
+    stop("Include 'costs' in analyses to use terminalCostMap.", call. = FALSE)
   }
   if (costing && (is.null(cdm) == is.null(costData))) {
     stop("For costing, supply exactly one of cdm and costData.", call. = FALSE)
@@ -59,6 +66,7 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   prepared <- do.call(prepareTrajectories, args)
   .tmaPeriods(periodBreaks, periodLabels,
               if ("transitions" %in% analyses) prepared$cycleLength else NULL)
+  if (costing) .tmaTerminalCostMap(terminalCostMap, prepared)
   transitions <- if ("transitions" %in% analyses) {
     estimateTransitions(prepared, periodBreaks = periodBreaks, periodLabels = periodLabels)
   } else NULL
@@ -68,7 +76,8 @@ TrajectoryMarkovAnalysis <- function(trajectories,
       costData <- extractCosts(cdm, prepared, measure = costMeasure, domains = costDomains)
     }
     costs <- estimateStateCosts(prepared, costData,
-                                periodBreaks = periodBreaks, periodLabels = periodLabels)
+                                periodBreaks = periodBreaks, periodLabels = periodLabels,
+                                terminalCostMap = terminalCostMap)
   }
   list(transitions = transitions, costs = costs, trajectories = prepared)
 }

@@ -13,8 +13,7 @@ by state, either pooled or separated into follow-up periods. It returns R object
 without opening plots, writing files, dropping
 database tables or closing the caller's connection.
 
-This is not yet a release. Terminal-cycle cost allocation and within-cycle
-models remain to be implemented. The older GUI,
+This is not yet a release. Within-cycle models remain to be implemented. The older GUI,
 continuous-time model, survival functions and simulation code have not been
 migrated or validated against the new interface. Do not use those functions to
 validate the new estimates.
@@ -204,12 +203,62 @@ no matching event has zero **recorded** cost. A missing monetary amount remains
 missing and makes the corresponding state total and daily mean `NA`.
 `known_recorded_cost` separately reports the available amounts. The daily mean
 uses total observed days, including intervals with no recorded cost.
+The `cost_state` column identifies the state used to group these estimates.
 
 Costs falling in unresolved intervals or outside the supplied intervals are
 returned for review, not silently reassigned. For weekly trajectories, the
-selected label describes the entire cycle. At this stage, a death-labelled
+selected label describes the entire cycle. By default, a death-labelled
 cycle retains its own costs. The function does not infer the last living state
 or distribute that cycle's costs between clinical events.
+
+## Assign terminal-cycle costs explicitly
+
+A weekly cycle can be labelled as death even though it contains care delivered
+before death. To attribute that care to a living state, supply a named mapping:
+
+```r
+terminal_cost_map <- c(
+  "Death, no pneumonia history" = "Alive, no recorded pneumonia",
+  "Death, pneumonia history" = "Alive, pneumonia history"
+)
+
+costs <- estimateStateCosts(
+  histories,
+  cost_events,
+  periodBreaks = period_breaks,
+  periodLabels = period_labels,
+  terminalCostMap = terminal_cost_map
+)
+```
+
+The names are source states and the values are their destinations for costing.
+Sources must have been declared in `prepareTrajectories(absorbingStates = ...)`.
+Destinations must be defined nonabsorbing states. If a destination has no observed
+intervals, include it in `prepareTrajectories(states = ...)`. More than one terminal
+state can map to the same destination. States omitted from the mapping are unchanged.
+
+Both amounts and observed days move to the selected cost state. A three-day
+terminal interval contributes three days, not a full week. An interval with no
+cost record still contributes its observed days. Event dates, period boundaries,
+currency separation and missing amounts retain their usual treatment.
+
+The mapping uses the terminal label, not the preceding week's state. It therefore
+also handles a first-cycle death and a terminal pneumonia-history cycle preceded
+by a cycle without pneumonia. The attribution is an analyst choice, not evidence
+of the exact event order within that week. Supply only the observed care interval
+to be attributed, not an extended period of absorbing-state occupancy after death.
+
+`intervalCosts` preserves the original `state_label` and adds `cost_state`.
+The original `.row_id`, dates and allocated amounts remain available for review.
+`estimates` groups by `cost_state` and reports the terminal intervals and days
+included. Overall mapping diagnostics count original intervals and days once,
+regardless of period splits or currencies. The exact mapping is retained in
+`metadata$terminal_cost_map`.
+
+Clinical trajectories and transition estimates do not change. A simulation must
+use a compatible terminal-cycle charging rule. Multiplying these daily rates by
+unchanged living-state occupancy alone will not generally reproduce observed
+expenditure, because the cost denominator also includes the mapped terminal days.
 
 ## Optional combined call
 
@@ -219,7 +268,8 @@ results <- TrajectoryMarkovAnalysis(
   analyses = c("transitions", "costs"),
   costData = cost_events,
   periodBreaks = period_breaks,
-  periodLabels = period_labels
+  periodLabels = period_labels,
+  terminalCostMap = terminal_cost_map
 )
 ```
 

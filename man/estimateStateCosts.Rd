@@ -8,7 +8,8 @@ estimateStateCosts(
   trajectories,
   costData,
   periodBreaks = NULL,
-  periodLabels = NULL
+  periodLabels = NULL,
+  terminalCostMap = NULL
 )
 }
 \arguments{
@@ -24,6 +25,12 @@ when known. Missing currency is reported as unknown, not converted.}
 date, starting with 0 and ending with Inf. NULL pools all follow-up.}
 
 \item{periodLabels}{Optional names for the periods between periodBreaks.}
+
+\item{terminalCostMap}{Optional named character vector assigning terminal
+states to nonabsorbing cost states, for example c("Death" = "Alive").
+Names must be declared in prepared trajectories' absorbingStates, and
+destinations must be in their states dictionary. Unlisted states retain
+their own costs. NULL leaves every label unchanged.}
 }
 \value{
 A list with state estimates, interval costs, unallocated cost records,
@@ -55,7 +62,20 @@ An interval with no matching cost record has zero recorded cost.
 
   START and EXIT are not clinical intervals. Costs in OUT OF COHORT rows,
   gaps or outside observation remain unallocated and are returned for review.
-  For weekly input, the selected label describes the whole cycle. Costs in
-  a death-labelled cycle are reported under that label. This function does
+  For weekly input, the selected label describes the whole cycle. By default,
+  costs in a death-labelled cycle are reported under that label. This function does
   not infer a previous living state or the order of events within a week.
+
+  terminalCostMap assigns both the recorded amount and observed days of each
+  mapped interval to its destination cost state. It preserves state_label
+  and adds cost_state in intervalCosts. Estimates are grouped by cost_state.
+  The supplied trajectories and transition estimates are not changed.
+  A first-cycle terminal interval can be mapped without a previous living
+  interval. No days or event dates are added. The analyst must ensure that
+  mapped intervals represent the care time to be attributed, not an extended
+  period after death. Mapping cannot recover the actual event order.
+
+  The resulting daily mean uses cost-attributed days, which can differ from
+  the occupancy of the unchanged clinical states. It is a descriptive cost
+  estimate, not automatically a calibrated reward for a transition model.
 }

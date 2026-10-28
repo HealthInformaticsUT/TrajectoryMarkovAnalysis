@@ -13,6 +13,11 @@
 #' @param periodBreaks Follow-up day boundaries relative to each subject's index
 #'   date, starting with 0 and ending with Inf. NULL pools all follow-up.
 #' @param periodLabels Optional names for the periods between periodBreaks.
+#' @param terminalCostMap Optional named character vector assigning terminal
+#'   states to nonabsorbing cost states, for example c("Death" = "Alive").
+#'   Names must be declared in prepared trajectories' absorbingStates, and
+#'   destinations must be in their states dictionary. Unlisted states retain
+#'   their own costs. NULL leaves every label unchanged.
 #' @return A list with state estimates, interval costs, unallocated cost records,
 #'   periods, diagnostics and metadata. Each period and currency is summarised
 #'   separately. Costs
@@ -35,14 +40,29 @@
 #'
 #'   START and EXIT are not clinical intervals. Costs in OUT OF COHORT rows,
 #'   gaps or outside observation remain unallocated and are returned for review.
-#'   For weekly input, the selected label describes the whole cycle. Costs in
-#'   a death-labelled cycle are reported under that label. This function does
+#'   For weekly input, the selected label describes the whole cycle. By default,
+#'   costs in a death-labelled cycle are reported under that label. This function does
 #'   not infer a previous living state or the order of events within a week.
+#'
+#'   terminalCostMap assigns both the recorded amount and observed days of each
+#'   mapped interval to its destination cost state. It preserves state_label
+#'   and adds cost_state in intervalCosts. Estimates are grouped by cost_state.
+#'   The supplied trajectories and transition estimates are not changed.
+#'   A first-cycle terminal interval can be mapped without a previous living
+#'   interval. No days or event dates are added. The analyst must ensure that
+#'   mapped intervals represent the care time to be attributed, not an extended
+#'   period after death. Mapping cannot recover the actual event order.
+#'
+#'   The resulting daily mean uses cost-attributed days, which can differ from
+#'   the occupancy of the unchanged clinical states. It is a descriptive cost
+#'   estimate, not automatically a calibrated reward for a transition model.
 #' @export
 estimateStateCosts <- function(trajectories, costData,
-                               periodBreaks = NULL, periodLabels = NULL) {
+                               periodBreaks = NULL, periodLabels = NULL,
+                               terminalCostMap = NULL) {
   prepared <- prepareTrajectories(trajectories)
   periods <- .tmaPeriods(periodBreaks, periodLabels)
+  terminalCostMap <- .tmaTerminalCostMap(terminalCostMap, prepared)
   if (!is.data.frame(costData)) {
     stop("costData must be a data frame of dated cost records.", call. = FALSE)
   }
@@ -116,6 +136,9 @@ estimateStateCosts <- function(trajectories, costData,
     .groups = "drop"
   )
   clinical <- .tmaCostSegments(prepared, periods)
+  clinical$cost_state <- clinical$state_label
+  mapped <- clinical$state_label %in% names(terminalCostMap)
+  clinical$cost_state[mapped] <- unname(terminalCostMap[clinical$state_label[mapped]])
   currencies <- unique(costs$currency_concept_id)
   if (!length(currencies)) currencies <- NA_character_
   intervalCosts <- clinical[rep(seq_len(nrow(clinical)), times = length(currencies)), , drop = FALSE]
@@ -129,9 +152,11 @@ estimateStateCosts <- function(trajectories, costData,
                                     NA_real_, intervalCosts$known_recorded_cost)
   intervalCosts$measure <- rep(measure, nrow(intervalCosts))
   estimates <- dplyr::summarise(
-    dplyr::group_by(intervalCosts, .data$period, .data$state_label, .data$currency_concept_id),
+    dplyr::group_by(intervalCosts, .data$period, .data$cost_state, .data$currency_concept_id),
     patients = dplyr::n_distinct(.data$subject_id),
     intervals = dplyr::n(),
+    mapped_terminal_intervals = sum(.data$state_label != .data$cost_state),
+    mapped_terminal_days = sum(.data$observed_days[.data$state_label != .data$cost_state]),
     observed_days = sum(.data$observed_days),
     intervals_without_records = sum(.data$cost_records == 0),
     cost_records = sum(.data$cost_records),
@@ -143,7 +168,7 @@ estimateStateCosts <- function(trajectories, costData,
   estimates$mean_cost_per_day <- estimates$total_cost / estimates$observed_days
   estimates$measure <- rep(measure, nrow(estimates))
   estimates <- estimates[order(match(estimates$period, periods$period),
-                               estimates$state_label, estimates$currency_concept_id), , drop = FALSE]
+                               estimates$cost_state, estimates$currency_concept_id), , drop = FALSE]
   structure(list(
     estimates = as.data.frame(estimates),
     intervalCosts = as.data.frame(intervalCosts),
@@ -156,14 +181,51 @@ estimateStateCosts <- function(trajectories, costData,
       missing_amounts = sum(is.na(costs$amount)),
       unknown_currency_records = sum(is.na(costs$currency_concept_id) |
         costs$currency_concept_id %in% c("", "0")),
+      mapped_terminal_patients = length(unique(clinical$subject_id[mapped])),
+      mapped_terminal_intervals = length(unique(clinical$.row_id[mapped])),
+      mapped_terminal_days = sum(clinical$observed_days[mapped]),
       extraction = sourceDiagnostics
     ),
     metadata = list(measure = measure, currencies = currencies, periods = periods,
                     date_intervals = "inclusive", no_record = "zero recorded cost",
                     interval_counts = "fragments within each period; original intervals identified by .row_id",
                     unobserved_period_states = "absent; no cost estimate without observed days",
-                    terminal_costs = "retained under the supplied cycle label")
+                    terminal_cost_map = terminalCostMap,
+                    terminal_costs = if (length(terminalCostMap)) {
+                      "explicit attribution of amounts and observed days; clinical labels unchanged"
+                    } else "retained under the supplied cycle label",
+                    mean_cost_denominator = "observed days attributed to cost_state")
   ), class = "tma_state_costs")
+}
+
+.tmaTerminalCostMap <- function(terminalCostMap, prepared) {
+  if (is.null(terminalCostMap)) return(character())
+  if (!is.character(terminalCostMap) || !is.null(dim(terminalCostMap)) ||
+      anyNA(terminalCostMap) || any(!nzchar(trimws(terminalCostMap)))) {
+    stop("terminalCostMap must be a named character vector of nonempty destination states.",
+         call. = FALSE)
+  }
+  if (!length(terminalCostMap)) return(character())
+  sources <- names(terminalCostMap)
+  if (is.null(sources) || anyNA(sources) || any(!nzchar(trimws(sources))) ||
+      anyDuplicated(sources)) {
+    stop("terminalCostMap must have unique, nonempty source-state names.", call. = FALSE)
+  }
+  invalidSources <- setdiff(sources, prepared$absorbingStates)
+  if (length(invalidSources)) {
+    stop("terminalCostMap sources must be declared absorbingStates in prepareTrajectories(): ",
+         paste(invalidSources, collapse = ", "), ".",
+         call. = FALSE)
+  }
+  invalidDestinations <- unique(unname(terminalCostMap[
+    !terminalCostMap %in% prepared$states | terminalCostMap %in% prepared$absorbingStates]))
+  if (length(invalidDestinations)) {
+    stop("terminalCostMap destinations must be defined nonabsorbing states: ",
+         paste(invalidDestinations, collapse = ", "),
+         ". Include unobserved destinations in prepareTrajectories(states = ...).",
+         call. = FALSE)
+  }
+  terminalCostMap
 }
 
 .tmaCostSegments <- function(prepared, periods) {
