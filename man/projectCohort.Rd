@@ -27,7 +27,10 @@ labels, including first-cycle terminal labels, not a pre-event baseline.}
 
 \item{entry}{Optional result from estimateEntryTransitions(). Its eligible
 baseline distribution passes through its entry matrix once to initialise
-cycle zero. Do not supply a non-NULL initial together with entry.}
+cycle zero. Do not supply a non-NULL initial together with entry.
+For stratified entry, select one model from entry$models, or use
+simulateTrajectories() with explicit baseline patient profiles. This
+function does not pool entry groups.}
 }
 \value{
 A list containing occupancy, steps, flows, metadata and diagnostics.

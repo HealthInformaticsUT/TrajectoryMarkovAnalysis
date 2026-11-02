@@ -144,6 +144,41 @@ the same risks. The probabilities describe first-cycle outcomes, not the exact
 timing or ordering of events within that week. The existing adjacent-cycle
 estimates remain separate and unchanged.
 
+### First-cycle outcomes by baseline group
+
+Entry probabilities can also differ by patient characteristics. Add the baseline
+group columns to the entry-state table and name them in `strata`:
+
+```r
+# baseline has one row per observed subject, with subject_id, entry_state,
+# age_group and pgs_group measured before the first-cycle outcome.
+entry <- estimateEntryTransitions(
+  histories, entryState = baseline, strata = c("age_group", "pgs_group")
+)
+entry$strata
+entry$estimates
+entry$diagnostics$by_stratum
+```
+
+These values come only from the supplied baseline table, not from first-cycle
+outcomes or later trajectory rows. Use `addCovariateGroups()` to apply the same
+age and score cutoffs to baseline profiles and trajectory rows. Numeric strata
+still define exact-value groups, so define bands explicitly where appropriate.
+Every supplied subject needs baseline values, including subjects whose first
+cycle is excluded. The package cannot verify when those measurements were taken.
+
+Each group's counts, denominators and exclusions are retained. A group with no
+evaluable outcomes remains in the output with unestimated nonabsorbing rows.
+It is not replaced by a pooled or neighbouring group. Omit `strata` to estimate
+the original pooled entry model.
+
+Pass the stratified result to `simulateTrajectories(entry = entry)`. The simulator
+matches baseline values once, before the first outcome. Later models can use
+different covariates and continue to update as patients age. `projectCohort()`
+does not mix entry groups automatically. For a group-specific deterministic
+projection, select its model explicitly from `entry$models` and supply the
+appropriate subsequent transition model.
+
 ## Separate early and later follow-up
 
 Use the same period boundaries for transition and cost analyses. Boundaries are
@@ -859,7 +894,8 @@ simulation$trajectories      # First-cycle outcomes, then 51 later steps
 pre-entry state and any required covariates. Alternatively, supply `n` and an
 explicit `initial` distribution. The simulator does not select the entry
 estimator's training patients or baseline mix for you. Its eligibility counts
-and matrix are retained, but its training patient identifiers are not.
+and matrix or group-specific matrices are retained, but its training patient
+identifiers are not copied.
 
 All entry profiles start at cycle zero and elapsed day zero. The entry draw
 produces the first outcome label at those same coordinates. It is not an extra
@@ -868,11 +904,26 @@ first outcome label. The pre-entry profiles are stored separately and add no
 living time. Entry does not call `updateCovariates`, and resuming does not repeat
 it. The [entry example](inst/examples/entry-simulation.R) shows the full workflow.
 
-Entry probabilities are pooled within each supplied starting state. Applying
-them to patients with different ages or risk groups does not make the entry
-model stratified. Later transitions still use each patient's current covariates.
-An unavailable entry row is an error, including when its supplied profile is
-not drawn. States replaced by an explicit `initial` vector are not used.
+Without `strata` at estimation, entry probabilities remain pooled within each
+starting state. With a stratified entry model, each patient's baseline covariates
+select one entry matrix. Bundle grouping rules are applied before matching.
+Entry-only group columns must be supplied explicitly, for example by applying
+`addCovariateGroups()` to the baseline profiles. They need not be used by later
+transition or cost models. A named state distribution alone cannot supply these
+covariates. Use patient profiles or a joint `initial` table instead.
+
+Unknown entry groups and unestimated source rows are errors, including profiles
+not drawn when sampling. If a named `initial` vector overrides the supplied
+states, every positive-probability starting state must be supported for each
+profile. Zero-probability joint profiles do not need an entry model, but all
+supplied entry clocks must still be zero. Entry selection is not repeated after
+age or risk groups change. Later transitions use the current covariates as usual.
+
+For stratified entry, `simulation$entry$matrices` and `simulation$entry$strata`
+retain the models and their group meanings. Entry draws and effect records carry
+`entry_stratum_id`, which is separate from the later transition model's
+`stratum_id`. The [stratified entry example](inst/examples/stratified-entry-simulation.R)
+shows baseline selection, a later age-group change, treatment effects and fees.
 
 Outcome-based costs use the first outcome label. Explicit transition charges can apply to an
 entry state change. An estimated cost model with `terminal = "entry"` can charge

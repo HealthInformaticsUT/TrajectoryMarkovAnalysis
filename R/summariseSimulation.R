@@ -232,20 +232,20 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       !is.complex(value) && !anyNA(value) && all(is.finite(value) & value == 0), logical(1)))) {
     stop("Entry transition source and destination clocks must remain at cycle and day zero.", call. = FALSE)
   }
-  matrix <- entry$matrix
-  if (!is.matrix(matrix) || !is.numeric(matrix) || is.complex(matrix) ||
-      anyDuplicated(rownames(matrix)) || anyDuplicated(colnames(matrix)) ||
-      !setequal(rownames(matrix), states) || !setequal(colnames(matrix), states)) {
-    stop("Entry matrix must retain the model state dictionary.", call. = FALSE)
-  }
+  entryIds <- .tmaSummaryEntryModelIds(entry, baseline[active, , drop = FALSE], draws, states)
   for (column in c("source_state", "destination_state")) {
     if (!is.character(draws[[column]]) || anyNA(draws[[column]]) ||
         any(!draws[[column]] %in% states)) stop("Entry draws contain unknown state labels.", call. = FALSE)
   }
-  expected <- matrix[cbind(match(draws$source_state, rownames(matrix)),
-    match(draws$destination_state, colnames(matrix)))]
+  expected <- numeric(nrow(draws))
+  for (id in unique(entryIds)) {
+    selected <- which(entryIds == id)
+    matrix <- .tmaEntryMatrix(entry, id)
+    expected[selected] <- matrix[cbind(match(draws$source_state[selected], rownames(matrix)),
+      match(draws$destination_state[selected], colnames(matrix)))]
+  }
   expected <- .tmaSummaryEntryEffects(simulation, draws,
-    baseline[active, , drop = FALSE], expected)
+    baseline[active, , drop = FALSE], expected, entryIds)
   probability <- draws$transition_probability
   if (!is.numeric(probability) || is.complex(probability) || anyNA(probability) ||
       any(!is.finite(probability) | probability <= 0 | probability > 1) ||

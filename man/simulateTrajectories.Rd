@@ -115,8 +115,14 @@ Supply population or n and initial as usual; no training population or
 training baseline mix is used automatically. All supplied profiles must
 start at elapsed_day = 0 and cycle = 0. Every positive-probability baseline
 state must have an estimated entry row, including profiles not sampled;
-states replaced by a named initial vector are ignored. The entry matrix is
-pooled within entry state, even when the explicit profiles are stratified.}
+states replaced by a named initial vector are ignored. A stratified entry
+model selects its matrix from each patient's baseline covariate combination.
+Supply these covariates in population or a joint initial distribution. Entry
+strata can differ from the bundle's later transition and cost strata. Bundle
+grouping rules are applied first. Entry-only groups must be supplied as
+columns, for example using addCovariateGroups() before simulation. No pooled
+fallback is used for unsupported baseline combinations or unestimated rows.
+Without entry strata, probabilities remain pooled within entry state.}
 }
 \value{
 A tma_simulation list with final population, trajectories,
@@ -129,9 +135,13 @@ A tma_simulation list with final population, trajectories,
   With entry, entry retains the sampled pre-entry population, actual entry
   transitions, validated matrix and aggregate estimation metadata. It does
   not retain training subject identifiers. The main trajectories start with
-  post-entry outcomes at cycle zero. Entry effects retain their own audit
+  post-entry outcomes at cycle zero. Stratified entry instead retains matrices,
+  the baseline strata registry and entry_stratum_id on each actual entry draw.
+  Entry effects retain their own audit
   under entry$effects and rules under entry$effectRules. Entry transitions
   record actual and baseline sampled probabilities when entry effects exist.
+  Stratified entry effect audits include entry_stratum_id separately from the
+  later bundle's source_stratum.
 }
 \description{
 Simulate patient snapshots through a model bundle
@@ -174,7 +184,11 @@ Every step selects the model using current covariates and the period
   unchanged. Entry adds no elapsed time, snapshot or transition step, calls
   no updateCovariates callback, and is not repeated by advanceSimulation().
   Entry outcomes label cycle zero; they do not reconstruct event times or
-  intermediate states. Initial charges use the post-entry outcome and the
+  intermediate states. Stratified entry selects its model only at baseline,
+  without changing later dynamic model selection. Independent initial states
+  are checked against every supplied profile before sampling. Baseline terminal
+  patients do not need entry covariates because no entry model is applied.
+  Initial charges use the post-entry outcome and the
   pre-entry source, so explicit transition rules and estimated terminal-entry
   charges can apply. The baseline is not charged an additional cycle. Once
   and recurring rules still apply only to nonterminal outcome labels.

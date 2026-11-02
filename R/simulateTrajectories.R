@@ -78,8 +78,14 @@
 #'   training baseline mix is used automatically. All supplied profiles must
 #'   start at elapsed_day = 0 and cycle = 0. Every positive-probability baseline
 #'   state must have an estimated entry row, including profiles not sampled;
-#'   states replaced by a named initial vector are ignored. The entry matrix is
-#'   pooled within entry state, even when the explicit profiles are stratified.
+#'   states replaced by a named initial vector are ignored. A stratified entry
+#'   model selects its matrix from each patient's baseline covariate combination.
+#'   Supply these covariates in population or a joint initial distribution. Entry
+#'   strata can differ from the bundle's later transition and cost strata. Bundle
+#'   grouping rules are applied first. Entry-only groups must be supplied as
+#'   columns, for example using addCovariateGroups() before simulation. No pooled
+#'   fallback is used for unsupported baseline combinations or unestimated rows.
+#'   Without entry strata, probabilities remain pooled within entry state.
 #' @details Every step selects the model using current covariates and the period
 #'   containing each patient's source elapsed_day. It then samples a new state,
 #'   advances elapsed_day by cycleLength and cycle by one, updates covariates,
@@ -117,7 +123,11 @@
 #'   unchanged. Entry adds no elapsed time, snapshot or transition step, calls
 #'   no updateCovariates callback, and is not repeated by advanceSimulation().
 #'   Entry outcomes label cycle zero; they do not reconstruct event times or
-#'   intermediate states. Initial charges use the post-entry outcome and the
+#'   intermediate states. Stratified entry selects its model only at baseline,
+#'   without changing later dynamic model selection. Independent initial states
+#'   are checked against every supplied profile before sampling. Baseline terminal
+#'   patients do not need entry covariates because no entry model is applied.
+#'   Initial charges use the post-entry outcome and the
 #'   pre-entry source, so explicit transition rules and estimated terminal-entry
 #'   charges can apply. The baseline is not charged an additional cycle. Once
 #'   and recurring rules still apply only to nonterminal outcome labels.
@@ -151,9 +161,13 @@
 #'   With entry, entry retains the sampled pre-entry population, actual entry
 #'   transitions, validated matrix and aggregate estimation metadata. It does
 #'   not retain training subject identifiers. The main trajectories start with
-#'   post-entry outcomes at cycle zero. Entry effects retain their own audit
+#'   post-entry outcomes at cycle zero. Stratified entry instead retains matrices,
+#'   the baseline strata registry and entry_stratum_id on each actual entry draw.
+#'   Entry effects retain their own audit
 #'   under entry$effects and rules under entry$effectRules. Entry transitions
 #'   record actual and baseline sampled probabilities when entry effects exist.
+#'   Stratified entry effect audits include entry_stratum_id separately from the
+#'   later bundle's source_stratum.
 #' @seealso \link{transition-effects} for rule fields and probability handling.
 #'   summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 #' @export
@@ -333,7 +347,6 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   }
   if (!joint && !is.null(initial)) {
     .tmaSimulationProbabilities(initial, states)
-    .tmaSimulationEntryProfiles(entry, states = names(initial)[initial > 0])
   }
   if (is.null(population)) {
     if (is.null(n) || is.null(initial)) {
@@ -354,14 +367,16 @@ advanceSimulation <- function(simulation, nSteps = 1) {
         stop("Joint initial must describe covariate profiles without subject_id identifiers.", call. = FALSE)
       }
       population <- .tmaSimulationTiming(population, bundle$metadata$cycleLength)
-      .tmaSimulationEntryProfiles(entry, population,
-        population$state_label[population$probability > 0])
+      .tmaSimulationEntryProfiles(entry, population, bundle = bundle,
+        terminalStates = terminalStates, probability = population$probability)
       .tmaSimulationValidateProfiles(bundle,
         population[population$probability > 0, , drop = FALSE], terminalStates)
       population <- population[sample.int(nrow(population), n, replace = TRUE,
         prob = population$probability), , drop = FALSE]
       population$probability <- NULL
     } else {
+      .tmaSimulationEntryProfiles(entry, states = names(initial)[initial > 0],
+        terminalStates = terminalStates)
       if (length(union(bundle$metadata$strata, bundle$costModel$metadata$strata))) {
         stop("A stratified bundle needs population covariates or a joint initial distribution.", call. = FALSE)
       }
@@ -376,7 +391,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     }
     population <- .tmaSimulationTiming(population, bundle$metadata$cycleLength)
     .tmaSimulationEntryProfiles(entry, population,
-      if (is.null(initial)) population$state_label else character())
+      states = if (is.null(initial)) NULL else names(initial)[initial > 0],
+      bundle = bundle, terminalStates = terminalStates)
     if ("subject_id" %in% names(population)) {
       ids <- .tmaSubjectIds(population$subject_id, "population$subject_id")
       if (anyDuplicated(ids)) {

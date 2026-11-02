@@ -9,7 +9,8 @@ estimateEntryTransitions(
   entryState,
   cycleLength = NULL,
   absorbingStates = character(),
-  states = NULL
+  states = NULL,
+  strata = NULL
 )
 }
 \arguments{
@@ -27,6 +28,12 @@ already stored in prepared trajectories.}
 
 \item{states}{Optional complete state dictionary, including entry states that
 do not appear in the recorded outcomes.}
+
+\item{strata}{Optional character vector naming baseline columns in the
+entryState table. These values must be supplied for every patient, including
+patients whose first outcome is not evaluable. Numeric values define exact
+groups. Create categories explicitly before estimation, for example with
+addCovariateGroups(). Values are never inferred from later trajectory rows.}
 }
 \value{
 A list containing estimates, matrix, baselineCounts, outcomeCounts,
@@ -36,6 +43,11 @@ A list containing estimates, matrix, baselineCounts, outcomeCounts,
   subjects, baseline and outcome probabilities are NA and projection is not
   possible. subjects contains patient identifiers and should remain within
   the permitted patient-level analysis environment.
+  With strata, a tma_stratified_entry object contains models named by
+  stratum_id, a strata registry and combined estimates, baselineCounts,
+  outcomeCounts, subjects and coverage tables with their group labels.
+  diagnostics reports overall and by_stratum patient support. Each model
+  retains the ordinary entry result schema.
 }
 \description{
 Estimate first-cycle outcomes from explicit entry states
@@ -58,4 +70,11 @@ A known first-cycle outcome contributes when the cycle is complete
   Supplying a baseline state is an analyst definition, not proof that it could
   have been identified prospectively. Histories cannot leave an entry state
   that the analyst has declared absorbing.
+
+  With strata, each patient belongs to the group defined by their supplied
+  baseline values. This is different from adjacent-cycle estimation, where
+  covariates can change throughout follow-up. Groups with no eligible first
+  outcomes remain in the result, with unestimated nonabsorbing rows. They are
+  not replaced with pooled probabilities. Use stratified entry with
+  simulateTrajectories(), or select one model for projectCohort().
 }

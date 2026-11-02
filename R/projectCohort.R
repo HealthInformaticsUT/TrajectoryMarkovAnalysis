@@ -11,6 +11,9 @@
 #' @param entry Optional result from estimateEntryTransitions(). Its eligible
 #'   baseline distribution passes through its entry matrix once to initialise
 #'   cycle zero. Do not supply a non-NULL initial together with entry.
+#'   For stratified entry, select one model from entry$models, or use
+#'   simulateTrajectories() with explicit baseline patient profiles. This
+#'   function does not pool entry groups.
 #' @details Each step uses the matrix for the source cycle's start day. An
 #'   unestimated row is allowed only while its state has zero projected mass.
 #'   The last period's matrix applies to every requested step within that period;
@@ -56,6 +59,9 @@
 projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
                            entry = NULL) {
   tolerance <- 1e-10
+  if (inherits(entry, "tma_stratified_entry")) {
+    stop("Stratified entry requires explicit patient profiles in simulateTrajectories(), or select one group from entry$models for projectCohort(). Entry groups are not pooled.", call. = FALSE)
+  }
   if (!is.null(entry) && !is.null(initial)) {
     stop("Supply either entry or initial, not both.", call. = FALSE)
   }
@@ -357,7 +363,11 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   x
 }
 
-.tmaProjectionEntry <- function(entry, states, absorbingStates, cycleLength, tolerance) {
+.tmaProjectionEntry <- function(entry, states, absorbingStates, cycleLength, tolerance,
+                                allowEmpty = FALSE) {
+  if (inherits(entry, "tma_stratified_entry")) {
+    stop("Stratified entry requires explicit patient profiles in simulateTrajectories(), or select one group from entry$models for projectCohort(). Entry groups are not pooled.", call. = FALSE)
+  }
   if (!is.list(entry) || !is.list(entry$metadata) || !is.list(entry$diagnostics) ||
       !all(c("states", "absorbingStates", "cycleLength", "estimator", "eligibility") %in%
            names(entry$metadata)) || !identical(entry$metadata$estimator, "entry_outcomes")) {
@@ -424,7 +434,7 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   if (any(coverageCount != tabulate(match(subjects$status, coverage$status), nbins = nrow(coverage)))) {
     stop("Entry coverage counts must agree with the subject records.", call. = FALSE)
   }
-  if (!eligibleSubjects) {
+  if (!eligibleSubjects && !allowEmpty) {
     stop("Entry has no eligible first-cycle outcomes and cannot initialise a projection.", call. = FALSE)
   }
   baseline <- .tmaProjectionEntryDistribution(entry$baselineCounts, states,
@@ -455,17 +465,23 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
       stop("Absorbing entry state '", state, "' must have an exact identity row.", call. = FALSE)
     }
   }
+  if (!eligibleSubjects && any(!missingRows[!states %in% absorbingStates])) {
+    stop("An entry group without eligible outcomes must have entirely NA nonabsorbing probability rows.", call. = FALSE)
+  }
   occupied <- which(baseline > 0)
   if (any(missingRows[occupied])) {
     stop("Unestimated entry row for occupied baseline state(s): ",
          paste(states[occupied[missingRows[occupied]]], collapse = ", "), ".", call. = FALSE)
   }
-  distribution <- stats::setNames(as.numeric(baseline[occupied] %*%
-                                               entryMatrix[occupied, , drop = FALSE]), states)
+  distribution <- if (eligibleSubjects) {
+    stats::setNames(as.numeric(baseline[occupied] %*%
+                                entryMatrix[occupied, , drop = FALSE]), states)
+  } else stats::setNames(rep(NA_real_, length(states)), states)
   list(distribution = distribution,
        entry = list(baseline_distribution = baseline, matrix = entryMatrix,
                     eligible_subject_ids = ids[subjects$eligible],
                     source_subjects = sourceSubjects, eligible_subjects = eligibleSubjects,
+                    excluded_subjects = excludedSubjects,
                     coverage = coverage, eligibility = model$eligibility))
 }
 
@@ -491,6 +507,14 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
                                                  paste0("entry$", name, "$denominator"))
   expected <- tabulate(match(labels, states), nbins = length(states))
   probability <- counts$probability
+  if (!denominator) {
+    if (any(observedCounts != expected) || any(denominators != 0) ||
+        !is.numeric(probability) || is.complex(probability) || inherits(probability, "integer64") ||
+        !is.null(dim(probability)) || !all(is.na(probability)) || any(is.nan(probability))) {
+      stop("entry$", name, " must report zero counts and NA probabilities without eligible subjects.", call. = FALSE)
+    }
+    return(stats::setNames(probability, states))
+  }
   if (any(observedCounts != expected) || any(denominators != denominator) ||
       !is.numeric(probability) || is.complex(probability) || inherits(probability, "integer64") ||
       !is.null(dim(probability)) || anyNA(probability) ||
