@@ -17,7 +17,8 @@ TrajectoryMarkovAnalysis(
   periodBreaks = NULL,
   periodLabels = NULL,
   terminalCostMap = NULL,
-  costVisitFilter = NULL
+  costVisitFilter = NULL,
+  strata = NULL
 )
 }
 \arguments{
@@ -57,6 +58,9 @@ when analyses includes "costs". Clinical trajectories remain unchanged.}
 \item{costVisitFilter}{Optional visit selection passed to extractCosts().
 Only valid when extracting costs through cdm. To use local costData, select
 its records before calling this function.}
+
+\item{strata}{Optional categorical trajectory column names passed to both
+estimators. Values may change by row; numeric values group by exact value.}
 }
 \value{
 A list containing transitions, costs and the prepared trajectories.

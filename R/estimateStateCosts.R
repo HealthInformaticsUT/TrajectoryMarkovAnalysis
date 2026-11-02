@@ -18,6 +18,9 @@
 #'   Names must be declared in prepared trajectories' absorbingStates, and
 #'   destinations must be in their states dictionary. Unlisted states retain
 #'   their own costs. NULL leaves every label unchanged.
+#' @param strata Optional character vector of categorical trajectory column names.
+#'   Values may change between rows. Numeric values define exact-value groups;
+#'   create age bands or other categories explicitly before estimation.
 #' @return A list with state estimates, interval costs, unallocated cost records,
 #'   periods, diagnostics and metadata. Each period and currency is summarised
 #'   separately. Costs
@@ -60,13 +63,21 @@
 #'   numerator changes. All observed state-days still contribute, including
 #'   days without a qualifying visit. The result is not a mean per selected visit.
 #'   Extraction scope and visit criteria are retained in metadata.
+#'
+#'   With strata, each interval's covariate values group its costs and observed
+#'   days together. Period fragments retain the original interval's values and
+#'   patient index. The result includes a strata registry; stratum_id and the
+#'   requested covariates appear in intervalCosts and estimates. Patient counts
+#'   are distinct within each group and may overlap between groups.
 #' @export
 estimateStateCosts <- function(trajectories, costData,
                                periodBreaks = NULL, periodLabels = NULL,
-                               terminalCostMap = NULL) {
+                               terminalCostMap = NULL, strata = NULL) {
   prepared <- prepareTrajectories(trajectories)
   periods <- .tmaPeriods(periodBreaks, periodLabels)
   terminalCostMap <- .tmaTerminalCostMap(terminalCostMap, prepared)
+  grouping <- .tmaStrata(prepared$data, strata)
+  if (!is.null(grouping)) prepared$data$stratum_id <- grouping$row_ids
   if (!is.data.frame(costData)) {
     stop("costData must be a data frame of dated cost records.", call. = FALSE)
   }
@@ -157,8 +168,14 @@ estimateStateCosts <- function(trajectories, costData,
   intervalCosts$total_cost <- ifelse(intervalCosts$missing_amounts > 0L,
                                     NA_real_, intervalCosts$known_recorded_cost)
   intervalCosts$measure <- rep(measure, nrow(intervalCosts))
+  grouped <- if (is.null(grouping)) {
+    dplyr::group_by(intervalCosts, .data$period, .data$cost_state, .data$currency_concept_id)
+  } else {
+    columns <- c("stratum_id", grouping$columns, "period", "cost_state", "currency_concept_id")
+    dplyr::group_by(intervalCosts, dplyr::across(dplyr::all_of(columns)))
+  }
   estimates <- dplyr::summarise(
-    dplyr::group_by(intervalCosts, .data$period, .data$cost_state, .data$currency_concept_id),
+    grouped,
     patients = dplyr::n_distinct(.data$subject_id),
     intervals = dplyr::n(),
     mapped_terminal_intervals = sum(.data$state_label != .data$cost_state),
@@ -175,7 +192,12 @@ estimateStateCosts <- function(trajectories, costData,
   estimates$measure <- rep(measure, nrow(estimates))
   estimates <- estimates[order(match(estimates$period, periods$period),
                                estimates$cost_state, estimates$currency_concept_id), , drop = FALSE]
-  structure(list(
+  if (!is.null(grouping)) {
+    estimates <- estimates[order(match(estimates$stratum_id, grouping$registry$stratum_id),
+                                 match(estimates$period, periods$period),
+                                 estimates$cost_state, estimates$currency_concept_id), , drop = FALSE]
+  }
+  result <- structure(list(
     estimates = as.data.frame(estimates),
     intervalCosts = as.data.frame(intervalCosts),
     unallocatedCosts = unallocated,
@@ -204,6 +226,12 @@ estimateStateCosts <- function(trajectories, costData,
                     } else "retained under the supplied cycle label",
                     mean_cost_denominator = "observed days attributed to cost_state")
   ), class = "tma_state_costs")
+  if (!is.null(grouping)) {
+    result$strata <- grouping$registry
+    result$metadata$strata <- grouping$columns
+    result$metadata$stratum_assignment <- "interval row values; costs and observed days grouped together"
+  }
+  result
 }
 
 .tmaTerminalCostMap <- function(terminalCostMap, prepared) {

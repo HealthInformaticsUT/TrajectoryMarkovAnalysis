@@ -10,7 +10,8 @@ estimateTransitions(
   absorbingStates = character(),
   states = NULL,
   periodBreaks = NULL,
-  periodLabels = NULL
+  periodLabels = NULL,
+  strata = NULL
 )
 }
 \arguments{
@@ -29,6 +30,10 @@ c(0, 7, 35, Inf). Finite boundaries must align with cycleLength. NULL pools
 all follow-up.}
 
 \item{periodLabels}{Optional unique names for the periods between boundaries.}
+
+\item{strata}{Optional character vector of categorical trajectory column names.
+Values may change between rows. Numeric values define exact-value groups;
+create age bands or other categories explicitly before estimation.}
 }
 \value{
 A list with estimates, matrices, periods, entryCounts, diagnostics and
@@ -36,6 +41,9 @@ A list with estimates, matrices, periods, entryCounts, diagnostics and
   that matrix only when one period is requested, otherwise it is NULL.
   Unestimated nonabsorbing rows contain NA probabilities. Absorbing identity
   rows are structural, with zero observed counts and denominators.
+  With strata, a tma_stratified_transitions object contains models named by
+  stratum_id, a strata registry, combined estimates and entryCounts, and common
+  periods, diagnostics and metadata. Each model has the ordinary result schema.
 }
 \description{
 Estimate adjacent-cycle transition probabilities by follow-up period
@@ -52,4 +60,11 @@ Only a full source cycle followed immediately by an observed known
   discarded. Denominators count observed outgoing pairs, not all patients or
   all source cycles. This does not correct for informative censoring or recover
   event dates within a cycle. Periods are not landmark eligibility rules.
+
+  With strata, adjacent pairs are constructed before grouping and assigned
+  to the source row's covariate values, retaining transitions across groups.
+  Follow-up periods and entry counts retain the original patient index.
+  Registry IDs are generated after ordering the observed covariate tuples;
+  their meaning is defined by the returned strata registry. Distinct patient
+  counts describe support within each group and cannot be added across groups.
 }

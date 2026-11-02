@@ -9,7 +9,8 @@ estimateStateCosts(
   costData,
   periodBreaks = NULL,
   periodLabels = NULL,
-  terminalCostMap = NULL
+  terminalCostMap = NULL,
+  strata = NULL
 )
 }
 \arguments{
@@ -31,6 +32,10 @@ states to nonabsorbing cost states, for example c("Death" = "Alive").
 Names must be declared in prepared trajectories' absorbingStates, and
 destinations must be in their states dictionary. Unlisted states retain
 their own costs. NULL leaves every label unchanged.}
+
+\item{strata}{Optional character vector of categorical trajectory column names.
+Values may change between rows. Numeric values define exact-value groups;
+create age bands or other categories explicitly before estimation.}
 }
 \value{
 A list with state estimates, interval costs, unallocated cost records,
@@ -82,4 +87,10 @@ An interval with no matching cost record has zero recorded cost.
   numerator changes. All observed state-days still contribute, including
   days without a qualifying visit. The result is not a mean per selected visit.
   Extraction scope and visit criteria are retained in metadata.
+
+  With strata, each interval's covariate values group its costs and observed
+  days together. Period fragments retain the original interval's values and
+  patient index. The result includes a strata registry; stratum_id and the
+  requested covariates appear in intervalCosts and estimates. Patient counts
+  are distinct within each group and may overlap between groups.
 }

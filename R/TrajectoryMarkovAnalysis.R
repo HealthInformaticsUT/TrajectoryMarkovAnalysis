@@ -28,6 +28,8 @@
 #' @param terminalCostMap Optional named mapping from declared absorbing states
 #'   to defined nonabsorbing cost states, as in estimateStateCosts(). Only used
 #'   when analyses includes "costs". Clinical trajectories remain unchanged.
+#' @param strata Optional categorical trajectory column names passed to both
+#'   estimators. Values may change by row; numeric values group by exact value.
 #' @return A list containing transitions, costs and the prepared trajectories.
 #'   An analysis not requested has a NULL result. No connection is stored.
 #' @details This interface replaces the former database-driven workflow.
@@ -48,7 +50,8 @@ TrajectoryMarkovAnalysis <- function(trajectories,
                                      periodBreaks = NULL,
                                      periodLabels = NULL,
                                      terminalCostMap = NULL,
-                                     costVisitFilter = NULL) {
+                                     costVisitFilter = NULL,
+                                     strata = NULL) {
   if (!is.character(analyses) || !length(analyses) || anyNA(analyses) ||
       anyDuplicated(analyses) || any(!analyses %in% c("transitions", "costs"))) {
     stop("analyses must contain 'transitions', 'costs', or both, without duplicates.", call. = FALSE)
@@ -74,8 +77,10 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   .tmaPeriods(periodBreaks, periodLabels,
               if ("transitions" %in% analyses) prepared$cycleLength else NULL)
   if (costing) .tmaTerminalCostMap(terminalCostMap, prepared)
+  .tmaStrata(prepared$data, strata)
   transitions <- if ("transitions" %in% analyses) {
-    estimateTransitions(prepared, periodBreaks = periodBreaks, periodLabels = periodLabels)
+    estimateTransitions(prepared, periodBreaks = periodBreaks, periodLabels = periodLabels,
+                         strata = strata)
   } else NULL
   costs <- NULL
   if (costing) {
@@ -85,7 +90,7 @@ TrajectoryMarkovAnalysis <- function(trajectories,
     }
     costs <- estimateStateCosts(prepared, costData,
                                 periodBreaks = periodBreaks, periodLabels = periodLabels,
-                                terminalCostMap = terminalCostMap)
+                                terminalCostMap = terminalCostMap, strata = strata)
   }
   list(transitions = transitions, costs = costs, trajectories = prepared)
 }
