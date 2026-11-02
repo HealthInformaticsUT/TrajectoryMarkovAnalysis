@@ -19,12 +19,16 @@ A separate costing function applies explicit cycle charges, state-change
 charges and a startup fee to a projection.
 Optional ordered stages combine analyst-supplied probabilities into one cycle
 model and report the expected movements within each stage.
+Both estimators can also group rows by time-varying covariates. Model bundles
+carry those definitions into a patient simulator with custom covariate updates,
+separate cost components and resumable runs.
 
 This is not yet a release. Estimation of separate within-cycle stages from
-patient records remains to be implemented. The older GUI,
-continuous-time model, survival functions and simulation code have not been
-migrated or validated against the new interface. Do not use those functions to
-validate the new estimates.
+patient records remains to be implemented. The older GUI, continuous-time model,
+survival functions and `generateDataDiscrete()`/`generateDataContinuous()` have
+not been migrated or validated against the new interface. Use the new
+`simulateTrajectories()` for sampled discrete histories. Do not use the older
+functions to validate the new estimates.
 
 ## Prepare the histories once
 
@@ -698,6 +702,248 @@ denominators and timing. Currency and price year label the supplied amounts.
 No inflation adjustment, currency conversion, discounting or utilities are
 applied. `totals` reports expected cohort costs and costs per projected patient.
 Detailed ledgers contain aggregate counts, not patient identifiers.
+
+## Estimate models for changing patient groups
+
+Supply `strata` to estimate transitions or costs for combinations of columns
+already present on your trajectory rows:
+
+```r
+group_columns <- c("age_group", "pgs_group", "score2_group")
+
+transitions <- estimateTransitions(histories, strata = group_columns)
+observed_costs <- estimateStateCosts(histories, costData, strata = group_columns)
+
+transitions$strata
+transitions$estimates
+observed_costs$estimates
+```
+
+One patient can contribute to several groups as their values change. Transition
+pairs are formed before grouping. Each pair belongs to its source row's group,
+including pairs whose destination belongs to a different group. The original
+index date still defines follow-up periods. Reaching a new age group does not
+restart follow-up or create a new entry observation.
+
+For costs, the row's covariates determine where both expenditure and observed
+days are counted. A row with no cost record still contributes days. Splitting
+an interval across follow-up periods preserves its covariates. Values apply to
+the whole supplied row, not an inferred change partway through it. Clinical
+states remain separate from the grouping variables.
+
+Each model retains transition counts and denominators. Stratified estimates
+also show distinct contributing patients. A patient can appear in several
+groups, so adding those patient counts does not give a unique cohort count.
+Unestimated probability rows remain `NA`. No automatic pooling, smoothing or
+fallback to another group is performed. Missing clinical-row covariates are an
+error. Supply an explicit category if missingness is itself part of your design.
+
+This is subgroup estimation, not regression adjustment. Numeric columns used
+directly in `strata` form exact-value groups. Define bands where appropriate,
+particularly before combining several continuous scores.
+
+### Reuse the same grouping rules
+
+`addCovariateGroups()` retains raw values and adds the named grouping columns.
+For example, the following cutoffs illustrate the interface, not recommended
+clinical thresholds. The input already contains `birth_date`, `score2` and a
+categorical `pgs_group` supplied by the analyst:
+
+```r
+groups <- list(
+  age_group = list(
+    column = "age", breaks = c(0, 65, 75, Inf),
+    labels = c("Under 65", "65 to 74", "75 and older")
+  ),
+  score2_group = list(
+    column = "score2", breaks = c(-Inf, 10, 20, Inf),
+    labels = c("Lower", "Middle", "Higher")
+  )
+)
+
+grouped_rows <- addCovariateGroups(
+  trajectories, groups, dateColumn = "state_start_date"
+)
+histories <- prepareTrajectories(
+  grouped_rows, cycleLength = 7, absorbingStates = "Dead"
+)
+transitions <- estimateTransitions(histories, strata = group_columns)
+bundle <- createModelBundle(transitions, groups = groups)
+```
+
+The explicit `dateColumn` option calculates completed age from `birth_date`.
+Groups include the lower boundary and exclude the upper boundary. In non-leap
+years, a February 29 birthday is reached on March 1. Birth-year-only data need an
+explicit analyst approximation or update rule, not an invented birthday.
+
+The bundle holds models and grouping definitions, not a training population.
+You can retain descriptive cost estimates with `costs = observed_costs`, but
+they are not automatically converted to simulation charges. Groups are matched
+by their actual column values. Internal stratum IDs are local to a bundle and
+should not be used as clinical categories.
+
+## Generate and continue patient histories
+
+`projectCohort()` calculates expected cohort counts. `simulateTrajectories()`
+instead draws individual next states from a model bundle. It accepts ordinary
+and stratified models. For each patient it selects the model from the current
+covariates and the period containing the source elapsed day.
+
+For an ordinary model, generate a population from a starting state distribution:
+
+```r
+ordinary_bundle <- createModelBundle(estimateTransitions(histories))
+simulation <- simulateTrajectories(
+  ordinary_bundle, n = 1000,
+  initial = c("Stable" = 0.8, "Complication" = 0.2),
+  nSteps = 52, terminalStates = "Dead", seed = 42
+)
+```
+
+Use your actual state labels. This starts at the supplied state distribution,
+not an inferred pre-event state or an automatically applied entry model.
+
+A stratified model also needs starting covariates. Supply `population` as one
+current snapshot per source patient, with `state_label` and the required
+covariates. It is not the full repeated-row trajectory table. `subject_id` is
+optional, but must be unique when supplied. `elapsed_day` defaults to zero and
+must align with the cycle length. Set it explicitly when continuing patients
+from later follow-up. It does not restart at zero when a patient's group changes.
+
+```r
+simulation <- simulateTrajectories(
+  bundle, population = initial_patients,
+  n = 1000, replace = TRUE,
+  nSteps = 52, terminalStates = "Dead", seed = 42
+)
+```
+
+Omit `n` to use every supplied profile once. Sampling with replacement creates
+new `simulation_id` values for repeated draws and retains the original
+`source_subject_id`. An `initial` state vector can deliberately override the
+sampled states independently of the covariates. Alternatively, omit population
+and supply `n` plus a joint `initial` table containing `state_label`, covariates
+and `probability`. Sampling complete profiles preserves their joint distribution.
+Independent sampling of ages, scores and states is not assumed.
+
+### Update covariates between steps
+
+When profiles contain `birth_date` and `index_date`, the simulator advances age
+using `index_date + elapsed_day`. The same bundle grouping rules are then
+reapplied. Without birth dates, a supplied age stays fixed unless a custom rule
+changes it. Other scores are not automatically recalculated or forecast.
+
+An optional `updateCovariates(current, previous)` function receives nonterminal
+patients after a transition and clock advance. Return `simulation_id` plus only
+the covariates to change. For example, given profiles with a `treatment_active`
+column initially set to TRUE:
+
+```r
+update_treatment <- function(current, previous) {
+  data.frame(
+    simulation_id = current$simulation_id,
+    treatment_active = current$elapsed_day < 28
+  )
+}
+```
+
+The updated values affect the next transition, not the one that just occurred.
+The callback cannot rewrite identities, clinical outcomes or the clock. Update
+raw covariates rather than grouping columns owned by the bundle. The new stratum
+ID is resolved only after the callback finishes. Any needed longer-term memory,
+such as a treatment-start day, must be retained in patient covariates. Measured
+values from the patient's observed future are not a default update rule.
+
+### Add intervention and healthcare charges
+
+Cost rules are named components. They do not alter transition probabilities.
+Supply an explicit currency and price year whenever charges are requested:
+
+```r
+cost_rules <- list(
+  initiation = list(
+    type = "once", amount = 1500,
+    eligible = function(p) p$treatment_active
+  ),
+  maintenance = list(
+    type = "recurring", amount = 20,
+    eligible = function(p) p$treatment_active
+  ),
+  complication_care = list(
+    type = "recurring", amount = 100, states = "Complication"
+  )
+)
+
+simulation <- simulateTrajectories(
+  bundle, population = initial_patients,
+  nSteps = 52, updateCovariates = update_treatment,
+  costRules = cost_rules, currency = "EUR", priceYear = 2026,
+  terminalStates = "Dead", seed = 42
+)
+```
+
+These amounts illustrate the syntax only. A `once` rule charges each simulated
+patient at the first eligible label and remembers that payment. A `recurring`
+rule charges every eligible label. A `transition` rule with `from` and `to`
+charges a specified state change, not continued residency. All rules can use
+`states`, `startDay` and `endDay` restrictions. Eligibility callbacks inspect
+only candidate rows after these basic restrictions and prior-payment checks.
+
+State and treatment charges use the initial label and each completed destination
+label. Therefore `nSteps = k` produces up to `k + 1` charged labels. An initial
+snapshot does not imply a preceding transition. Amounts are per full label, not
+prorated daily means. Intervention initiation is not tied to estimating a
+clinical entry matrix. No discounting or conversion of observed daily costs is
+performed. Keep ordinary care and intervention charges in separate components,
+and avoid charging the same expenditure twice.
+
+### Stop, inspect or resume
+
+```r
+simulation$population     # Current patient snapshots
+simulation$trajectories   # All generated snapshots
+simulation$transitions   # Actual sampled transitions and selected source models
+simulation$costs         # Patient-level charges by component
+simulation$totals
+simulation$metadata$stop_reason
+
+simulation <- advanceSimulation(simulation, nSteps = 52)
+```
+
+The result retains its rules, one-time payment memory and random-number state.
+It can be saved with `saveRDS()` and resumed with `readRDS()` and
+`advanceSimulation()`. Resuming does not charge the saved starting label again.
+An uninterrupted run and a split run use the same random sequence when callbacks
+depend only on their inputs and saved configuration. Random draws in callbacks
+use that private sequence too. The caller's random-number state is restored.
+Pass `seed` for reproducible initialization. With `seed = NULL`, each new run
+starts a fresh private stream, so setting the global seed alone does not fix its
+draws. Box-Muller normal generation and user-supplied RNG kinds are unsupported
+because their full state cannot be saved and restored. Callbacks must not change
+the RNG kind.
+Callbacks that depend on external connections or mutable global objects are not
+portable checkpoints.
+
+Terminal states must be explicitly declared and absorbing. They stop further
+transitions and ongoing charges, but a transition rule may charge their entry.
+Other absorbing states can continue to incur costs. Terminal snapshots remain
+in the history while other patients continue. These repeated rows do not mean
+additional deaths or additional observed care time.
+
+Every run has a finite `nSteps` limit. It can stop earlier when all patients are
+terminal, or through `stopWhen(population, step)`. A custom stop receives the
+current population after costs for that label. There is no automatic convergence
+criterion. A few unchanged states do not establish equilibrium in an ageing
+population. Completed terminal or custom-stopped runs remain stopped on resume.
+
+Simulation records are synthetic draws, not reconstructed patient histories.
+Sampling variation is not uncertainty in the estimated probabilities, treatment
+effects or model structure. A step needs a supported source stratum and an
+estimated probability row. Otherwise it stops rather than silently filling them.
+A completed step may leave a patient in a new, unsupported covariate group. That
+snapshot has `stratum_id = NA` and is counted in `metadata$unsupported_current`.
+It can be the final snapshot or meet a custom stopping rule, but another step
+cannot be drawn from it without a supporting model.
 
 ## Optional combined call
 
