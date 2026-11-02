@@ -21,7 +21,9 @@ simulateTrajectories(
 )
 }
 \arguments{
-\item{bundle}{A model bundle from createModelBundle().}
+\item{bundle}{A model bundle from createModelBundle(). An explicit cost model
+created with createCostModel() is charged automatically when retained in
+bundle$costModel. Raw descriptive bundle$costEstimates are not charged.}
 
 \item{population}{Optional data frame with one current snapshot per patient.
 Supply state_label unless initial overrides states. Optional subject_id must
@@ -61,17 +63,21 @@ dependence on earlier history must be represented explicitly in covariates.}
 transition), a finite amount, optional states, eligible function of candidate
 destination rows, and startDay/endDay (lower inclusive, upper
 exclusive). Transition rules additionally require from and to state labels
-and charge actual state changes. See \link{simulation-cost-rules}. Bundle
-estimates are not charged implicitly and no mean-cost calibration is fitted.}
+and charge actual state changes. See \link{simulation-cost-rules}. Rules are
+additional to an explicit bundle cost model. The component name healthcare
+is reserved when a cost model is present. No mean-cost calibration is fitted.}
 
-\item{currency}{Currency label required when costRules is nonempty.}
+\item{currency}{Currency label required when costRules is nonempty. Defaults
+to the bundle cost model's currency when present; conflicting labels fail.}
 
-\item{priceYear}{Positive integer price year required with costRules. Amounts
+\item{priceYear}{Positive integer price year required with costRules. Defaults
+to the bundle cost model's price year when present; conflicts fail. Amounts
 are summed as supplied, without inflation adjustment or discounting.}
 
 \item{terminalStates}{Explicit subset of the bundle's absorbing states.
 Terminal patients stop moving and changing covariates. Mere self-transitions
-and absorbing states outside this set do not stop simulation.}
+and absorbing states outside this set do not stop simulation. Every source
+state in an explicit cost model's terminal mapping must be included.}
 
 \item{stopWhen}{Optional function(population, step) returning one nonmissing
 logical value, checked at initialization and after each completed step.}
@@ -116,7 +122,15 @@ Every step selects the model using current covariates and the period
 
   k completed steps produce k + 1 labelled snapshots per patient, including
   initial charges at cycle zero (or the supplied starting cycle), consistent
-  with projectCosts(). Costs at entry to a terminal state are transition
-  rules. All-terminal or custom stopping is checked after charges. No files,
+  with projectCosts(). Estimated healthcare charges select the destination
+  label's clinical or mapped cost state, current cost covariates and cost
+  period. Daily models split a labelled cycle across cost-period boundaries;
+  cycle models apply one estimated cycle amount. Cost periods can differ from
+  transition periods. Initial terminal patients incur no estimated healthcare
+  charge. With the cost model's terminal = "entry", a newly terminal label is
+  charged once using its retained source covariates and destination elapsed
+  day; terminal = "none" suppresses this charge. Explicit transition rules
+  can also charge terminal entry. Persistent terminal rows incur no further
+  charges. All-terminal or custom stopping is checked after charges. No files,
   plots, database queries or connections are created.
 }

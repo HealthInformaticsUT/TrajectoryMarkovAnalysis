@@ -69,6 +69,8 @@
 #'   patient index. The result includes a strata registry; stratum_id and the
 #'   requested covariates appear in intervalCosts and estimates. Patient counts
 #'   are distinct within each group and may overlap between groups.
+#' @seealso createCostModel() for explicitly applying these daily means to
+#'   labelled patient-simulation cycles.
 #' @export
 estimateStateCosts <- function(trajectories, costData,
                                periodBreaks = NULL, periodLabels = NULL,

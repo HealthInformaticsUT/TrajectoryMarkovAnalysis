@@ -1,6 +1,8 @@
 #' Simulate patient snapshots through a model bundle
 #'
-#' @param bundle A model bundle from createModelBundle().
+#' @param bundle A model bundle from createModelBundle(). An explicit cost model
+#'   created with createCostModel() is charged automatically when retained in
+#'   bundle$costModel. Raw descriptive bundle$costEstimates are not charged.
 #' @param population Optional data frame with one current snapshot per patient.
 #'   Supply state_label unless initial overrides states. Optional subject_id must
 #'   be unique and is retained as source_subject_id. Generated simulation_id
@@ -34,14 +36,18 @@
 #'   transition), a finite amount, optional states, eligible function of candidate
 #'   destination rows, and startDay/endDay (lower inclusive, upper
 #'   exclusive). Transition rules additionally require from and to state labels
-#'   and charge actual state changes. See \link{simulation-cost-rules}. Bundle
-#'   estimates are not charged implicitly and no mean-cost calibration is fitted.
-#' @param currency Currency label required when costRules is nonempty.
-#' @param priceYear Positive integer price year required with costRules. Amounts
+#'   and charge actual state changes. See \link{simulation-cost-rules}. Rules are
+#'   additional to an explicit bundle cost model. The component name healthcare
+#'   is reserved when a cost model is present. No mean-cost calibration is fitted.
+#' @param currency Currency label required when costRules is nonempty. Defaults
+#'   to the bundle cost model's currency when present; conflicting labels fail.
+#' @param priceYear Positive integer price year required with costRules. Defaults
+#'   to the bundle cost model's price year when present; conflicts fail. Amounts
 #'   are summed as supplied, without inflation adjustment or discounting.
 #' @param terminalStates Explicit subset of the bundle's absorbing states.
 #'   Terminal patients stop moving and changing covariates. Mere self-transitions
-#'   and absorbing states outside this set do not stop simulation.
+#'   and absorbing states outside this set do not stop simulation. Every source
+#'   state in an explicit cost model's terminal mapping must be included.
 #' @param stopWhen Optional function(population, step) returning one nonmissing
 #'   logical value, checked at initialization and after each completed step.
 #' @param seed Optional nonnegative integer seed. Simulation and callbacks use
@@ -73,8 +79,16 @@
 #'
 #'   k completed steps produce k + 1 labelled snapshots per patient, including
 #'   initial charges at cycle zero (or the supplied starting cycle), consistent
-#'   with projectCosts(). Costs at entry to a terminal state are transition
-#'   rules. All-terminal or custom stopping is checked after charges. No files,
+#'   with projectCosts(). Estimated healthcare charges select the destination
+#'   label's clinical or mapped cost state, current cost covariates and cost
+#'   period. Daily models split a labelled cycle across cost-period boundaries;
+#'   cycle models apply one estimated cycle amount. Cost periods can differ from
+#'   transition periods. Initial terminal patients incur no estimated healthcare
+#'   charge. With the cost model's terminal = "entry", a newly terminal label is
+#'   charged once using its retained source covariates and destination elapsed
+#'   day; terminal = "none" suppresses this charge. Explicit transition rules
+#'   can also charge terminal entry. Persistent terminal rows incur no further
+#'   charges. All-terminal or custom stopping is checked after charges. No files,
 #'   plots, database queries or connections are created.
 #' @return A tma_simulation list with final population, trajectories,
 #'   transitions, costs (charge ledger), totals by component, and metadata.
@@ -104,6 +118,17 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     stop("terminalStates must be unique declared absorbing states.", call. = FALSE)
   }
   rules <- .tmaSimulationCostRules(costRules, bundle$metadata$states)
+  costModel <- bundle$costModel
+  if (!is.null(costModel)) {
+    if (any(!names(costModel$metadata$terminal_cost_map) %in% terminalStates)) {
+      stop("Include every cost model terminal-cost mapping source in terminalStates.", call. = FALSE)
+    }
+    if ("healthcare" %in% names(rules)) {
+      stop("The costRules name 'healthcare' is reserved when the bundle has a cost model.", call. = FALSE)
+    }
+    if (is.null(currency)) currency <- costModel$metadata$currency
+    if (is.null(priceYear)) priceYear <- costModel$metadata$priceYear
+  }
   if (length(rules) || !is.null(currency)) {
     if (!is.character(currency) || length(currency) != 1L || is.na(currency) ||
         !nzchar(trimws(currency))) {
@@ -112,6 +137,11 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
   }
   if (length(rules) || !is.null(priceYear)) {
     priceYear <- .tmaProjectionInteger(priceYear, "priceYear", 1)
+  }
+  if (!is.null(costModel) && (currency != costModel$metadata$currency ||
+      priceYear != costModel$metadata$priceYear)) {
+    stop("currency and priceYear must match the bundle cost model; explicit rules use those same labels.",
+      call. = FALSE)
   }
   .tmaSimulationRng(seed = seed, run = function() {
     population <- .tmaSimulationInitial(bundle, population, n, initial, replace, terminalStates)
@@ -124,10 +154,15 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         population[active, , drop = FALSE])
     }
     initialCharge <- .tmaSimulationCharge(population, NULL, rules, list(), terminalStates)
+    if (!is.null(costModel)) {
+      initialCharge$ledger <- .tmaSimulationBind(list(initialCharge$ledger,
+        .tmaModelCostCharge(costModel, population, previous = NULL,
+          terminalStates = terminalStates, cycleLength = bundle$metadata$cycleLength)))
+    }
     simulation <- structure(list(
       population = population, trajectories = population,
       transitions = .tmaSimulationEmptyTransitions(), costs = initialCharge$ledger,
-      totals = .tmaSimulationTotals(initialCharge$ledger, rules),
+      totals = .tmaSimulationTotals(initialCharge$ledger, rules, costModel),
       metadata = list(n = nrow(population), steps = 0, cycle = max(population$cycle),
         cycleLength = bundle$metadata$cycleLength, terminalStates = terminalStates,
         stop_reason = "max_steps", unsupported_current = 0L,
@@ -141,6 +176,9 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         terminalStates = terminalStates, stopWhen = stopWhen),
       .state = list(charged = initialCharge$charged, rng = NULL)
     ), class = "tma_simulation")
+    if (!is.null(costModel)) {
+      simulation$metadata$cost_model <- costModel$metadata
+    }
     .tmaSimulationRun(simulation, nSteps, checkInitial = TRUE)
   })
 }
@@ -205,7 +243,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
         prob = population$probability), , drop = FALSE]
       population$probability <- NULL
     } else {
-      if (length(bundle$metadata$strata)) {
+      if (length(union(bundle$metadata$strata, bundle$costModel$metadata$strata))) {
         stop("A stratified bundle needs population covariates or a joint initial distribution.", call. = FALSE)
       }
       population <- data.frame(state_label = rep(NA_character_, n), stringsAsFactors = FALSE)
@@ -389,6 +427,11 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       transition_probability = drawProbability, stringsAsFactors = FALSE)
     charge <- .tmaSimulationCharge(population, previous, configuration$costRules,
       simulation$.state$charged, configuration$terminalStates)
+    if (!is.null(bundle$costModel)) {
+      charge$ledger <- .tmaSimulationBind(list(charge$ledger,
+        .tmaModelCostCharge(bundle$costModel, population, previous,
+          terminalStates = configuration$terminalStates, cycleLength = cycleLength)))
+    }
     simulation$.state$charged <- charge$charged
     costRows[[length(costRows) + 1L]] <- charge$ledger
     trajectoryRows[[length(trajectoryRows) + 1L]] <- population
@@ -400,7 +443,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   simulation$trajectories <- .tmaSimulationBind(c(list(simulation$trajectories), trajectoryRows))
   simulation$transitions <- .tmaSimulationBind(c(list(simulation$transitions), transitionRows))
   simulation$costs <- .tmaSimulationBind(c(list(simulation$costs), costRows))
-  simulation$totals <- .tmaSimulationTotals(simulation$costs, configuration$costRules)
+  simulation$totals <- .tmaSimulationTotals(simulation$costs, configuration$costRules, bundle$costModel)
   simulation$metadata$stop_reason <- if (is.null(reason)) "max_steps" else reason
   simulation$metadata$unsupported_current <- sum(is.na(population$stratum_id) &
     !population$state_label %in% configuration$terminalStates)
@@ -474,9 +517,10 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   result
 }
 
-.tmaSimulationTotals <- function(ledger, rules) {
+.tmaSimulationTotals <- function(ledger, rules, costModel = NULL) {
   components <- names(rules)
   if (is.null(components)) components <- character()
+  if (!is.null(costModel)) components <- c("healthcare", components)
   amounts <- vapply(components,
     function(component) sum(ledger$amount[ledger$component == component]), numeric(1))
   if (any(!is.finite(amounts)) || !is.finite(sum(amounts))) {

@@ -10,19 +10,23 @@ createModelBundle(transitions, costs = NULL, groups = NULL)
 \item{transitions}{A result from estimateTransitions(), with or without
 strata, or an ordinary model from composeTransitionStages().}
 
-\item{costs}{Optional result from estimateStateCosts(). Only its estimates,
-periods and metadata are retained. These descriptive daily estimates are
-not automatically converted into simulation charges.}
+\item{costs}{Optional result from estimateStateCosts() or createCostModel().
+Raw estimates remain descriptive and are not charged. A cost model explicitly
+enables healthcare charges during simulation using its units, periods,
+covariates and terminal policy. No patient-level cost records are retained.}
 
 \item{groups}{Optional named list of numeric grouping rules. Each name is an
 output column and each rule contains column, breaks and optionally labels.
 For example, list(age_group = list(column = "age",
 breaks = c(0, 65, 75, Inf))). Use addCovariateGroups() with the same rules
-before fitting. Without rules, supply the strata columns directly.}
+before fitting. Rules may serve transition strata, cost-model strata or
+both. Without rules, supply the strata columns directly.}
 }
 \value{
 A tma_model_bundle with models, strata, groups, optional costEstimates
-  and metadata. No database connection or patient-level cost records are kept.
+  or costModel, and metadata. Cost and transition models can use different
+  covariates and periods. No database connection or patient-level cost records
+  are kept.
 }
 \description{
 Collect transition models and their covariate definitions

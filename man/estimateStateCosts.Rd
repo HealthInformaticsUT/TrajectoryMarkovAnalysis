@@ -94,3 +94,7 @@ An interval with no matching cost record has zero recorded cost.
   requested covariates appear in intervalCosts and estimates. Patient counts
   are distinct within each group and may overlap between groups.
 }
+\seealso{
+createCostModel() for explicitly applying these daily means to
+  labelled patient-simulation cycles.
+}

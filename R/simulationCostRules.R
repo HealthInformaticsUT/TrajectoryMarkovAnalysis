@@ -38,9 +38,12 @@
 #' All components add together. Keep overlapping amounts out of different rules.
 #' These rules can represent intervention or ordinary healthcare expenditure,
 #' but do not change transition probabilities or establish intervention effects.
-#' Estimated daily costs retained in a model bundle are not automatically used
-#' as cycle charges. Their units and terminal-day allocation must first be made
-#' consistent with the intended model.
+#' Raw daily estimates retained in a model bundle are not automatically charged.
+#' Use createCostModel() to choose their units and terminal policy explicitly,
+#' then attach that model with createModelBundle(costs = ...). Its healthcare
+#' component is additional to these rules. That component name is reserved, and
+#' all rules must use the cost model's currency and price year. Avoid adding
+#' manual care charges that are already included in the fitted healthcare rate.
 #'
 #' For example, a setup fee and a four-week recurring cost can be supplied as
 #' list(setup = list(type = "once", amount = 1500),

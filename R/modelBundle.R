@@ -2,14 +2,16 @@
 #'
 #' @param transitions A result from estimateTransitions(), with or without
 #'   strata, or an ordinary model from composeTransitionStages().
-#' @param costs Optional result from estimateStateCosts(). Only its estimates,
-#'   periods and metadata are retained. These descriptive daily estimates are
-#'   not automatically converted into simulation charges.
+#' @param costs Optional result from estimateStateCosts() or createCostModel().
+#'   Raw estimates remain descriptive and are not charged. A cost model explicitly
+#'   enables healthcare charges during simulation using its units, periods,
+#'   covariates and terminal policy. No patient-level cost records are retained.
 #' @param groups Optional named list of numeric grouping rules. Each name is an
 #'   output column and each rule contains column, breaks and optionally labels.
 #'   For example, list(age_group = list(column = "age",
 #'   breaks = c(0, 65, 75, Inf))). Use addCovariateGroups() with the same rules
-#'   before fitting. Without rules, supply the strata columns directly.
+#'   before fitting. Rules may serve transition strata, cost-model strata or
+#'   both. Without rules, supply the strata columns directly.
 #' @details Models share one clinical state dictionary, cycle length and set of
 #'   follow-up periods. Covariate groups are separate from clinical states.
 #'   Selection uses the complete combination of source-row covariates. Missing
@@ -21,7 +23,9 @@
 #'   their stage definitions, but patient simulation samples their combined
 #'   cycle outcomes, not unobserved intermediate patient events.
 #' @return A tma_model_bundle with models, strata, groups, optional costEstimates
-#'   and metadata. No database connection or patient-level cost records are kept.
+#'   or costModel, and metadata. Cost and transition models can use different
+#'   covariates and periods. No database connection or patient-level cost records
+#'   are kept.
 #' @export
 createModelBundle <- function(transitions, costs = NULL, groups = NULL) {
   if (inherits(transitions, "tma_stratified_transitions")) {
@@ -34,14 +38,19 @@ createModelBundle <- function(transitions, costs = NULL, groups = NULL) {
     columns <- character()
   }
   costEstimates <- NULL
+  costModel <- NULL
   if (!is.null(costs)) {
-    if (!inherits(costs, "tma_state_costs") || !is.data.frame(costs$estimates)) {
-      stop("costs must be a result from estimateStateCosts().", call. = FALSE)
+    if (inherits(costs, "tma_cost_model")) {
+      costModel <- costs
+    } else {
+      if (!inherits(costs, "tma_state_costs") || !is.data.frame(costs$estimates)) {
+        stop("costs must be a result from estimateStateCosts() or createCostModel().", call. = FALSE)
+      }
+      costEstimates <- costs[c("estimates", "periods", "metadata")]
     }
-    costEstimates <- costs[c("estimates", "periods", "metadata")]
   }
   bundle <- structure(list(models = models, strata = registry, groups = groups,
-                           costEstimates = costEstimates,
+                           costEstimates = costEstimates, costModel = costModel,
                            metadata = list(strata = columns)),
                       class = "tma_model_bundle")
   .tmaValidateModelBundle(bundle)
@@ -107,26 +116,38 @@ createModelBundle <- function(transitions, costs = NULL, groups = NULL) {
     keep <- c("matrices", "matrix", "periods", "entryCounts", "estimates", "metadata", "stageMatrices")
     bundle$models[[id]] <- model[intersect(keep, names(model))]
   }
-  groups <- .tmaCovariateGroups(bundle$groups)
-  if (length(groups) && any(!names(groups) %in% columns)) {
-    stop("Each grouping rule must create a declared transition stratum column.", call. = FALSE)
-  }
-  for (name in names(groups)) {
-    if (!(is.character(registry[[name]]) || is.factor(registry[[name]])) ||
-        any(!as.character(registry[[name]]) %in% groups[[name]]$labels)) {
-      stop("Grouping labels for '", name,
-           "' must match the fitted stratum values. Apply the same grouping rules before fitting.",
-           call. = FALSE)
-    }
-  }
   bundle$strata <- registry[c("stratum_id", columns)]
-  bundle$groups <- groups
   bundle$metadata <- list(states = states, absorbingStates = absorbing,
                           cycleLength = cycleLength, strata = columns,
                           periods = commonPeriods,
                           selection = "source covariates and source elapsed day",
                           costs = "descriptive estimates retained; explicit simulation costRules required",
                           age = "completed years from birth_date and index_date plus elapsed_day when supplied")
+  costColumns <- character()
+  if (!is.null(bundle$costModel)) {
+    bundle$costModel <- .tmaValidateCostModel(bundle$costModel, bundle)
+    costColumns <- bundle$costModel$metadata$strata
+    bundle$metadata$cost_strata <- costColumns
+    bundle$metadata$costs <- "explicit fitted healthcare cost model plus optional costRules"
+  }
+  groups <- .tmaCovariateGroups(bundle$groups)
+  if (length(groups) && any(!names(groups) %in% union(columns, costColumns))) {
+    stop("Each grouping rule must create a declared transition or cost-model stratum column.", call. = FALSE)
+  }
+  for (name in names(groups)) {
+    sources <- list()
+    if (name %in% columns) sources <- c(sources, list(registry[[name]]))
+    if (name %in% costColumns) sources <- c(sources, list(bundle$costModel$rates[[name]]))
+    for (values in sources) {
+      if (!(is.character(values) || is.factor(values)) ||
+          any(!as.character(values) %in% groups[[name]]$labels)) {
+        stop("Grouping labels for '", name,
+             "' must match the fitted stratum values. Apply the same grouping rules before fitting.",
+             call. = FALSE)
+      }
+    }
+  }
+  bundle$groups <- groups
   bundle
 }
 

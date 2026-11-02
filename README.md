@@ -22,6 +22,8 @@ model and report the expected movements within each stage.
 Both estimators can also group rows by time-varying covariates. Model bundles
 carry those definitions into a patient simulator with custom covariate updates,
 separate cost components and resumable runs.
+An explicit cost model can apply the estimated healthcare rates during simulation,
+alongside separately specified intervention charges.
 
 This is not yet a release. Estimation of separate within-cycle stages from
 patient records remains to be implemented. The older GUI, continuous-time model,
@@ -778,7 +780,8 @@ explicit analyst approximation or update rule, not an invented birthday.
 
 The bundle holds models and grouping definitions, not a training population.
 You can retain descriptive cost estimates with `costs = observed_costs`, but
-they are not automatically converted to simulation charges. Groups are matched
+they are not automatically converted to simulation charges. To apply them, first
+use `createCostModel()` as described below. Groups are matched
 by their actual column values. Internal stratum IDs are local to a bundle and
 should not be used as clinical categories.
 
@@ -854,10 +857,82 @@ ID is resolved only after the callback finishes. Any needed longer-term memory,
 such as a treatment-start day, must be retained in patient covariates. Measured
 values from the patient's observed future are not a default update rule.
 
-### Add intervention and healthcare charges
+### Apply estimated healthcare costs
+
+`createCostModel()` turns the estimated daily means into an explicit charging
+model. Supply the cost units, currency, price year and terminal policy:
+
+```r
+healthcare <- createCostModel(
+  observed_costs,
+  unit = "day", currency = "EUR", priceYear = 2026,
+  terminal = "entry"
+)
+bundle <- createModelBundle(transitions, costs = healthcare, groups = groups)
+
+simulation <- simulateTrajectories(
+  bundle, population = initial_patients,
+  nSteps = 52, terminalStates = "Dead", seed = 42
+)
+```
+
+Use the currency and price year of your actual amounts. These arguments label
+the data. They do not adjust historical prices or convert currencies. If the
+estimates contain several source currencies, select one with
+`currencyConceptId`. An unknown source currency also requires explicit
+selection, such as `currencyConceptId = NA_character_`, and your declaration of
+what currency those amounts represent. Unknown and known amounts are not pooled.
+
+For each label, the simulator selects the rate by cost state, current covariates
+and cost period. Cost models can use different covariates and periods from the
+transition models. The grouping rules in the bundle can serve either model.
+Patients must have the values needed by both. Internal transition group IDs
+are never used to look up costs.
+
+With `unit = "day"`, each label covers a full cycle of days. When a cost-period
+boundary falls inside that cycle, the charge is split between the rates. For
+example, three days at EUR 10 and four days at EUR 15 cost EUR 90. The state and
+covariates remain fixed within the label. A birthday or score change partway
+through it is not reconstructed.
+
+To store fixed cycle charges instead, choose `unit = "cycle"` and supply
+`cycleLength = 7` for a weekly model. Each daily mean is multiplied by seven.
+This is not an independently estimated mean per visit or observed interval.
+The simulation must use the same cycle length, and cost-period boundaries must
+align with it. Neither mode adds a discount rate or parameter uncertainty.
+
+The terminal policy is also explicit:
+
+- `terminal = "entry"` charges one full label when a patient enters a declared
+  terminal state. The fitted `terminalCostMap`, if any, selects its cost state.
+  Otherwise the terminal state's own estimated rate is used.
+- `terminal = "none"` excludes terminal labels. If terminal amounts and days were
+  pooled into living-state rates during estimation, they remain in those rates.
+
+Neither policy charges later terminal residency or an initially terminal
+patient, for whom no entry has been simulated. Mapped terminal states must be
+listed in `terminalStates`. Terminal-entry costing uses the retained covariates
+from the source snapshot and the destination label's cost period. It does not
+invent a recovery state, an exact death date or a within-cycle event order.
+A full-cycle terminal charge is an assumption. It does not recover the shorter
+observed care time of a patient who died partway through a cycle.
+
+Missing cost combinations cause an error when needed, and selected estimates
+with missing amounts cannot become zero rates. A measured zero remains zero.
+The ledger records the selected period, cost state, unit rate and quantity so
+each charge can be checked. Healthcare has its own `healthcare` component in
+`simulation$totals`. The model and its conventions are retained when saving and
+resuming a run.
+
+A runnable synthetic example is in
+[`inst/examples/estimated-cost-simulation.R`](inst/examples/estimated-cost-simulation.R).
+It covers a changing age group, a cost period inside a weekly cycle, mapped
+terminal care and a separate startup fee.
+
+### Add intervention and manually specified charges
 
 Cost rules are named components. They do not alter transition probabilities.
-Supply an explicit currency and price year whenever charges are requested:
+Supply a currency and price year when no fitted cost model provides them:
 
 ```r
 cost_rules <- list(
@@ -888,13 +963,18 @@ rule charges every eligible label. A `transition` rule with `from` and `to`
 charges a specified state change, not continued residency. All rules can use
 `states`, `startDay` and `endDay` restrictions. Eligibility callbacks inspect
 only candidate rows after these basic restrictions and prior-payment checks.
+When a fitted cost model is attached, its currency and price year apply to these
+rules too. Conflicting labels are rejected. The name `healthcare` is reserved
+for the fitted costs in that case. Add only charges not already included in
+those estimates. For example, omit the manual `complication_care` component if
+the estimated healthcare rate already covers that care.
 
 State and treatment charges use the initial label and each completed destination
 label. Therefore `nSteps = k` produces up to `k + 1` charged labels. An initial
 snapshot does not imply a preceding transition. Amounts are per full label, not
 prorated daily means. Intervention initiation is not tied to estimating a
-clinical entry matrix. No discounting or conversion of observed daily costs is
-performed. Keep ordinary care and intervention charges in separate components,
+clinical entry matrix. Manual rules do not convert observed daily means.
+Keep ordinary care and intervention charges in separate components,
 and avoid charging the same expenditure twice.
 
 ### Stop, inspect or resume
@@ -925,7 +1005,8 @@ Callbacks that depend on external connections or mutable global objects are not
 portable checkpoints.
 
 Terminal states must be explicitly declared and absorbing. They stop further
-transitions and ongoing charges, but a transition rule may charge their entry.
+transitions and ongoing charges. A transition rule or an explicitly configured
+healthcare model may charge their entry.
 Other absorbing states can continue to incur costs. Terminal snapshots remain
 in the history while other patients continue. These repeated rows do not mean
 additional deaths or additional observed care time.
