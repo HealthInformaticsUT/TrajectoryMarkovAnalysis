@@ -13,6 +13,9 @@
 #'   distributions is insufficient when their joint distributions differ.
 #'   Column classes must match, except for plain integer and double vectors.
 #'   Simulation identifiers do not establish paired patient random streams.
+#'   With an explicit entry model, comparisons use pre-entry profiles rather
+#'   than sampled first-cycle outcomes. Both summaries must use the same
+#'   initial_population_basis. Entry and already-labelled starts cannot be mixed.
 #'
 #'   Comparisons use the larger recorded step count. A shorter run is accepted
 #'   only when it stopped because every patient was terminal, with verified
@@ -46,6 +49,9 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
   r <- reference$metadata
   i <- intervention$metadata
   if (r$n != i$n) stop("Scenarios must have the same original simulated population size.", call. = FALSE)
+  if (r$initial_population_basis != i$initial_population_basis) {
+    stop("Scenario initial_population_basis must match: pre_entry and first_label starts cannot be mixed.", call. = FALSE)
+  }
   if (!setequal(r$states, i$states)) stop("Scenario model states must match.", call. = FALSE)
   if (!setequal(r$terminalStates, i$terminalStates)) {
     stop("Scenario terminalStates definitions must match.", call. = FALSE)
@@ -128,6 +134,7 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
       cycleLength = r$cycleLength, compared_labelled_days = (commonSteps + 1) * r$cycleLength,
       reference_steps = r$steps, intervention_steps = i$steps, terminal_extension = extension,
       scenarioCovariates = scenarioCovariates, checked_population_columns = columns,
+      initial_population_basis = r$initial_population_basis,
       terminalStates = r$terminalStates, aliveStates = r$aliveStates, utilities = r$utilities,
       currency = units$currency, priceYear = units$priceYear,
       costDiscountRate = r$costDiscountRate, healthDiscountRate = r$healthDiscountRate,
@@ -147,6 +154,11 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
     stop(label, " must be a summary from summariseSimulation().", call. = FALSE)
   }
   meta <- summary$metadata
+  if (!is.character(meta$initial_population_basis) || length(meta$initial_population_basis) != 1L ||
+      is.na(meta$initial_population_basis) ||
+      !meta$initial_population_basis %in% c("first_label", "pre_entry")) {
+    stop(label, " must retain a supported initial_population_basis. Rebuild it with summariseSimulation().", call. = FALSE)
+  }
   meta$n <- .tmaProjectionInteger(meta$n, paste0(label, " metadata$n"), 1)
   meta$steps <- .tmaProjectionInteger(meta$steps, paste0(label, " metadata$steps"), 0)
   meta$cycleLength <- .tmaProjectionInteger(meta$cycleLength, paste0(label, " cycleLength"), 1)

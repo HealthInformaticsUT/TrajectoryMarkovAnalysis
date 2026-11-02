@@ -18,7 +18,8 @@ simulateTrajectories(
   stopWhen = NULL,
   seed = NULL,
   replace = FALSE,
-  transitionEffects = NULL
+  transitionEffects = NULL,
+  entry = NULL
 )
 }
 \arguments{
@@ -103,6 +104,15 @@ redistributeTo. At most one rule may apply per patient per step. These are
 analyst-specified effects on discrete full-cycle probabilities, not hazards
 or effects estimated from the fitted trajectories. Invalid probability rows
 fail rather than being clipped or normalized.}
+
+\item{entry}{Optional result from estimateEntryTransitions(), applied once
+to explicitly supplied baseline profiles before the cycle-zero snapshot.
+Supply population or n and initial as usual; no training population or
+training baseline mix is used automatically. All supplied profiles must
+start at elapsed_day = 0 and cycle = 0. Every positive-probability baseline
+state must have an estimated entry row, including profiles not sampled;
+states replaced by a named initial vector are ignored. The entry matrix is
+pooled within entry state, even when the explicit profiles are stratified.}
 }
 \value{
 A tma_simulation list with final population, trajectories,
@@ -112,6 +122,10 @@ A tma_simulation list with final population, trajectories,
   transitions additionally records baseline_transition_probability for its
   sampled destination and effect (NA when none applies). The existing
   transition_probability is the probability actually used for sampling.
+  With entry, entry retains the sampled pre-entry population, actual entry
+  transitions, validated matrix and aggregate estimation metadata. It does
+  not retain training subject identifiers. The main trajectories start with
+  post-entry outcomes at cycle zero.
 }
 \description{
 Simulate patient snapshots through a model bundle
@@ -149,6 +163,17 @@ Every step selects the model using current covariates and the period
   charges. All-terminal or custom stopping is checked after charges. No files,
   plots, database queries or connections are created.
 
+  With entry, baseline covariates and groups are derived before drawing one
+  entry outcome per nonterminal patient. Baseline terminal patients remain
+  unchanged. Entry adds no elapsed time, snapshot or transition step, calls
+  no updateCovariates callback, and is not repeated by advanceSimulation().
+  Entry outcomes label cycle zero; they do not reconstruct event times or
+  intermediate states. Initial charges use the post-entry outcome and the
+  pre-entry source, so explicit transition rules and estimated terminal-entry
+  charges can apply. The baseline is not charged an additional cycle. Once
+  and recurring rules still apply only to nonterminal outcome labels;
+  pre-entry treatment fees are not implemented.
+
   Transition effects apply after selecting the source stratum and period and
   before drawing the next state. Their callbacks run in a batch before the
   step's draws and receive candidate source snapshots. Effects do not modify
@@ -157,6 +182,7 @@ Every step selects the model using current covariates and the period
   Identity multipliers preserve draws and RNG state when eligibility is
   deterministic. This does not establish paired random draws across scenarios
   whose state-dependent paths or callbacks consume different random numbers.
+  They apply only to subsequent adjacent-cycle steps, never to entry draws.
 }
 \seealso{
 \link{transition-effects} for rule fields and probability handling.

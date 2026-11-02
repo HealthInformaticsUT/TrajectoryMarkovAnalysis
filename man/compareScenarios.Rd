@@ -35,6 +35,9 @@ Initial populations must have the same rows and multiplicities on
   distributions is insufficient when their joint distributions differ.
   Column classes must match, except for plain integer and double vectors.
   Simulation identifiers do not establish paired patient random streams.
+  With an explicit entry model, comparisons use pre-entry profiles rather
+  than sampled first-cycle outcomes. Both summaries must use the same
+  initial_population_basis. Entry and already-labelled starts cannot be mixed.
 
   Comparisons use the larger recorded step count. A shorter run is accepted
   only when it stopped because every patient was terminal, with verified

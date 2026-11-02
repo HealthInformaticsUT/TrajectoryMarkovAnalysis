@@ -48,6 +48,9 @@
 #'   stateTime, initialPopulation and metadata. initialPopulation retains the
 #'   first snapshot of every simulated patient, including identifiers and
 #'   covariates, so compareScenarios() can check the starting populations.
+#'   When an entry model was used, it instead retains the pre-entry profiles.
+#'   These profiles add no health time or charges. Metadata records this choice
+#'   as initial_population_basis, either first_label or pre_entry.
 #'   byPatient includes the final state. totals reports total and per_patient values for
 #'   cost, discounted_cost, life_years, discounted_life_years, qalys and
 #'   discounted_qalys. costs retains every configured component, including
@@ -154,12 +157,14 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       any(!is.finite(totals$total[!is.na(totals$total)])) || any(is.nan(totals$total))) {
     stop("Simulation summary exceeds finite numeric limits.", call. = FALSE)
   }
-  initialPopulation <- history[checked$first, , drop = FALSE]
+  initialPopulation <- .tmaSummaryInitialPopulation(simulation,
+    history[checked$first, , drop = FALSE], states, checked$terminalStates)
   rownames(initialPopulation) <- NULL
   structure(list(byPatient = byPatient, totals = totals, costs = costs, stateTime = stateTime,
     initialPopulation = initialPopulation,
     metadata = list(n = n, states = states, cycleLength = cycleLength,
       steps = simulation$metadata$steps, stop_reason = simulation$metadata$stop_reason,
+      initial_population_basis = if (is.null(simulation$entry)) "first_label" else "pre_entry",
       terminalStates = checked$terminalStates,
       all_terminal = all(population$state_label %in% checked$terminalStates),
       aliveStates = aliveStates, utilities = utilities,
@@ -175,6 +180,74 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       half_cycle_correction = "none", within_cycle_timing = "not inferred",
       denominator = "original simulated patients, including terminal and zero-cost patients")),
     class = "tma_simulation_summary")
+}
+
+.tmaSummaryInitialPopulation <- function(simulation, first, states, terminalStates) {
+  entry <- simulation$entry
+  usedEntry <- identical(simulation$metadata$initialisation, "entry_model")
+  if (usedEntry != !is.null(entry)) {
+    stop("Simulation entry details must agree with its entry_model initialization.", call. = FALSE)
+  }
+  if (!usedEntry) return(first)
+  if (!is.list(entry)) stop("Simulation entry details must be retained as a list.", call. = FALSE)
+  baseline <- entry$population
+  required <- c("simulation_id", "state_label", "cycle", "elapsed_day")
+  if (!is.data.frame(baseline) || anyDuplicated(names(baseline)) ||
+      !all(required %in% names(baseline)) || nrow(baseline) != nrow(first) ||
+      !is.character(baseline$simulation_id) || anyNA(baseline$simulation_id) ||
+      anyDuplicated(baseline$simulation_id) ||
+      !setequal(baseline$simulation_id, first$simulation_id) ||
+      !is.character(baseline$state_label) || anyNA(baseline$state_label) ||
+      any(!baseline$state_label %in% states)) {
+    stop("Entry population must retain one known pre-entry state per simulated patient.", call. = FALSE)
+  }
+  baseline <- baseline[match(first$simulation_id, baseline$simulation_id), , drop = FALSE]
+  for (column in c("cycle", "elapsed_day")) {
+    value <- baseline[[column]]
+    if (!is.numeric(value) || is.complex(value) || anyNA(value) ||
+        any(!is.finite(value) | value != 0) || any(first[[column]] != 0)) {
+      stop("Entry population and first outcome labels must start at cycle and day zero.", call. = FALSE)
+    }
+  }
+  unchanged <- setdiff(names(baseline), c("state_label", "stratum_id"))
+  if (!all(unchanged %in% names(first)) ||
+      ("source_subject_id" %in% names(first) && !"source_subject_id" %in% names(baseline)) ||
+      !all(vapply(unchanged, function(column) isTRUE(all.equal(
+        baseline[[column]], first[[column]], tolerance = 0, check.attributes = FALSE)), logical(1)))) {
+    stop("Pre-entry identities, covariates and clocks must agree with the first outcome snapshots.", call. = FALSE)
+  }
+  draws <- entry$transitions
+  active <- !baseline$state_label %in% terminalStates
+  fields <- c("simulation_id", "source_state", "destination_state", "transition_probability")
+  if (!is.data.frame(draws) || anyDuplicated(names(draws)) || !all(fields %in% names(draws)) ||
+      !is.character(draws$simulation_id) || anyNA(draws$simulation_id) ||
+      anyDuplicated(draws$simulation_id) ||
+      !setequal(draws$simulation_id, baseline$simulation_id[active])) {
+    stop("Entry draws must identify each nonterminal pre-entry patient exactly once.", call. = FALSE)
+  }
+  draws <- draws[match(baseline$simulation_id[active], draws$simulation_id), , drop = FALSE]
+  matrix <- entry$matrix
+  if (!is.matrix(matrix) || !is.numeric(matrix) || is.complex(matrix) ||
+      anyDuplicated(rownames(matrix)) || anyDuplicated(colnames(matrix)) ||
+      !setequal(rownames(matrix), states) || !setequal(colnames(matrix), states)) {
+    stop("Entry matrix must retain the model state dictionary.", call. = FALSE)
+  }
+  for (column in c("source_state", "destination_state")) {
+    if (!is.character(draws[[column]]) || anyNA(draws[[column]]) ||
+        any(!draws[[column]] %in% states)) stop("Entry draws contain unknown state labels.", call. = FALSE)
+  }
+  expected <- matrix[cbind(match(draws$source_state, rownames(matrix)),
+    match(draws$destination_state, colnames(matrix)))]
+  probability <- draws$transition_probability
+  if (!is.numeric(probability) || is.complex(probability) || anyNA(probability) ||
+      any(!is.finite(probability) | probability <= 0 | probability > 1) ||
+      anyNA(expected) || any(!is.finite(expected)) || any(probability != expected) ||
+      any(draws$source_state != baseline$state_label[active]) ||
+      any(draws$destination_state != first$state_label[active]) ||
+      any(baseline$state_label[!active] != first$state_label[!active])) {
+    stop("Entry draws must reconcile with pre-entry states, first outcomes and stored probabilities.", call. = FALSE)
+  }
+  baseline
 }
 
 .tmaSimulationSummaryInput <- function(simulation) {

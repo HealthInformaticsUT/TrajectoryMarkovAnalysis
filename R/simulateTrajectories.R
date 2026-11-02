@@ -68,6 +68,14 @@
 #'   analyst-specified effects on discrete full-cycle probabilities, not hazards
 #'   or effects estimated from the fitted trajectories. Invalid probability rows
 #'   fail rather than being clipped or normalized.
+#' @param entry Optional result from estimateEntryTransitions(), applied once
+#'   to explicitly supplied baseline profiles before the cycle-zero snapshot.
+#'   Supply population or n and initial as usual; no training population or
+#'   training baseline mix is used automatically. All supplied profiles must
+#'   start at elapsed_day = 0 and cycle = 0. Every positive-probability baseline
+#'   state must have an estimated entry row, including profiles not sampled;
+#'   states replaced by a named initial vector are ignored. The entry matrix is
+#'   pooled within entry state, even when the explicit profiles are stratified.
 #' @details Every step selects the model using current covariates and the period
 #'   containing each patient's source elapsed_day. It then samples a new state,
 #'   advances elapsed_day by cycleLength and cycle by one, updates covariates,
@@ -100,6 +108,17 @@
 #'   charges. All-terminal or custom stopping is checked after charges. No files,
 #'   plots, database queries or connections are created.
 #'
+#'   With entry, baseline covariates and groups are derived before drawing one
+#'   entry outcome per nonterminal patient. Baseline terminal patients remain
+#'   unchanged. Entry adds no elapsed time, snapshot or transition step, calls
+#'   no updateCovariates callback, and is not repeated by advanceSimulation().
+#'   Entry outcomes label cycle zero; they do not reconstruct event times or
+#'   intermediate states. Initial charges use the post-entry outcome and the
+#'   pre-entry source, so explicit transition rules and estimated terminal-entry
+#'   charges can apply. The baseline is not charged an additional cycle. Once
+#'   and recurring rules still apply only to nonterminal outcome labels;
+#'   pre-entry treatment fees are not implemented.
+#'
 #'   Transition effects apply after selecting the source stratum and period and
 #'   before drawing the next state. Their callbacks run in a batch before the
 #'   step's draws and receive candidate source snapshots. Effects do not modify
@@ -108,6 +127,7 @@
 #'   Identity multipliers preserve draws and RNG state when eligibility is
 #'   deterministic. This does not establish paired random draws across scenarios
 #'   whose state-dependent paths or callbacks consume different random numbers.
+#'   They apply only to subsequent adjacent-cycle steps, never to entry draws.
 #' @return A tma_simulation list with final population, trajectories,
 #'   transitions, costs (charge ledger), totals by component, and metadata.
 #'   Internal configuration and RNG checkpoints support advanceSimulation().
@@ -115,6 +135,10 @@
 #'   transitions additionally records baseline_transition_probability for its
 #'   sampled destination and effect (NA when none applies). The existing
 #'   transition_probability is the probability actually used for sampling.
+#'   With entry, entry retains the sampled pre-entry population, actual entry
+#'   transitions, validated matrix and aggregate estimation metadata. It does
+#'   not retain training subject identifiers. The main trajectories start with
+#'   post-entry outcomes at cycle zero.
 #' @seealso \link{transition-effects} for rule fields and probability handling.
 #'   summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 #' @export
@@ -124,8 +148,9 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
                                  currency = NULL, priceYear = NULL,
                                  terminalStates = character(), stopWhen = NULL,
                                  seed = NULL, replace = FALSE,
-                                 transitionEffects = NULL) {
+                                 transitionEffects = NULL, entry = NULL) {
   bundle <- .tmaValidateModelBundle(bundle)
+  entry <- .tmaSimulationEntryModel(entry, bundle)
   nSteps <- .tmaProjectionInteger(nSteps, "nSteps", 0)
   if (!is.null(n)) n <- .tmaProjectionInteger(n, "n", 1)
   if (!is.logical(replace) || length(replace) != 1L || is.na(replace)) {
@@ -171,7 +196,8 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
       call. = FALSE)
   }
   .tmaSimulationRng(seed = seed, run = function() {
-    population <- .tmaSimulationInitial(bundle, population, n, initial, replace, terminalStates)
+    population <- .tmaSimulationInitial(bundle, population, n, initial, replace,
+      terminalStates, entry)
     population$stratum_id <- rep(NA_character_, nrow(population))
     active <- which(!population$state_label %in% terminalStates)
     if (length(active)) {
@@ -180,12 +206,23 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
       population$stratum_id[active] <- .tmaBundleModel(bundle,
         population[active, , drop = FALSE])
     }
-    initialCharge <- .tmaSimulationCharge(population, NULL, rules, list(), terminalStates)
+    baseline <- NULL
+    entryResult <- NULL
+    if (!is.null(entry)) {
+      baseline <- population
+      entryResult <- .tmaSimulationApplyEntry(bundle, baseline, entry, terminalStates)
+      population <- entryResult$population
+      entryResult <- entryResult$entry
+    }
+    initialCharge <- .tmaSimulationCharge(population, baseline, rules, list(), terminalStates)
     if (!is.null(costModel)) {
       initialCharge$ledger <- .tmaSimulationBind(list(initialCharge$ledger,
-        .tmaModelCostCharge(costModel, population, previous = NULL,
+        .tmaModelCostCharge(costModel, population, previous = baseline,
           terminalStates = terminalStates, cycleLength = bundle$metadata$cycleLength)))
     }
+    initialisation <- if (is.data.frame(initial)) "joint_distribution" else if (
+      !is.null(initial)) "independent_state_distribution" else "population_states"
+    if (!is.null(entryResult)) entryResult$metadata$population_source <- initialisation
     simulation <- structure(list(
       population = population, trajectories = population,
       transitions = .tmaSimulationEmptyTransitions(), costs = initialCharge$ledger,
@@ -194,8 +231,7 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         cycleLength = bundle$metadata$cycleLength, terminalStates = terminalStates,
         stop_reason = "max_steps", unsupported_current = 0L,
         seed = seed, currency = currency, priceYear = priceYear,
-        initialisation = if (is.data.frame(initial)) "joint_distribution" else if (
-          !is.null(initial)) "independent_state_distribution" else "population_states",
+        initialisation = if (is.null(entryResult)) initialisation else "entry_model",
         cost_timing = "initial label and each completed destination label",
         period_assignment = "source elapsed_day"),
       .config = list(bundle = bundle, updateCovariates = updateCovariates,
@@ -203,6 +239,7 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         terminalStates = terminalStates, stopWhen = stopWhen),
       .state = list(charged = initialCharge$charged, rng = NULL)
     ), class = "tma_simulation")
+    if (!is.null(entryResult)) simulation$entry <- entryResult
     if (!is.null(costModel)) {
       simulation$metadata$cost_model <- costModel$metadata
     }
@@ -257,13 +294,17 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   })
 }
 
-.tmaSimulationInitial <- function(bundle, population, n, initial, replace, terminalStates) {
+.tmaSimulationInitial <- function(bundle, population, n, initial, replace,
+                                  terminalStates, entry = NULL) {
   states <- bundle$metadata$states
   joint <- is.data.frame(initial)
   if (!is.null(population) && joint) {
     stop("A joint initial distribution cannot be combined with population.", call. = FALSE)
   }
-  if (!joint && !is.null(initial)) .tmaSimulationProbabilities(initial, states)
+  if (!joint && !is.null(initial)) {
+    .tmaSimulationProbabilities(initial, states)
+    .tmaSimulationEntryProfiles(entry, states = names(initial)[initial > 0])
+  }
   if (is.null(population)) {
     if (is.null(n) || is.null(initial)) {
       stop("Without population, supply n and an explicit initial distribution.", call. = FALSE)
@@ -283,6 +324,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
         stop("Joint initial must describe covariate profiles without subject_id identifiers.", call. = FALSE)
       }
       population <- .tmaSimulationTiming(population, bundle$metadata$cycleLength)
+      .tmaSimulationEntryProfiles(entry, population,
+        population$state_label[population$probability > 0])
       .tmaSimulationValidateProfiles(bundle,
         population[population$probability > 0, , drop = FALSE], terminalStates)
       population <- population[sample.int(nrow(population), n, replace = TRUE,
@@ -302,6 +345,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       stop("population state_label must contain known, nonmissing state labels.", call. = FALSE)
     }
     population <- .tmaSimulationTiming(population, bundle$metadata$cycleLength)
+    .tmaSimulationEntryProfiles(entry, population,
+      if (is.null(initial)) population$state_label else character())
     if ("subject_id" %in% names(population)) {
       ids <- .tmaSubjectIds(population$subject_id, "population$subject_id")
       if (anyDuplicated(ids)) {

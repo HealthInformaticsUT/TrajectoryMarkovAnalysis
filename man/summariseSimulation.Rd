@@ -43,6 +43,9 @@ A tma_simulation_summary containing byPatient, totals, costs,
   stateTime, initialPopulation and metadata. initialPopulation retains the
   first snapshot of every simulated patient, including identifiers and
   covariates, so compareScenarios() can check the starting populations.
+  When an entry model was used, it instead retains the pre-entry profiles.
+  These profiles add no health time or charges. Metadata records this choice
+  as initial_population_basis, either first_label or pre_entry.
   byPatient includes the final state. totals reports total and per_patient values for
   cost, discounted_cost, life_years, discounted_life_years, qalys and
   discounted_qalys. costs retains every configured component, including

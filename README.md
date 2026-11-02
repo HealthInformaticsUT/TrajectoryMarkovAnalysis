@@ -12,7 +12,8 @@ supports adjacent-cycle transition probabilities and descriptive costs
 by state, either pooled or separated into follow-up periods. A deterministic
 projection follows the resulting matrices over a specified number of cycles.
 An optional entry model estimates first-cycle outcomes from starting states
-supplied by the analyst.
+supplied by the analyst. It can initialize either a deterministic projection or
+a patient simulation without adding an extra cycle.
 These functions return R objects without opening plots, writing files, dropping
 database tables or closing the caller's connection.
 A separate costing function applies explicit cycle charges, state-change
@@ -31,8 +32,8 @@ life-years and QALYs. Cost and health discount rates are supplied independently.
 Scenario comparisons check the starting profiles and accounting assumptions
 before calculating incremental outcomes and discounted ICERs.
 
-This is not yet a release. Estimation of separate within-cycle stages from
-patient records remains to be implemented. The older GUI, continuous-time model,
+This is not yet a release. Weekly labels do not identify separate within-cycle
+stages, and the package does not infer them. The older GUI, continuous-time model,
 survival functions and `generateDataDiscrete()`/`generateDataContinuous()` have
 not been migrated or validated against the new interface. Use the new
 `simulateTrajectories()` for sampled discrete histories. Do not use the older
@@ -809,8 +810,9 @@ simulation <- simulateTrajectories(
 )
 ```
 
-Use your actual state labels. This starts at the supplied state distribution,
-not an inferred pre-event state or an automatically applied entry model.
+Use your actual state labels. Without `entry`, this starts at the supplied state
+distribution, not an inferred pre-event state. An entry model is never applied
+automatically.
 
 A stratified model also needs starting covariates. Supply `population` as one
 current snapshot per source patient, with `state_label` and the required
@@ -834,6 +836,58 @@ sampled states independently of the covariates. Alternatively, omit population
 and supply `n` plus a joint `initial` table containing `state_label`, covariates
 and `probability`. Sampling complete profiles preserves their joint distribution.
 Independent sampling of ages, scores and states is not assumed.
+
+### Start before first-cycle outcomes
+
+If the supplied population describes patients before their first cycle, pass
+the separately estimated entry model explicitly:
+
+```r
+entry <- estimateEntryTransitions(histories, entryState = "Stable")
+simulation <- simulateTrajectories(
+  bundle, population = baseline_patients,
+  entry = entry, nSteps = 51,
+  terminalStates = "Dead", seed = 42
+)
+
+simulation$entry$population  # Supplied pre-entry profiles after any sampling
+simulation$entry$transitions # Entry outcomes drawn once for nonterminal patients
+simulation$trajectories      # First-cycle outcomes, then 51 later steps
+```
+
+`baseline_patients` needs one row per person, with `state_label` describing their
+pre-entry state and any required covariates. Alternatively, supply `n` and an
+explicit `initial` distribution. The simulator does not select the entry
+estimator's training patients or baseline mix for you. Its eligibility counts
+and matrix are retained, but its training patient identifiers are not.
+
+All entry profiles start at cycle zero and elapsed day zero. The entry draw
+produces the first outcome label at those same coordinates. It is not an extra
+week or an additional `nSteps`. With `nSteps = 0`, the result contains only that
+first outcome label. The pre-entry profiles are stored separately and add no
+living time. Entry does not call `updateCovariates`, and resuming does not repeat
+it. The [entry example](inst/examples/entry-simulation.R) shows the full workflow.
+
+Entry probabilities are pooled within each supplied starting state. Applying
+them to patients with different ages or risk groups does not make the entry
+model stratified. Later transitions still use each patient's current covariates.
+An unavailable entry row is an error, including when its supplied profile is
+not drawn. States replaced by an explicit `initial` vector are not used.
+
+Costs use the first outcome label. Explicit transition charges can apply to an
+entry state change. An estimated cost model with `terminal = "entry"` can charge
+a patient who becomes terminal during entry, but not someone already terminal
+at baseline. Once-only and recurring rules still apply only to nonterminal
+outcome labels. A fee paid before entry, including for patients who die during
+that first cycle, is not yet supported. Do not interpret a post-entry `once`
+charge as such a fee.
+
+`transitionEffects` applies to subsequent adjacent-cycle steps, not to the entry
+matrix. Entry outcomes do not identify intermediate events or their timing.
+Summaries use the pre-entry profiles for scenario comparisons, while costs and
+health outcomes continue to use the recorded outcome labels. Comparisons reject
+mixing a pre-entry starting population with an already-labelled starting
+population.
 
 ### Update covariates between steps
 
@@ -1211,6 +1265,9 @@ Summaries retain `initialPopulation` for these checks. This table contains
 starting patient identifiers and covariates, so it is not an aggregate-only
 output for unrestricted sharing. If an older summary lacks these fields,
 summarise its saved simulation again. The trajectories do not need to be rerun.
+When an entry model was used, `initialPopulation` contains the pre-entry
+profiles, not the sampled first-cycle outcomes. Both scenarios must share this
+starting interpretation. Metadata records it as `initial_population_basis`.
 
 States, terminal and living-state definitions, utilities, cycle length, year
 length, discount rates, discount origin and accounting conventions must agree. Currency and
