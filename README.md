@@ -24,6 +24,8 @@ carry those definitions into a patient simulator with custom covariate updates,
 separate cost components and resumable runs.
 An explicit cost model can apply the estimated healthcare rates during simulation,
 alongside separately specified intervention charges.
+Optional transition effects apply analyst-specified probability changes without
+altering the fitted models.
 
 This is not yet a release. Estimation of separate within-cycle stages from
 patient records remains to be implemented. The older GUI, continuous-time model,
@@ -856,6 +858,73 @@ raw covariates rather than grouping columns owned by the bundle. The new stratum
 ID is resolved only after the callback finishes. Any needed longer-term memory,
 such as a treatment-start day, must be retained in patient covariates. Measured
 values from the patient's observed future are not a default update rule.
+
+### Apply an intervention effect
+
+Use `transitionEffects` to change a particular transition for eligible patients.
+These are scenario assumptions supplied by the analyst, not effects estimated
+from the observed associations. For example, with a `treatment_active` flag in
+the starting profiles:
+
+```r
+effects <- list(
+  prevention = list(
+    from = "Stable", to = "Complication",
+    multiplier = 0.75, redistributeTo = "Stable",
+    startDay = 0, endDay = 28,
+    eligible = function(p) p$treatment_active
+  )
+)
+
+simulation <- simulateTrajectories(
+  bundle, population = initial_patients,
+  transitionEffects = effects,
+  nSteps = 52, terminalStates = "Dead", seed = 42
+)
+```
+
+Use your own state labels. For a source row with probabilities 70% stable,
+20% complication and 10% death, this rule produces 75%, 15% and 10%. It reduces
+the complication probability by 25% relative to that row, not by 25 percentage
+points. It is not a hazard ratio or a multiplier on lifetime risk.
+
+`redistributeTo` names the other probability that changes. A multiplier below
+one adds the removed probability to that destination. A multiplier above one
+takes probability from it. The two destinations must differ, and the result
+must remain a valid probability row. No other probabilities are rescaled.
+An absorbing source state cannot be modified. A zero baseline target probability
+remains zero, and an unavailable source row cannot be repaired by an effect.
+
+The simulator selects the patient's source model and period, applies an eligible
+effect, then draws the next state. The source-day window includes `startDay`
+and excludes `endDay`. Finite boundaries must align with the cycle length.
+For weekly cycles, the example affects steps starting on days 0, 7, 14 and 21.
+It does not rewrite the initial state or apply to part of a cycle. An eligibility
+callback sees only source patients matching the rule's state and time window.
+Covariate updates made after a transition affect the following step.
+
+You can supply several named rules for different patients, states or periods.
+If two rules apply to the same patient at the same step, the simulation stops.
+There is no implicit priority or multiplication of overlapping effects. Cost
+rules remain independent. To charge for the intervention, supply `costRules`
+separately and use consistent eligibility definitions.
+
+The fitted bundle is unchanged. `simulation$effects` records each applied rule
+and the two probabilities before and after modification. In runs with effects,
+`simulation$transitions` also includes the baseline probability of the sampled
+destination alongside its actual `transition_probability`. Rules and ledgers
+are retained across saved-and-resumed runs.
+
+For a composed model, effects act on the combined full-cycle probabilities.
+They do not modify a particular within-cycle stage or reconstruct hidden events.
+Later outcomes follow the rest of the supplied model, so their response to a
+prevented transition is also part of the scenario assumptions.
+
+The runnable [intervention example](inst/examples/intervention-simulation.R)
+compares standard care and treatment from the same starting patient states.
+An explicit seed makes each run repeatable, but the same seed does not guarantee
+matched patient-level random draws after their paths diverge. These simulated
+differences are not estimates of treatment effectiveness from the source data.
 
 ### Apply estimated healthcare costs
 

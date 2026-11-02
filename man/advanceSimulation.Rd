@@ -18,7 +18,8 @@ An updated tma_simulation with appended histories and charge ledger.
 Continue a saved patient simulation
 }
 \details{
-Resumes the saved rules, callbacks, charged-component memory and
+Resumes the saved cost and transition-effect rules, callbacks,
+  charged-component memory and
   private RNG checkpoint. The starting snapshot is not charged again.
   Splitting a run across calls gives the same draws as an uninterrupted run,
   provided callbacks depend on their arguments and saved environments rather

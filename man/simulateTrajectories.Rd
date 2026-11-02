@@ -17,7 +17,8 @@ simulateTrajectories(
   terminalStates = character(),
   stopWhen = NULL,
   seed = NULL,
-  replace = FALSE
+  replace = FALSE,
+  transitionEffects = NULL
 )
 }
 \arguments{
@@ -92,11 +93,25 @@ caller's RNG. User-supplied RNG kinds are also unsupported because their
 state cannot be restored reliably. Callbacks must not change RNGkind().}
 
 \item{replace}{Whether sampling population profiles is with replacement.}
+
+\item{transitionEffects}{Optional named list of source-transition rules. Each
+rule supplies from, to, multiplier and redistributeTo, with optional
+eligible(sourceCandidates), startDay and endDay. Eligibility uses current
+source snapshots and a lower-inclusive, upper-exclusive source-day window.
+Multiply the probability of to and move the exact difference to
+redistributeTo. At most one rule may apply per patient per step. These are
+analyst-specified effects on discrete full-cycle probabilities, not hazards
+or effects estimated from the fitted trajectories. Invalid probability rows
+fail rather than being clipped or normalized.}
 }
 \value{
 A tma_simulation list with final population, trajectories,
   transitions, costs (charge ledger), totals by component, and metadata.
   Internal configuration and RNG checkpoints support advanceSimulation().
+  With nonempty transitionEffects, effects records each eligible application;
+  transitions additionally records baseline_transition_probability for its
+  sampled destination and effect (NA when none applies). The existing
+  transition_probability is the probability actually used for sampling.
 }
 \description{
 Simulate patient snapshots through a model bundle
@@ -133,4 +148,16 @@ Every step selects the model using current covariates and the period
   can also charge terminal entry. Persistent terminal rows incur no further
   charges. All-terminal or custom stopping is checked after charges. No files,
   plots, database queries or connections are created.
+
+  Transition effects apply after selecting the source stratum and period and
+  before drawing the next state. Their callbacks run in a batch before the
+  step's draws and receive candidate source snapshots. Effects do not modify
+  the saved bundle, initial distribution or cost rules. For composed models,
+  effects act on the combined full-cycle row, not on an individual stage.
+  Identity multipliers preserve draws and RNG state when eligibility is
+  deterministic. This does not establish paired random draws across scenarios
+  whose state-dependent paths or callbacks consume different random numbers.
+}
+\seealso{
+\link{transition-effects} for rule fields and probability handling.
 }

@@ -59,6 +59,15 @@
 #'   caller's RNG. User-supplied RNG kinds are also unsupported because their
 #'   state cannot be restored reliably. Callbacks must not change RNGkind().
 #' @param replace Whether sampling population profiles is with replacement.
+#' @param transitionEffects Optional named list of source-transition rules. Each
+#'   rule supplies from, to, multiplier and redistributeTo, with optional
+#'   eligible(sourceCandidates), startDay and endDay. Eligibility uses current
+#'   source snapshots and a lower-inclusive, upper-exclusive source-day window.
+#'   Multiply the probability of to and move the exact difference to
+#'   redistributeTo. At most one rule may apply per patient per step. These are
+#'   analyst-specified effects on discrete full-cycle probabilities, not hazards
+#'   or effects estimated from the fitted trajectories. Invalid probability rows
+#'   fail rather than being clipped or normalized.
 #' @details Every step selects the model using current covariates and the period
 #'   containing each patient's source elapsed_day. It then samples a new state,
 #'   advances elapsed_day by cycleLength and cycle by one, updates covariates,
@@ -90,16 +99,31 @@
 #'   can also charge terminal entry. Persistent terminal rows incur no further
 #'   charges. All-terminal or custom stopping is checked after charges. No files,
 #'   plots, database queries or connections are created.
+#'
+#'   Transition effects apply after selecting the source stratum and period and
+#'   before drawing the next state. Their callbacks run in a batch before the
+#'   step's draws and receive candidate source snapshots. Effects do not modify
+#'   the saved bundle, initial distribution or cost rules. For composed models,
+#'   effects act on the combined full-cycle row, not on an individual stage.
+#'   Identity multipliers preserve draws and RNG state when eligibility is
+#'   deterministic. This does not establish paired random draws across scenarios
+#'   whose state-dependent paths or callbacks consume different random numbers.
 #' @return A tma_simulation list with final population, trajectories,
 #'   transitions, costs (charge ledger), totals by component, and metadata.
 #'   Internal configuration and RNG checkpoints support advanceSimulation().
+#'   With nonempty transitionEffects, effects records each eligible application;
+#'   transitions additionally records baseline_transition_probability for its
+#'   sampled destination and effect (NA when none applies). The existing
+#'   transition_probability is the probability actually used for sampling.
+#' @seealso \link{transition-effects} for rule fields and probability handling.
 #' @export
 simulateTrajectories <- function(bundle, population = NULL, n = NULL,
                                  initial = NULL, nSteps = 1,
                                  updateCovariates = NULL, costRules = NULL,
                                  currency = NULL, priceYear = NULL,
                                  terminalStates = character(), stopWhen = NULL,
-                                 seed = NULL, replace = FALSE) {
+                                 seed = NULL, replace = FALSE,
+                                 transitionEffects = NULL) {
   bundle <- .tmaValidateModelBundle(bundle)
   nSteps <- .tmaProjectionInteger(nSteps, "nSteps", 0)
   if (!is.null(n)) n <- .tmaProjectionInteger(n, "n", 1)
@@ -118,6 +142,8 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     stop("terminalStates must be unique declared absorbing states.", call. = FALSE)
   }
   rules <- .tmaSimulationCostRules(costRules, bundle$metadata$states)
+  effects <- .tmaTransitionEffects(transitionEffects, bundle$metadata$states,
+    bundle$metadata$absorbingStates, bundle$metadata$cycleLength)
   costModel <- bundle$costModel
   if (!is.null(costModel)) {
     if (any(!names(costModel$metadata$terminal_cost_map) %in% terminalStates)) {
@@ -179,6 +205,18 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     if (!is.null(costModel)) {
       simulation$metadata$cost_model <- costModel$metadata
     }
+    if (length(effects)) {
+      simulation$.config$transitionEffects <- effects
+      simulation$effects <- .tmaSimulationEmptyEffects()
+      simulation$transitions$baseline_transition_probability <- numeric()
+      simulation$transitions$effect <- character()
+      simulation$metadata$transition_effects <- list(
+        rules = names(effects),
+        estimand = "specified multiplier on a discrete full-cycle transition probability",
+        application = "source covariates and source-day window, after model selection and before drawing",
+        redistribution = "exact probability difference assigned to the declared redistribution state",
+        stages = "combined full-cycle probabilities; stage models remain unchanged")
+    }
     .tmaSimulationRun(simulation, nSteps, checkInitial = TRUE)
   })
 }
@@ -187,7 +225,8 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
 #'
 #' @param simulation A result from simulateTrajectories() or advanceSimulation().
 #' @param nSteps Maximum additional steps, a finite nonnegative integer.
-#' @details Resumes the saved rules, callbacks, charged-component memory and
+#' @details Resumes the saved cost and transition-effect rules, callbacks,
+#'   charged-component memory and
 #'   private RNG checkpoint. The starting snapshot is not charged again.
 #'   Splitting a run across calls gives the same draws as an uninterrupted run,
 #'   provided callbacks depend on their arguments and saved environments rather
@@ -205,6 +244,12 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     stop("simulation must be a saved result from simulateTrajectories().", call. = FALSE)
   }
   simulation$.config$bundle <- .tmaValidateModelBundle(simulation$.config$bundle)
+  if (!is.null(simulation$.config$transitionEffects)) {
+    model <- simulation$.config$bundle$metadata
+    simulation$.config$transitionEffects <- .tmaTransitionEffects(
+      simulation$.config$transitionEffects, model$states, model$absorbingStates,
+      model$cycleLength)
+  }
   if (simulation$metadata$stop_reason %in% c("all_terminal", "stop_when")) return(simulation)
   .tmaSimulationRng(state = simulation$.state$rng, run = function() {
     .tmaSimulationRun(simulation, nSteps, checkInitial = FALSE)
@@ -365,6 +410,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   configuration <- simulation$.config
   bundle <- configuration$bundle
   cycleLength <- bundle$metadata$cycleLength
+  effects <- configuration$transitionEffects
   population <- simulation$population
   if (nrow(simulation$trajectories) + nrow(population) * nSteps > .Machine$integer.max ||
       max(population$elapsed_day) + nSteps * cycleLength >= 2^53 ||
@@ -375,6 +421,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     configuration) else NULL
   trajectoryRows <- list()
   transitionRows <- list()
+  effectRows <- list()
   costRows <- list()
   if (is.null(reason)) for (i in seq_len(nSteps)) {
     previous <- population
@@ -382,6 +429,14 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     sourceStratum <- .tmaBundleModel(bundle, previous[active, , drop = FALSE])
     sourcePeriod <- character(length(active))
     drawProbability <- numeric(length(active))
+    if (length(effects)) {
+      sourcePeriod <- bundle$metadata$periods$period[
+        .tmaPeriodIndex(previous$elapsed_day[active], bundle$metadata$periods)]
+      effectIds <- .tmaEligibleEffects(effects, previous[active, , drop = FALSE])
+      baselineDraw <- numeric(length(active))
+      baselineTarget <- modifiedTarget <- baselineRedistributed <- modifiedRedistributed <-
+        rep(NA_real_, length(active))
+    }
     for (j in seq_along(active)) {
       row <- active[j]
       model <- bundle$models[[sourceStratum[j]]]
@@ -393,9 +448,45 @@ advanceSimulation <- function(simulation, nSteps = 1) {
           "' in stratum '", sourceStratum[j], "', period '", sourcePeriod[j],
           "' for ", previous$simulation_id[row], ".", call. = FALSE)
       }
+      if (length(effects)) {
+        baseline <- probability
+        if (!is.na(effectIds[j])) {
+          rule <- effects[[effectIds[j]]]
+          probability <- tryCatch(
+            .tmaApplyTransitionEffect(baseline, rule, bundle$metadata$states),
+            error = function(error) stop("Transition effect '", effectIds[j], "' failed for ",
+              previous$simulation_id[row], " in source stratum '", sourceStratum[j],
+              "', period '", sourcePeriod[j], "' at day ", previous$elapsed_day[row],
+              ": ", conditionMessage(error), call. = FALSE))
+          baselineTarget[j] <- baseline[rule$to]
+          modifiedTarget[j] <- probability[rule$to]
+          baselineRedistributed[j] <- baseline[rule$redistributeTo]
+          modifiedRedistributed[j] <- probability[rule$redistributeTo]
+        }
+      }
       destination <- sample.int(length(probability), 1L, prob = probability)
       population$state_label[row] <- bundle$metadata$states[destination]
       drawProbability[j] <- probability[destination]
+      if (length(effects)) baselineDraw[j] <- baseline[destination]
+    }
+    if (length(effects)) {
+      applied <- which(!is.na(effectIds))
+      if (length(applied)) {
+        effectRules <- effects[effectIds[applied]]
+        rows <- active[applied]
+        effectRows[[length(effectRows) + 1L]] <- data.frame(
+          simulation_id = previous$simulation_id[rows], source_cycle = previous$cycle[rows],
+          source_day = previous$elapsed_day[rows], source_state = previous$state_label[rows],
+          source_stratum = sourceStratum[applied], source_period = sourcePeriod[applied],
+          effect = unname(effectIds[applied]),
+          to_state = vapply(effectRules, function(rule) rule$to, character(1)),
+          redistribute_to = vapply(effectRules, function(rule) rule$redistributeTo, character(1)),
+          multiplier = vapply(effectRules, function(rule) rule$multiplier, numeric(1)),
+          baseline_probability = baselineTarget[applied], modified_probability = modifiedTarget[applied],
+          baseline_redistributed_probability = baselineRedistributed[applied],
+          modified_redistributed_probability = modifiedRedistributed[applied],
+          row.names = NULL, stringsAsFactors = FALSE)
+      }
     }
     population$elapsed_day <- previous$elapsed_day + cycleLength
     population$cycle <- previous$cycle + 1
@@ -425,6 +516,11 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       source_stratum = sourceStratum, destination_stratum = population$stratum_id[active],
       source_period = sourcePeriod, destination_period = destinationPeriod,
       transition_probability = drawProbability, stringsAsFactors = FALSE)
+    if (length(effects)) {
+      currentStep <- length(transitionRows)
+      transitionRows[[currentStep]]$baseline_transition_probability <- baselineDraw
+      transitionRows[[currentStep]]$effect <- unname(effectIds)
+    }
     charge <- .tmaSimulationCharge(population, previous, configuration$costRules,
       simulation$.state$charged, configuration$terminalStates)
     if (!is.null(bundle$costModel)) {
@@ -442,6 +538,9 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   simulation$population <- population
   simulation$trajectories <- .tmaSimulationBind(c(list(simulation$trajectories), trajectoryRows))
   simulation$transitions <- .tmaSimulationBind(c(list(simulation$transitions), transitionRows))
+  if (length(effects)) {
+    simulation$effects <- .tmaSimulationBind(c(list(simulation$effects), effectRows))
+  }
   simulation$costs <- .tmaSimulationBind(c(list(simulation$costs), costRows))
   simulation$totals <- .tmaSimulationTotals(simulation$costs, configuration$costRules, bundle$costModel)
   simulation$metadata$stop_reason <- if (is.null(reason)) "max_steps" else reason
@@ -502,6 +601,15 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     source_stratum = character(), destination_stratum = character(),
     source_period = character(), destination_period = character(),
     transition_probability = numeric(), stringsAsFactors = FALSE)
+}
+
+.tmaSimulationEmptyEffects <- function() {
+  data.frame(simulation_id = character(), source_cycle = numeric(), source_day = numeric(),
+    source_state = character(), source_stratum = character(), source_period = character(),
+    effect = character(), to_state = character(), redistribute_to = character(),
+    multiplier = numeric(), baseline_probability = numeric(), modified_probability = numeric(),
+    baseline_redistributed_probability = numeric(), modified_redistributed_probability = numeric(),
+    stringsAsFactors = FALSE)
 }
 
 .tmaSimulationBind <- function(frames) {
