@@ -70,6 +70,13 @@ summaries <- lapply(list(standard_care = standard, intervention = treated),
 print(summaries$intervention$totals)
 print(summaries$intervention$costs)
 
+comparison <- compareScenarios(
+  summaries$standard_care, summaries$intervention,
+  scenarioCovariates = "treatment_active"
+)
+print(comparison$outcomes)
+print(comparison$costEffectiveness)
+
 # Effects apply to net cycle probabilities, not the component stages.
 # The same seed gives reproducible runs, not guaranteed paired patient draws.
 # Costs include the initial label and 12 subsequent labels. The treatment

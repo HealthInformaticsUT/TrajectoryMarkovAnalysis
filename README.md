@@ -28,6 +28,8 @@ Optional transition effects apply analyst-specified probability changes without
 altering the fitted models.
 A separate summary reports costs and, with explicit living states and utilities,
 life-years and QALYs. Cost and health discount rates are supplied independently.
+Scenario comparisons check the starting profiles and accounting assumptions
+before calculating incremental outcomes and discounted ICERs.
 
 This is not yet a release. Estimation of separate within-cycle stages from
 patient records remains to be implemented. The older GUI, continuous-time model,
@@ -1165,6 +1167,82 @@ for two scenarios. Before comparing them, check the starting populations,
 represented horizons, stopping rules and economic assumptions. This function
 does not calculate an ICER, attach confidence intervals or classify a scenario
 as cost-effective.
+
+### Compare two scenarios
+
+Pass the results of `summariseSimulation()` in reference-then-intervention order:
+
+```r
+comparison <- compareScenarios(
+  reference = summaries$standard_care,
+  intervention = summaries$intervention,
+  scenarioCovariates = "treatment_active"
+)
+
+comparison$outcomes          # Intervention minus reference, totals and means
+comparison$costs             # The same differences by cost component
+comparison$costEffectiveness # Discounted cost per life-year or QALY gained
+comparison$metadata
+```
+
+The [intervention example](inst/examples/intervention-simulation.R) runs this
+comparison from start to finish. Differences always mean intervention minus
+reference. ICERs use the difference in discounted mean cost divided by the
+difference in discounted mean health outcome. Raw and discounted differences
+remain available in `outcomes`.
+
+The starting profiles must match, including their joint covariate distribution
+and the number of repeated draws. Matching only the number of patients or the
+marginal age distribution would not establish this. Row order and generated
+simulation or stratum IDs do not matter. Source patient IDs, starting states,
+elapsed days and supplied baseline covariates do. The relative cycle counter
+does not replace elapsed time. Column classes must also match, except for plain
+integer and double vectors. A logical `TRUE` is not treated as a numeric `1`.
+
+`scenarioCovariates` explicitly identifies columns that may differ because of
+the scenario, such as treatment assignment. There are no automatic exceptions
+for names like `treatment_active`. Patient identity, starting state, elapsed day,
+index date and birth date cannot be excluded. The result records the columns
+checked and the declared exclusions. Without source IDs, matching profiles
+establishes the same recorded starting distribution, not the same individuals.
+Neither case establishes paired random draws or causal identification.
+
+Summaries retain `initialPopulation` for these checks. This table contains
+starting patient identifiers and covariates, so it is not an aggregate-only
+output for unrestricted sharing. If an older summary lacks these fields,
+summarise its saved simulation again. The trajectories do not need to be rerun.
+
+States, terminal and living-state definitions, utilities, cycle length, year
+length, discount rates, discount origin and accounting conventions must agree. Currency and
+price year must also agree when both scenarios contain costs. The comparison
+does not convert currencies or reconcile incompatible assumptions. Components
+may differ, for example when only the intervention has a treatment charge.
+An absent component contributes zero only in a scenario with configured costs.
+Unconfigured costs or missing health definitions remain unknown, and the
+corresponding ICER is unavailable.
+
+The comparison horizon is the larger of the two actual step counts, using the
+existing full-label convention. A shorter run is accepted only when it stopped
+because every patient reached a declared terminal state. Under the simulator's
+rules, its later costs and health outcomes would then be zero. The comparison
+records this zero tail without adding patient rows or rescaling totals. A
+shorter run with nonterminal patients is rejected, as are custom `stopWhen`
+results. These checks establish a common represented horizon, not equal planned
+follow-up. They do not estimate outcomes after an unsupported or truncated run.
+
+The cost-effectiveness table describes each health outcome separately:
+
+| Incremental cost | Incremental health | Report |
+| --- | --- | --- |
+| Positive | Positive | ICER per unit gained |
+| Negative | Positive | `dominant`, with no negative ICER |
+| Positive | Negative | `dominated`, with no negative ICER |
+| Negative | Negative | `lower_cost_less_effective`, with no ICER per unit gained |
+
+Equal costs and positive health gains give an ICER of zero. Equal health outcomes
+have no ICER because the denominator is zero. Status labels distinguish these
+cases and identical results. No willingness-to-pay threshold, cost-effectiveness
+decision, confidence interval or correction for simulation noise is supplied.
 
 ## Optional combined call
 

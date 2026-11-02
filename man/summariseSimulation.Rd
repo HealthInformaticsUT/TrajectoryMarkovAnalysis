@@ -40,7 +40,10 @@ The origin is shared across patients and is not reset at each first label.}
 }
 \value{
 A tma_simulation_summary containing byPatient, totals, costs,
-  stateTime and metadata. totals reports total and per_patient values for
+  stateTime, initialPopulation and metadata. initialPopulation retains the
+  first snapshot of every simulated patient, including identifiers and
+  covariates, so compareScenarios() can check the starting populations.
+  byPatient includes the final state. totals reports total and per_patient values for
   cost, discounted_cost, life_years, discounted_life_years, qalys and
   discounted_qalys. costs retains every configured component, including
   zeros. stateTime retains every model state. Metadata records the full-label
@@ -78,4 +81,7 @@ Every retained label represents one complete cycle of modelled
   Currency labels and price year are retained without conversion or inflation
   adjustment. The function does not mutate the simulation, draw random
   numbers, invoke callbacks or open connections.
+}
+\seealso{
+compareScenarios() for differences between compatible summaries.
 }

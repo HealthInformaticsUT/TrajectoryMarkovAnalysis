@@ -45,11 +45,15 @@
 #'   adjustment. The function does not mutate the simulation, draw random
 #'   numbers, invoke callbacks or open connections.
 #' @return A tma_simulation_summary containing byPatient, totals, costs,
-#'   stateTime and metadata. totals reports total and per_patient values for
+#'   stateTime, initialPopulation and metadata. initialPopulation retains the
+#'   first snapshot of every simulated patient, including identifiers and
+#'   covariates, so compareScenarios() can check the starting populations.
+#'   byPatient includes the final state. totals reports total and per_patient values for
 #'   cost, discounted_cost, life_years, discounted_life_years, qalys and
 #'   discounted_qalys. costs retains every configured component, including
 #'   zeros. stateTime retains every model state. Metadata records the full-label
 #'   convention, discount assumptions and the simulation's stop reason.
+#' @seealso compareScenarios() for differences between compatible summaries.
 #' @export
 summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL,
                                 costDiscountRate = 0, healthDiscountRate = 0,
@@ -101,6 +105,7 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
   byPatient$last_label_day <- history$elapsed_day[checked$last]
   byPatient$labelled_cycles <- checked$counts
   byPatient$labelled_days <- checked$counts * cycleLength
+  byPatient$final_state <- population$state_label
   byPatient$cost <- byPatient$discounted_cost <- rep(NA_real_, n)
   byPatient$life_years <- byPatient$discounted_life_years <- rep(NA_real_, n)
   byPatient$qalys <- byPatient$discounted_qalys <- rep(NA_real_, n)
@@ -149,9 +154,14 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       any(!is.finite(totals$total[!is.na(totals$total)])) || any(is.nan(totals$total))) {
     stop("Simulation summary exceeds finite numeric limits.", call. = FALSE)
   }
+  initialPopulation <- history[checked$first, , drop = FALSE]
+  rownames(initialPopulation) <- NULL
   structure(list(byPatient = byPatient, totals = totals, costs = costs, stateTime = stateTime,
+    initialPopulation = initialPopulation,
     metadata = list(n = n, states = states, cycleLength = cycleLength,
       steps = simulation$metadata$steps, stop_reason = simulation$metadata$stop_reason,
+      terminalStates = checked$terminalStates,
+      all_terminal = all(population$state_label %in% checked$terminalStates),
       aliveStates = aliveStates, utilities = utilities,
       costDiscountRate = costDiscountRate, healthDiscountRate = healthDiscountRate,
       daysPerYear = daysPerYear, discountOriginDay = discountOriginDay,
