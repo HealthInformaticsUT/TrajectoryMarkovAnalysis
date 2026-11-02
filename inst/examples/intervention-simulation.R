@@ -60,7 +60,19 @@ print(rbind(summary_row(standard, "Standard care"),
 print(head(treated$effects))
 stopifnot(identical(bundle$models$s1$matrices[[1]], probabilities))
 
+# These utilities and discount rates illustrate the API, not clinical evidence.
+summaries <- lapply(list(standard_care = standard, intervention = treated),
+  function(run) summariseSimulation(
+    run, aliveStates = c("Stable", "Complication"),
+    utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0),
+    costDiscountRate = 0.035, healthDiscountRate = 0.035
+  ))
+print(summaries$intervention$totals)
+print(summaries$intervention$costs)
+
 # Effects apply to net cycle probabilities, not the component stages.
 # The same seed gives reproducible runs, not guaranteed paired patient draws.
 # Costs include the initial label and 12 subsequent labels. The treatment
 # effect applies only to steps starting on days 0, 7, 14 and 21.
+# Health outcomes also use full labels, with no half-cycle correction. A patient
+# alive throughout this run contributes 13 * 7 days, not 12 * 7 days.

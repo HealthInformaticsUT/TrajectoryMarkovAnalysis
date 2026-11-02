@@ -26,6 +26,8 @@ An explicit cost model can apply the estimated healthcare rates during simulatio
 alongside separately specified intervention charges.
 Optional transition effects apply analyst-specified probability changes without
 altering the fitted models.
+A separate summary reports costs and, with explicit living states and utilities,
+life-years and QALYs. Cost and health discount rates are supplied independently.
 
 This is not yet a release. Estimation of separate within-cycle stages from
 patient records remains to be implemented. The older GUI, continuous-time model,
@@ -1094,6 +1096,75 @@ A completed step may leave a patient in a new, unsupported covariate group. That
 snapshot has `stratum_id = NA` and is counted in `metadata$unsupported_current`.
 It can be the final snapshot or meet a custom stopping rule, but another step
 cannot be drawn from it without a supporting model.
+
+### Summarise costs and health outcomes
+
+Summarise a completed or paused simulation without running it again:
+
+```r
+outcomes <- summariseSimulation(
+  simulation,
+  aliveStates = c("Stable", "Complication"),
+  utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0),
+  costDiscountRate = 0.035,
+  healthDiscountRate = 0.035
+)
+
+outcomes$totals       # Cohort totals and means per simulated patient
+outcomes$byPatient    # Individual totals and represented duration
+outcomes$costs        # Totals by cost component
+outcomes$stateTime    # Full cycle labels represented in each state
+```
+
+The utilities and rates above are examples, not recommended values. Use the
+states and evidence appropriate to your study. `aliveStates` is required for
+life-years, and `utilities` is additionally required for QALYs. Utilities must
+cover every model state, with finite values no greater than one and zero for
+states outside `aliveStates`. Negative utilities are allowed for living states.
+The package does not infer death from
+a state name or treat every absorbing state as death. Explicit terminal states
+cannot be included in `aliveStates`, because their paths have stopped.
+
+Health outcomes use the same full-label convention as the simulator's recurring
+charges. Each living label contributes `cycleLength / daysPerYear` life-years
+and that quantity multiplied by its utility in QALYs. This includes the initial
+and final label. A continuously living patient simulated for 52 weekly steps
+therefore has 53 labels, representing 371 days. Use 51 steps for 52 weekly
+labels. Even `nSteps = 0` represents the initial full label under this convention.
+No half-cycle correction or exact within-cycle death time is inferred.
+
+Terminal labels contribute no life-years or QALYs. `stateTime` includes their
+represented label occupancy so the supplied history remains visible, but this
+is not extra observed care or survival time. A custom-stopped run is not extended
+to a longer horizon. The individual duration fields and `metadata$stop_reason`
+show what was actually summarised.
+
+Both discount rates default to zero. For each label or charge, the factor is
+`(1 + rate)^(-(elapsed_day - discountOriginDay) / daysPerYear)`. The default
+`daysPerYear` is 365.25 and `discountOriginDay` is zero, meaning the index date.
+The discount clock uses elapsed days, not the cycle counter or calendar year.
+If a patient's supplied starting snapshot is already at day 365, its outcomes
+are discounted from that day rather than restarting at zero. A different common
+origin can be supplied, but it cannot be later than any included label or charge.
+Health and costs are discounted at the saved label start. Even daily healthcare
+charges split across cost periods use that start, not an inferred payment date.
+
+The summary reports both supplied and discounted amounts. It does not adjust
+prices for inflation, change the currency or modify any simulation inputs.
+Without a cost model or cost rules, cost totals are `NA`, not zero. A configured
+component that never charges anyone is reported as zero. Omitted living-state
+or utility definitions likewise leave the corresponding health outcomes `NA`.
+Per-patient means include every simulated patient, including those with zero
+charges or an initially terminal state. Repeated draws of the same original
+patient remain separate simulated patients.
+
+Use the full resumed simulation when summarising a split run. Summaries of
+overlapping checkpoints should not be added together. The
+[intervention example](inst/examples/intervention-simulation.R) shows summaries
+for two scenarios. Before comparing them, check the starting populations,
+represented horizons, stopping rules and economic assumptions. This function
+does not calculate an ICER, attach confidence intervals or classify a scenario
+as cost-effective.
 
 ## Optional combined call
 

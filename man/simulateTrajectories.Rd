@@ -160,4 +160,5 @@ Every step selects the model using current covariates and the period
 }
 \seealso{
 \link{transition-effects} for rule fields and probability handling.
+  summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 }

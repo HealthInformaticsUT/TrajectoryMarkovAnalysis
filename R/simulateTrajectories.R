@@ -116,6 +116,7 @@
 #'   sampled destination and effect (NA when none applies). The existing
 #'   transition_probability is the probability actually used for sampling.
 #' @seealso \link{transition-effects} for rule fields and probability handling.
+#'   summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 #' @export
 simulateTrajectories <- function(bundle, population = NULL, n = NULL,
                                  initial = NULL, nSteps = 1,
