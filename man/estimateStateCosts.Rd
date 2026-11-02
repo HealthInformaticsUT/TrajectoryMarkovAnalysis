@@ -78,4 +78,8 @@ An interval with no matching cost record has zero recorded cost.
   The resulting daily mean uses cost-attributed days, which can differ from
   the occupancy of the unchanged clinical states. It is a descriptive cost
   estimate, not automatically a calibrated reward for a transition model.
+  If extractCosts() restricted costs to selected visits, only the cost
+  numerator changes. All observed state-days still contribute, including
+  days without a qualifying visit. The result is not a mean per selected visit.
+  Extraction scope and visit criteria are retained in metadata.
 }

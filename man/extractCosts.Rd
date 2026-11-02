@@ -4,7 +4,13 @@
 \alias{extractCosts}
 \title{Extract observed costs for trajectory follow-up}
 \usage{
-extractCosts(cdm, trajectories, measure = "total_charge", domains = NULL)
+extractCosts(
+  cdm,
+  trajectories,
+  measure = "total_charge",
+  domains = NULL,
+  visitFilter = NULL
+)
 }
 \arguments{
 \item{cdm}{A CDMConnector database-backed `cdm_reference`.}
@@ -15,16 +21,51 @@ extractCosts(cdm, trajectories, measure = "total_charge", domains = NULL)
 
 \item{domains}{Cost domain IDs to include. `NULL` selects every observed domain;
 unsupported observed domains cause an error rather than silent exclusion.}
+
+\item{visitFilter}{Optional named list with visitIds, visitConceptIds or
+eventConcepts. NULL retains all costs in follow-up. visitConceptIds selects
+visit_concept_id, not visit_type_concept_id. eventConcepts is a named list
+of exact standard concept IDs in Condition, Drug, Procedure, Device,
+Measurement or Observation. For example,
+list(eventConcepts = list(Condition = c(123, 456))).}
 }
 \value{
 A data frame with `subject_id`, `event_date`, `amount`, `cost_id`,
-  `cost_domain_id`, `cost_event_id`, `currency_concept_id`, and `measure`.
+  `cost_domain_id`, `cost_event_id`, `currency_concept_id`, `measure`, and
+  `visit_occurrence_id`. Visit IDs are text and can be missing in all-cost mode.
   The `diagnostics` attribute reports counts per domain. Unmatched event
   references are counted across the database for selected domains, since their
   patients cannot be identified. Other counts refer to selected patients.
+  Visit exclusions refer to costs whose event dates are within follow-up.
+  Missing visit links, unmatched or wrong-patient visit references, and valid
+  visits not selected are reported separately. They are NA when no visit
+  filter was requested. Attributes cost_scope and visit_filter retain the
+  selection used.
 }
 \description{
 Resolves each OMOP cost domain against its own event table, preserving source
 identifiers and currency. The supplied CDM is read only and remains connected.
 Costs with missing amounts remain missing. No currency conversion is performed.
+}
+\details{
+Each visit filter vector matches any supplied ID. eventConcepts
+  matches any concept across its supplied domains. Different filter fields
+  must all match. Concepts are not expanded to descendants. An explicitly
+  empty ID vector selects no visits, rather than removing that restriction.
+
+  A matching clinical record qualifies its visit only when its own date lies
+  within the patient's trajectory follow-up. All selected-domain costs linked
+  to that visit can then be included, not only the cost of the matching record.
+  Their own event dates must also remain within follow-up. A later qualifying
+  record within follow-up can select earlier costs from the same visit. This
+  is a retrospective visit selection, not prospective treatment eligibility.
+
+  Visit selection uses explicit visit_occurrence_id and patient links. No
+  date-overlap matching is attempted. Repeated qualifying records do not
+  multiply cost rows. Selected cost domains without a visit link raise an
+  error in filtered mode. All-cost mode still supports those domains.
+  Selecting visits does not change trajectory patients or observed days in
+  estimateStateCosts(). Visit-associated costs are not necessarily caused by
+  the qualifying condition. Bundled visit charges and itemised costs can
+  overlap in the source, so select cost domains and measures accordingly.
 }

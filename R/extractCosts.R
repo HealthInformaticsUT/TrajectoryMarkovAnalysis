@@ -9,13 +9,46 @@
 #' @param measure One of `total_charge`, `total_cost`, or `total_paid`.
 #' @param domains Cost domain IDs to include. `NULL` selects every observed domain;
 #'   unsupported observed domains cause an error rather than silent exclusion.
+#' @param visitFilter Optional named list with visitIds, visitConceptIds or
+#'   eventConcepts. NULL retains all costs in follow-up. visitConceptIds selects
+#'   visit_concept_id, not visit_type_concept_id. eventConcepts is a named list
+#'   of exact standard concept IDs in Condition, Drug, Procedure, Device,
+#'   Measurement or Observation. For example,
+#'   list(eventConcepts = list(Condition = c(123, 456))).
 #' @return A data frame with `subject_id`, `event_date`, `amount`, `cost_id`,
-#'   `cost_domain_id`, `cost_event_id`, `currency_concept_id`, and `measure`.
+#'   `cost_domain_id`, `cost_event_id`, `currency_concept_id`, `measure`, and
+#'   `visit_occurrence_id`. Visit IDs are text and can be missing in all-cost mode.
 #'   The `diagnostics` attribute reports counts per domain. Unmatched event
 #'   references are counted across the database for selected domains, since their
 #'   patients cannot be identified. Other counts refer to selected patients.
+#'   Visit exclusions refer to costs whose event dates are within follow-up.
+#'   Missing visit links, unmatched or wrong-patient visit references, and valid
+#'   visits not selected are reported separately. They are NA when no visit
+#'   filter was requested. Attributes cost_scope and visit_filter retain the
+#'   selection used.
+#' @details Each visit filter vector matches any supplied ID. eventConcepts
+#'   matches any concept across its supplied domains. Different filter fields
+#'   must all match. Concepts are not expanded to descendants. An explicitly
+#'   empty ID vector selects no visits, rather than removing that restriction.
+#'
+#'   A matching clinical record qualifies its visit only when its own date lies
+#'   within the patient's trajectory follow-up. All selected-domain costs linked
+#'   to that visit can then be included, not only the cost of the matching record.
+#'   Their own event dates must also remain within follow-up. A later qualifying
+#'   record within follow-up can select earlier costs from the same visit. This
+#'   is a retrospective visit selection, not prospective treatment eligibility.
+#'
+#'   Visit selection uses explicit visit_occurrence_id and patient links. No
+#'   date-overlap matching is attempted. Repeated qualifying records do not
+#'   multiply cost rows. Selected cost domains without a visit link raise an
+#'   error in filtered mode. All-cost mode still supports those domains.
+#'   Selecting visits does not change trajectory patients or observed days in
+#'   estimateStateCosts(). Visit-associated costs are not necessarily caused by
+#'   the qualifying condition. Bundled visit charges and itemised costs can
+#'   overlap in the source, so select cost domains and measures accordingly.
 #' @export
-extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = NULL) {
+extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = NULL,
+                           visitFilter = NULL) {
   if (!inherits(cdm, "cdm_reference")) {
     stop("`cdm` must be a CDMConnector cdm_reference.", call. = FALSE)
   }
@@ -23,6 +56,7 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
       !measure %in% c("total_charge", "total_cost", "total_paid")) {
     stop("`measure` must be total_charge, total_cost, or total_paid.", call. = FALSE)
   }
+  visitFilter <- .tmaCostVisitFilter(visitFilter, cdm)
   domain_map <- list(
     Drug = c("drug_exposure", "drug_exposure_id", "drug_exposure_start_date"),
     Visit = c("visit_occurrence", "visit_occurrence_id", "visit_start_date"),
@@ -56,6 +90,12 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   for (domain in domains) {
     spec <- domain_map[[domain]]
     .tmaRequireCostTable(cdm, spec[[1]], c(spec[[2]], "person_id", spec[[3]]))
+    if (!is.null(visitFilter) && domain != "Visit" &&
+        !"visit_occurrence_id" %in% colnames(cdm[[spec[[1]]]])) {
+      stop("Visit-filtered costs require visit_occurrence_id in `", spec[[1]],
+           "`. Exclude this domain explicitly through domains, or use all-cost mode. No date-based visit link is inferred.",
+           call. = FALSE)
+    }
   }
   prepared <- if (inherits(trajectories, "tma_trajectories")) {
     trajectories
@@ -78,25 +118,46 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   result <- data.frame(
     subject_id = character(), event_date = as.Date(character()), amount = double(),
     cost_id = character(), cost_domain_id = character(), cost_event_id = character(),
-    currency_concept_id = character(), measure = character(), stringsAsFactors = FALSE
+    currency_concept_id = character(), measure = character(),
+    visit_occurrence_id = character(), stringsAsFactors = FALSE
   )
   diagnostics <- data.frame(
     cost_domain_id = character(), unmatched_event_references = double(),
     selected_patient_cost_rows = double(), missing_event_dates = double(),
-    out_of_window = double(), extracted_rows = double(), missing_amounts = double(),
+    out_of_window = double(), in_window_cost_rows = double(),
+    missing_visit_links = double(), unmatched_visit_references = double(),
+    visits_not_selected = double(), extracted_rows = double(), missing_amounts = double(),
     stringsAsFactors = FALSE
   )
   result_chunks <- list(result)
   diagnostic_chunks <- list(diagnostics)
   chunks <- split(seq_len(nrow(patients)), ceiling(seq_len(nrow(patients)) / 100))
+  if (!is.null(visitFilter)) {
+    visit_keys <- dplyr::distinct(dplyr::transmute(
+      cdm[["visit_occurrence"]], subject_id = as.character(.data$person_id),
+      visit_occurrence_id = as.character(.data$visit_occurrence_id)
+    ))
+    visit_keys <- dplyr::filter(visit_keys, !is.na(.data$visit_occurrence_id),
+                               !.data$visit_occurrence_id %in% c("", "0"))
+    visit_keys <- dplyr::mutate(visit_keys, .tma_valid_visit = 1L)
+    selected_visits <- lapply(chunks, function(indices) {
+      dplyr::mutate(.tmaSelectedCostVisits(cdm, patients[indices, , drop = FALSE], visitFilter),
+                     .tma_selected_visit = 1L)
+    })
+  }
   for (domain in domains) {
     spec <- domain_map[[domain]]
     # Cast subject identifiers before filtering; keep event joins in the database's
     # native identifier types and cast their output before collection. This avoids
     # bigint precision loss and string mismatches such as integer 1 versus float 1.0.
+    visit_column <- if (domain == "Visit") spec[[2]] else "visit_occurrence_id"
+    visit_expression <- if (visit_column %in% colnames(cdm[[spec[[1]]]])) {
+      rlang::expr(as.character(.data[[!!visit_column]]))
+    } else rlang::expr(NA_character_)
     source <- dplyr::transmute(
       cdm[[spec[[1]]]], cost_event_id = .data[[spec[[2]]]],
-      subject_id = as.character(.data$person_id), event_date = .data[[spec[[3]]]]
+      subject_id = as.character(.data$person_id), event_date = .data[[spec[[3]]]],
+      visit_occurrence_id = !!visit_expression
     )
     domain_cost <- dplyr::filter(cost_table, .data$cost_domain_id == domain)
     domain_cost <- dplyr::transmute(
@@ -112,11 +173,16 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
     domain_diagnostics <- data.frame(
       cost_domain_id = domain, unmatched_event_references = unmatched,
       selected_patient_cost_rows = 0, missing_event_dates = 0,
-      out_of_window = 0, extracted_rows = 0, missing_amounts = 0,
+      out_of_window = 0, in_window_cost_rows = 0,
+      missing_visit_links = if (is.null(visitFilter)) NA_real_ else 0,
+      unmatched_visit_references = if (is.null(visitFilter)) NA_real_ else 0,
+      visits_not_selected = if (is.null(visitFilter)) NA_real_ else 0,
+      extracted_rows = 0, missing_amounts = 0,
       stringsAsFactors = FALSE
     )
     # No scratch tables: bound IN lists and date predicates to small chunks.
-    for (indices in chunks) {
+    for (chunk_index in seq_along(chunks)) {
+      indices <- chunks[[chunk_index]]
       windows <- patients[indices, , drop = FALSE]
       ids <- windows$subject_id
       selected_source <- dplyr::filter(source, .data$subject_id %in% ids)
@@ -129,19 +195,50 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
       missing_dates <- if (selected_count) as.numeric(counts$missing_dates[[1]]) else 0
       predicate <- .tmaCostWindowPredicate(windows)
       in_window <- dplyr::filter(selected, !!predicate)
+      window_count <- NULL
+      if (!is.null(visitFilter)) {
+        in_window <- dplyr::left_join(in_window, visit_keys,
+                                      by = c("subject_id", "visit_occurrence_id"))
+        in_window <- dplyr::left_join(in_window, selected_visits[[chunk_index]],
+                                      by = c("subject_id", "visit_occurrence_id"))
+        in_window <- dplyr::mutate(in_window, .tma_missing_visit =
+          is.na(.data$visit_occurrence_id) | .data$visit_occurrence_id %in% c("", "0"))
+        visit_counts <- dplyr::collect(dplyr::summarise(
+          in_window, n = dplyr::n(),
+          missing_links = sum(dplyr::if_else(.data$.tma_missing_visit, 1L, 0L), na.rm = TRUE),
+          unmatched_links = sum(dplyr::if_else(!.data$.tma_missing_visit &
+            is.na(.data$.tma_valid_visit), 1L, 0L), na.rm = TRUE),
+          not_selected = sum(dplyr::if_else(!is.na(.data$.tma_valid_visit) &
+            is.na(.data$.tma_selected_visit), 1L, 0L), na.rm = TRUE)
+        ))
+        window_count <- as.numeric(visit_counts$n[[1]])
+        if (window_count > 0) {
+          domain_diagnostics$missing_visit_links <- domain_diagnostics$missing_visit_links +
+            as.numeric(visit_counts$missing_links[[1]])
+          domain_diagnostics$unmatched_visit_references <- domain_diagnostics$unmatched_visit_references +
+            as.numeric(visit_counts$unmatched_links[[1]])
+          domain_diagnostics$visits_not_selected <- domain_diagnostics$visits_not_selected +
+            as.numeric(visit_counts$not_selected[[1]])
+        }
+        in_window <- dplyr::filter(in_window, !.data$.tma_missing_visit,
+                                    !is.na(.data$.tma_valid_visit), !is.na(.data$.tma_selected_visit))
+      }
       in_window <- dplyr::mutate(in_window, cost_event_id = as.character(.data$cost_event_id))
       extracted <- as.data.frame(dplyr::collect(in_window))
       extracted$event_date <- as.Date(extracted$event_date)
       extracted$amount <- as.numeric(extracted$amount)
+      extracted$visit_occurrence_id <- as.character(extracted$visit_occurrence_id)
       extracted$measure <- rep(measure, nrow(extracted))
       extracted <- extracted[, names(result), drop = FALSE]
+      if (is.null(window_count)) window_count <- nrow(extracted)
       result_chunks[[length(result_chunks) + 1L]] <- extracted
       domain_diagnostics$selected_patient_cost_rows <-
         domain_diagnostics$selected_patient_cost_rows + selected_count
       domain_diagnostics$missing_event_dates <-
         domain_diagnostics$missing_event_dates + missing_dates
       domain_diagnostics$out_of_window <- domain_diagnostics$out_of_window +
-        selected_count - missing_dates - nrow(extracted)
+        selected_count - missing_dates - window_count
+      domain_diagnostics$in_window_cost_rows <- domain_diagnostics$in_window_cost_rows + window_count
       domain_diagnostics$extracted_rows <-
         domain_diagnostics$extracted_rows + nrow(extracted)
       domain_diagnostics$missing_amounts <-
@@ -160,6 +257,8 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   attr(result, "domains") <- domains
   attr(result, "diagnostics") <- diagnostics
   attr(result, "unmatched_diagnostics_scope") <- "database-wide selected domains"
+  attr(result, "cost_scope") <- if (is.null(visitFilter)) "all_recorded_costs" else "selected_visits"
+  attr(result, "visit_filter") <- visitFilter
   result
 }
 

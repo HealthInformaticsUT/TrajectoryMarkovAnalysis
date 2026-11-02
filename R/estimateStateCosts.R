@@ -56,6 +56,10 @@
 #'   The resulting daily mean uses cost-attributed days, which can differ from
 #'   the occupancy of the unchanged clinical states. It is a descriptive cost
 #'   estimate, not automatically a calibrated reward for a transition model.
+#'   If extractCosts() restricted costs to selected visits, only the cost
+#'   numerator changes. All observed state-days still contribute, including
+#'   days without a qualifying visit. The result is not a mean per selected visit.
+#'   Extraction scope and visit criteria are retained in metadata.
 #' @export
 estimateStateCosts <- function(trajectories, costData,
                                periodBreaks = NULL, periodLabels = NULL,
@@ -73,6 +77,8 @@ estimateStateCosts <- function(trajectories, costData,
   }
   sourceDiagnostics <- attr(costData, "diagnostics")
   sourceMeasure <- attr(costData, "measure")
+  sourceCostScope <- attr(costData, "cost_scope")
+  sourceVisitFilter <- attr(costData, "visit_filter")
   costs <- as.data.frame(costData)
   costs$subject_id <- .tmaSubjectIds(costs$subject_id)
   costs$event_date <- .tmaDates(costs$event_date, "event_date")
@@ -187,6 +193,8 @@ estimateStateCosts <- function(trajectories, costData,
       extraction = sourceDiagnostics
     ),
     metadata = list(measure = measure, currencies = currencies, periods = periods,
+                    cost_scope = if (is.null(sourceCostScope)) "supplied_cost_records" else sourceCostScope,
+                    source_visit_filter = sourceVisitFilter,
                     date_intervals = "inclusive", no_record = "zero recorded cost",
                     interval_counts = "fragments within each period; original intervals identified by .row_id",
                     unobserved_period_states = "absent; no cost estimate without observed days",

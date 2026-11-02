@@ -70,7 +70,8 @@ testthat::test_that("cost linkage respects domain, patient, exact window, and bi
   costs <- extractCosts(db$cdm, cost_test_trajectories())
 
   testthat::expect_named(costs, c("subject_id", "event_date", "amount", "cost_id",
-                                 "cost_domain_id", "cost_event_id", "currency_concept_id", "measure"))
+                                 "cost_domain_id", "cost_event_id", "currency_concept_id", "measure",
+                                 "visit_occurrence_id"))
   testthat::expect_equal(nrow(costs), 3L)
   testthat::expect_setequal(costs$cost_id, c("11", "13", "21"))
   testthat::expect_equal(costs$subject_id[costs$cost_id == "11"], "9007199254740993")

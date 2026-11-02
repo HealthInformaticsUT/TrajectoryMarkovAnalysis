@@ -16,7 +16,8 @@ TrajectoryMarkovAnalysis(
   costDomains = NULL,
   periodBreaks = NULL,
   periodLabels = NULL,
-  terminalCostMap = NULL
+  terminalCostMap = NULL,
+  costVisitFilter = NULL
 )
 }
 \arguments{
@@ -52,6 +53,10 @@ with cycleLength. Cost-only analyses may split intervals at any whole day.}
 \item{terminalCostMap}{Optional named mapping from declared absorbing states
 to defined nonabsorbing cost states, as in estimateStateCosts(). Only used
 when analyses includes "costs". Clinical trajectories remain unchanged.}
+
+\item{costVisitFilter}{Optional visit selection passed to extractCosts().
+Only valid when extracting costs through cdm. To use local costData, select
+its records before calling this function.}
 }
 \value{
 A list containing transitions, costs and the prepared trajectories.

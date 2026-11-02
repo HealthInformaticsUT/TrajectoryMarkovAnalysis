@@ -18,6 +18,9 @@
 #'   Supply either cdm or costData for costing, not both.
 #' @param costMeasure Cost column to extract from the CDM, such as "total_charge".
 #' @param costDomains Optional cost domains to extract from the CDM.
+#' @param costVisitFilter Optional visit selection passed to extractCosts().
+#'   Only valid when extracting costs through cdm. To use local costData, select
+#'   its records before calling this function.
 #' @param periodBreaks Follow-up boundaries in days since index, starting at 0
 #'   and ending at Inf. NULL pools follow-up. Transition boundaries must align
 #'   with cycleLength. Cost-only analyses may split intervals at any whole day.
@@ -44,7 +47,8 @@ TrajectoryMarkovAnalysis <- function(trajectories,
                                      costDomains = NULL,
                                      periodBreaks = NULL,
                                      periodLabels = NULL,
-                                     terminalCostMap = NULL) {
+                                     terminalCostMap = NULL,
+                                     costVisitFilter = NULL) {
   if (!is.character(analyses) || !length(analyses) || anyNA(analyses) ||
       anyDuplicated(analyses) || any(!analyses %in% c("transitions", "costs"))) {
     stop("analyses must contain 'transitions', 'costs', or both, without duplicates.", call. = FALSE)
@@ -58,6 +62,9 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   }
   if (costing && (is.null(cdm) == is.null(costData))) {
     stop("For costing, supply exactly one of cdm and costData.", call. = FALSE)
+  }
+  if (!is.null(costVisitFilter) && (!costing || is.null(cdm) || !is.null(costData))) {
+    stop("costVisitFilter requires a costs analysis using cdm, not local costData.", call. = FALSE)
   }
   args <- list(trajectories = trajectories)
   if (!missing(cycleLength)) args$cycleLength <- cycleLength
@@ -73,7 +80,8 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   costs <- NULL
   if (costing) {
     if (!is.null(cdm)) {
-      costData <- extractCosts(cdm, prepared, measure = costMeasure, domains = costDomains)
+      costData <- extractCosts(cdm, prepared, measure = costMeasure, domains = costDomains,
+                                visitFilter = costVisitFilter)
     }
     costs <- estimateStateCosts(prepared, costData,
                                 periodBreaks = periodBreaks, periodLabels = periodLabels,

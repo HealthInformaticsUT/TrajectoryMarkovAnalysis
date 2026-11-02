@@ -422,6 +422,89 @@ selected patients' windows. Unmatched event references are counted across the
 database for the selected domains because their patients cannot be identified.
 An empty extraction is not proof that the source captures all expenditure.
 
+### Choose all costs or costs linked to selected visits
+
+By default, `extractCosts()` includes all recorded costs from the selected
+domains within each patient's follow-up. To restrict them to particular visits,
+add `visitFilter`:
+
+```r
+all_costs <- extractCosts(cdm, histories)
+
+visit_costs <- extractCosts(
+  cdm, histories,
+  domains = c("Visit", "Drug", "Procedure"),
+  visitFilter = list(visitIds = c("123", "456"))
+)
+```
+
+The visit IDs above are illustrative. You can instead select visits containing
+particular clinical concepts. Here `condition_concepts` is your vector of
+resolved standard concept IDs:
+
+```r
+visit_costs <- extractCosts(
+  cdm, histories,
+  domains = c("Visit", "Drug", "Procedure"),
+  visitFilter = list(eventConcepts = list(Condition = condition_concepts))
+)
+selected_costs <- estimateStateCosts(histories, visit_costs)
+```
+
+A matching condition selects the visit. All recorded costs linked to that visit
+in the chosen cost domains are then included, even when a drug or procedure has
+a different concept. Repeated diagnoses do not duplicate those costs. This is
+expenditure associated with the selected visits, not an estimate of expenditure
+caused by the qualifying condition.
+
+Three filter fields are available:
+
+- `visitIds` identifies specific visit records.
+- `visitConceptIds` selects values of `visit_concept_id`, such as the concepts
+  defining inpatient or outpatient visits. It does not use the provenance field
+  `visit_type_concept_id`.
+- `eventConcepts` selects standard concepts recorded in Condition, Drug,
+  Procedure, Device, Measurement or Observation. Supply a named list of ID
+  vectors, such as `list(Condition = condition_concepts, Procedure = procedure_concepts)`.
+
+Any ID within a vector can match. Any of the supplied event domains can qualify
+a visit. When several filter fields are supplied, the visit must satisfy all
+of them. Concepts match exactly, without automatic descendant expansion. An
+explicitly empty ID vector selects nothing. Omit unused fields rather than
+setting them to `NULL`.
+
+Both the qualifying clinical record and the cost's own event date must be
+within the patient's follow-up. A visit can begin before follow-up and still
+have eligible events during it. Its whole bill is not automatically included
+or prorated. A qualifying record later in follow-up can select earlier costs
+from that same visit, so this is retrospective visit selection, not a rule for
+prospective treatment eligibility.
+
+Linkage follows recorded patient and `visit_occurrence_id` values. It never
+assigns visits using overlapping dates. Costs without a usable visit link are
+excluded in filtered mode and reported in diagnostics. A selected source table
+without a visit-link field, such as the standard Specimen table, raises an error.
+Exclude that cost domain explicitly or use all-cost mode. No visit link is
+required for all-cost extraction.
+
+The output retains `visit_occurrence_id` as text, including large identifiers.
+Inspect `attr(visit_costs, "visit_filter")` and `attr(visit_costs, "diagnostics")`
+to review the selection. Within-window cost rows are separated into extracted
+rows, missing visit links, unmatched or wrong-patient visit references, and
+valid visits that did not meet the filter. These visit checks are not performed
+in all-cost mode. Diagnostics describe cost rows, not unique visits or the
+completeness of the clinical records used to qualify them.
+
+Cost selection does not remove patients or days from `estimateStateCosts()`.
+It changes the cost numerator while keeping all observed state-days in the
+denominator, including days without selected visits. The resulting daily mean
+is not the average cost per selected visit. The result retains the extraction
+scope and criteria in its metadata.
+
+Check whether visit-level charges already include itemised event costs before
+combining domains. The package preserves distinct cost records and does not
+attempt to remove overlapping charges by guessing how the source bills care.
+
 ## Estimate costs without a transition model
 
 ```r
@@ -632,6 +715,9 @@ results <- TrajectoryMarkovAnalysis(
 The default `analyses = "transitions"` does not use a database. For costing,
 supply either `costData` or `cdm`, not both. The result contains `transitions`,
 `costs` and the prepared `trajectories`. No connection is stored in it.
+For database-backed costing, pass the same visit selection as `costVisitFilter`.
+For local `costData`, select the records before calling the wrapper. Neither
+approach changes the transition analysis or the trajectory population.
 
 ## Publication
 
