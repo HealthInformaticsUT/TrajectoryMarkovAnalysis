@@ -32,11 +32,13 @@
 #'   stratum_id. Use named covariate values to define eligibility. Callbacks
 #'   receive current snapshots, so any
 #'   dependence on earlier history must be represented explicitly in covariates.
-#' @param costRules Optional named list of rules with type (once, recurring or
-#'   transition), a finite amount, optional states, eligible function of candidate
-#'   destination rows, and startDay/endDay (lower inclusive, upper
+#' @param costRules Optional named list of rules with type (entry, once, recurring
+#'   or transition), a finite amount, optional states, eligible function of candidate
+#'   rows, and startDay/endDay (lower inclusive, upper
 #'   exclusive). Transition rules additionally require from and to state labels
-#'   and charge actual state changes. See \link{simulation-cost-rules}. Rules are
+#'   and charge actual state changes. Entry fees require an entry model and use
+#'   pre-entry nonterminal profiles, before outcomes are drawn. Other rules use
+#'   destination rows. See \link{simulation-cost-rules}. Rules are
 #'   additional to an explicit bundle cost model. The component name healthcare
 #'   is reserved when a cost model is present. No mean-cost calibration is fitted.
 #' @param currency Currency label required when costRules is nonempty. Defaults
@@ -61,7 +63,9 @@
 #' @param replace Whether sampling population profiles is with replacement.
 #' @param transitionEffects Optional named list of source-transition rules. Each
 #'   rule supplies from, to, multiplier and redistributeTo, with optional
-#'   eligible(sourceCandidates), startDay and endDay. Eligibility uses current
+#'   eligible(sourceCandidates), startDay, endDay and applyAt. applyAt is
+#'   "transitions" by default, or "entry" or "both" with an entry model.
+#'   Eligibility uses current
 #'   source snapshots and a lower-inclusive, upper-exclusive source-day window.
 #'   Multiply the probability of to and move the exact difference to
 #'   redistributeTo. At most one rule may apply per patient per step. These are
@@ -116,8 +120,12 @@
 #'   intermediate states. Initial charges use the post-entry outcome and the
 #'   pre-entry source, so explicit transition rules and estimated terminal-entry
 #'   charges can apply. The baseline is not charged an additional cycle. Once
-#'   and recurring rules still apply only to nonterminal outcome labels;
-#'   pre-entry treatment fees are not implemented.
+#'   and recurring rules still apply only to nonterminal outcome labels.
+#'   A type = "entry" fee is assessed on pre-entry nonterminal profiles before
+#'   the entry draw. It is retained even when the patient becomes terminal
+#'   during entry, and is not charged again on resume. Its ledger state_label
+#'   records the pre-entry state, not the outcome. Fee and effect eligibility
+#'   are separate rules; use a shared baseline covariate to link them.
 #'
 #'   Transition effects apply after selecting the source stratum and period and
 #'   before drawing the next state. Their callbacks run in a batch before the
@@ -127,7 +135,12 @@
 #'   Identity multipliers preserve draws and RNG state when eligibility is
 #'   deterministic. This does not establish paired random draws across scenarios
 #'   whose state-dependent paths or callbacks consume different random numbers.
-#'   They apply only to subsequent adjacent-cycle steps, never to entry draws.
+#'   Entry effects require applyAt = "entry" or "both" and use baseline
+#'   covariates and the entry matrix. Entry and the first adjacent step both
+#'   have source day zero. In a weekly model, applyAt = "both", endDay = 28
+#'   therefore affects entry and four adjacent steps, not four outcome labels.
+#'   For four affected labels, use a separate entry rule and a transitions rule
+#'   ending at source day 21. Saved matrices remain unchanged.
 #' @return A tma_simulation list with final population, trajectories,
 #'   transitions, costs (charge ledger), totals by component, and metadata.
 #'   Internal configuration and RNG checkpoints support advanceSimulation().
@@ -138,7 +151,9 @@
 #'   With entry, entry retains the sampled pre-entry population, actual entry
 #'   transitions, validated matrix and aggregate estimation metadata. It does
 #'   not retain training subject identifiers. The main trajectories start with
-#'   post-entry outcomes at cycle zero.
+#'   post-entry outcomes at cycle zero. Entry effects retain their own audit
+#'   under entry$effects and rules under entry$effectRules. Entry transitions
+#'   record actual and baseline sampled probabilities when entry effects exist.
 #' @seealso \link{transition-effects} for rule fields and probability handling.
 #'   summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 #' @export
@@ -170,6 +185,11 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
   rules <- .tmaSimulationCostRules(costRules, bundle$metadata$states)
   effects <- .tmaTransitionEffects(transitionEffects, bundle$metadata$states,
     bundle$metadata$absorbingStates, bundle$metadata$cycleLength)
+  needsEntry <- any(vapply(rules, function(rule) rule$type == "entry", logical(1))) ||
+    any(vapply(effects, function(rule) rule$applyAt %in% c("entry", "both"), logical(1)))
+  if (needsEntry && is.null(entry)) {
+    stop("Entry fees and entry/both transition effects require an explicit entry model.", call. = FALSE)
+  }
   costModel <- bundle$costModel
   if (!is.null(costModel)) {
     if (any(!names(costModel$metadata$terminal_cost_map) %in% terminalStates)) {
@@ -208,13 +228,20 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     }
     baseline <- NULL
     entryResult <- NULL
+    prepaid <- NULL
     if (!is.null(entry)) {
       baseline <- population
-      entryResult <- .tmaSimulationApplyEntry(bundle, baseline, entry, terminalStates)
+      prepaid <- .tmaSimulationCharge(baseline, rules = rules,
+        terminalStates = terminalStates, phase = "entry")
+      entryResult <- .tmaSimulationApplyEntry(bundle, baseline, entry, terminalStates, effects)
       population <- entryResult$population
       entryResult <- entryResult$entry
     }
-    initialCharge <- .tmaSimulationCharge(population, baseline, rules, list(), terminalStates)
+    initialCharge <- .tmaSimulationCharge(population, baseline, rules,
+      if (is.null(prepaid)) list() else prepaid$charged, terminalStates)
+    if (!is.null(prepaid)) {
+      initialCharge$ledger <- .tmaSimulationBind(list(prepaid$ledger, initialCharge$ledger))
+    }
     if (!is.null(costModel)) {
       initialCharge$ledger <- .tmaSimulationBind(list(initialCharge$ledger,
         .tmaModelCostCharge(costModel, population, previous = baseline,
@@ -232,7 +259,9 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         stop_reason = "max_steps", unsupported_current = 0L,
         seed = seed, currency = currency, priceYear = priceYear,
         initialisation = if (is.null(entryResult)) initialisation else "entry_model",
-        cost_timing = "initial label and each completed destination label",
+        cost_timing = if (any(vapply(rules, function(rule) rule$type == "entry", logical(1))))
+          "explicit pre-entry fees, initial label and each completed destination label" else
+          "initial label and each completed destination label",
         period_assignment = "source elapsed_day"),
       .config = list(bundle = bundle, updateCovariates = updateCovariates,
         costRules = rules, currency = currency, priceYear = priceYear,
@@ -250,6 +279,7 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
       simulation$transitions$effect <- character()
       simulation$metadata$transition_effects <- list(
         rules = names(effects),
+        applyAt = vapply(effects, function(rule) rule$applyAt, character(1)),
         estimand = "specified multiplier on a discrete full-cycle transition probability",
         application = "source covariates and source-day window, after model selection and before drawing",
         redistribution = "exact probability difference assigned to the declared redistribution state",

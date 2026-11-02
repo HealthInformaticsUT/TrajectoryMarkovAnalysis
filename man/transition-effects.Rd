@@ -6,7 +6,7 @@
 \description{
 Supply transitionEffects to simulateTrajectories() as a named
   list of rules. Each rule requires from, to, multiplier and redistributeTo.
-  Optional fields are eligible, startDay and endDay. Component names must be
+  Optional fields are eligible, startDay, endDay and applyAt. Component names must be
   unique and fields not listed here are errors.
 }
 \details{
@@ -24,6 +24,17 @@ A rule multiplies the source row's probability of to by multiplier
   nonnegative scalar. A multiplier of one, or an original zero probability
   for to, leaves the row unchanged. An unavailable source row is still an
   error, including when multiplier is zero.
+
+  applyAt defaults to "transitions", which applies the rule only to the
+  adjacent-cycle steps after the first snapshot. Use "entry" for the explicit
+  entry model, or "both" for entry and subsequent steps. An entry application
+  uses the pre-entry state and covariates at elapsed day zero. Entry rules
+  require an entry model. Eligibility callbacks are not called in phases
+  excluded by applyAt, and the same rule is never applied twice at entry.
+  Entry and the first adjacent step both have source day zero. With weekly
+  cycles, applyAt = "both" and endDay = 28 affects entry plus four adjacent
+  steps, not four outcome labels. For four affected labels, supply a separate
+  entry rule and a transitions rule ending at source day 21.
 
   startDay defaults to zero and endDay to infinity. Finite boundaries must
   be whole days aligned with cycleLength. The start is included and the end

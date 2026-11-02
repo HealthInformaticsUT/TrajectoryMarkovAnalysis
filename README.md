@@ -874,18 +874,25 @@ model stratified. Later transitions still use each patient's current covariates.
 An unavailable entry row is an error, including when its supplied profile is
 not drawn. States replaced by an explicit `initial` vector are not used.
 
-Costs use the first outcome label. Explicit transition charges can apply to an
+Outcome-based costs use the first outcome label. Explicit transition charges can apply to an
 entry state change. An estimated cost model with `terminal = "entry"` can charge
 a patient who becomes terminal during entry, but not someone already terminal
 at baseline. Once-only and recurring rules still apply only to nonterminal
-outcome labels. A fee paid before entry, including for patients who die during
-that first cycle, is not yet supported. Do not interpret a post-entry `once`
-charge as such a fee.
+outcome labels. Use a cost rule with `type = "entry"` for a fee paid before the
+entry outcome is drawn. It uses baseline state and eligibility, excludes
+patients already terminal at baseline, and remains paid if a patient dies in
+the first cycle. It adds no extra week of care or survival. A post-entry `once`
+charge instead depends on the first eligible nonterminal outcome label.
 
-`transitionEffects` applies to subsequent adjacent-cycle steps, not to the entry
-matrix. Entry outcomes do not identify intermediate events or their timing.
-Summaries use the pre-entry profiles for scenario comparisons, while costs and
-health outcomes continue to use the recorded outcome labels. Comparisons reject
+An effect rule with `applyAt = "entry"` changes the entry probabilities only.
+Use `applyAt = "both"` to apply it to entry and later transitions, or leave the
+default `applyAt = "transitions"` for later transitions only. Fees and effects
+are independent. When they describe the same treatment, use a shared baseline
+eligibility flag in their callbacks. The [entry example](inst/examples/entry-simulation.R)
+compares such scenarios from identical baseline profiles. Entry outcomes do
+not identify intermediate events, their timing or a causal downstream effect.
+Summaries use the pre-entry profiles for scenario comparisons and prepaid fees.
+Other costs and health outcomes use the recorded outcome labels. Comparisons reject
 mixing a pre-entry starting population with an already-labelled starting
 population.
 
@@ -957,9 +964,19 @@ The simulator selects the patient's source model and period, applies an eligible
 effect, then draws the next state. The source-day window includes `startDay`
 and excludes `endDay`. Finite boundaries must align with the cycle length.
 For weekly cycles, the example affects steps starting on days 0, 7, 14 and 21.
-It does not rewrite the initial state or apply to part of a cycle. An eligibility
+By default, it does not change the initial outcome. An eligibility
 callback sees only source patients matching the rule's state and time window.
 Covariate updates made after a transition affect the following step.
+
+With an entry model, `applyAt = "entry"` changes only the first-cycle outcome,
+and `applyAt = "both"` includes entry and adjacent-cycle draws. Both the entry
+draw and the first adjacent transition use source day zero. With weekly cycles,
+`applyAt = "both", endDay = 28` therefore covers entry plus four adjacent draws,
+or five outcome labels. To cover exactly the first four labels, use a separate
+entry rule and an `applyAt = "transitions", endDay = 21` rule. These cover entry
+and the three later draws starting on days 0, 7 and 14. This is a count of
+covered labels, not an inferred biological treatment duration. Rules requiring
+entry are rejected when no entry model is supplied.
 
 You can supply several named rules for different patients, states or periods.
 If two rules apply to the same patient at the same step, the simulation stops.
@@ -967,11 +984,13 @@ There is no implicit priority or multiplication of overlapping effects. Cost
 rules remain independent. To charge for the intervention, supply `costRules`
 separately and use consistent eligibility definitions.
 
-The fitted bundle is unchanged. `simulation$effects` records each applied rule
-and the two probabilities before and after modification. In runs with effects,
-`simulation$transitions` also includes the baseline probability of the sampled
-destination alongside its actual `transition_probability`. Rules and ledgers
-are retained across saved-and-resumed runs.
+The fitted bundle and entry matrix are unchanged. `simulation$effects` records
+effects on adjacent-cycle steps, while `simulation$entry$effects` records entry
+effects. Both show the applied rule and the two probabilities before and after
+modification. For each phase with configured effects, its transition ledger
+also includes the baseline probability of the sampled destination alongside
+its actual `transition_probability`. Rules and ledgers are retained across
+saved-and-resumed runs. Entry draws and fees are not repeated.
 
 For a composed model, effects act on the combined full-cycle probabilities.
 They do not modify a particular within-cycle stage or reconstruct hidden events.
@@ -1087,7 +1106,10 @@ simulation <- simulateTrajectories(
 These amounts illustrate the syntax only. A `once` rule charges each simulated
 patient at the first eligible label and remembers that payment. A `recurring`
 rule charges every eligible label. A `transition` rule with `from` and `to`
-charges a specified state change, not continued residency. All rules can use
+charges a specified state change, not continued residency. An `entry` rule
+requires an entry model and pays before its outcome, including for eligible
+baseline patients who die during entry. Its callback and state restrictions
+use the pre-entry profiles, while other rules use outcome labels. All rules can use
 `states`, `startDay` and `endDay` restrictions. Eligibility callbacks inspect
 only candidate rows after these basic restrictions and prior-payment checks.
 When a fitted cost model is attached, its currency and price year apply to these
@@ -1096,11 +1118,13 @@ for the fitted costs in that case. Add only charges not already included in
 those estimates. For example, omit the manual `complication_care` component if
 the estimated healthcare rate already covers that care.
 
-State and treatment charges use the initial label and each completed destination
-label. Therefore `nSteps = k` produces up to `k + 1` charged labels. An initial
+Ordinary label-based charges use the initial label and each completed destination
+label. Therefore `nSteps = k` produces up to `k + 1` charged labels. A prepaid
+entry fee is a separate amount, not an additional label. An initial
 snapshot does not imply a preceding transition. Amounts are per full label, not
-prorated daily means. Intervention initiation is not tied to estimating a
-clinical entry matrix. Manual rules do not convert observed daily means.
+prorated daily means. Use `once` for treatment starting at an eligible labelled
+state, or `entry` for treatment paid before the first outcome. Manual rules do
+not convert observed daily means.
 Keep ordinary care and intervention charges in separate components,
 and avoid charging the same expenditure twice.
 

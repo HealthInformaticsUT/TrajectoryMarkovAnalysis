@@ -61,11 +61,13 @@ stratum_id. Use named covariate values to define eligibility. Callbacks
 receive current snapshots, so any
 dependence on earlier history must be represented explicitly in covariates.}
 
-\item{costRules}{Optional named list of rules with type (once, recurring or
-transition), a finite amount, optional states, eligible function of candidate
-destination rows, and startDay/endDay (lower inclusive, upper
+\item{costRules}{Optional named list of rules with type (entry, once, recurring
+or transition), a finite amount, optional states, eligible function of candidate
+rows, and startDay/endDay (lower inclusive, upper
 exclusive). Transition rules additionally require from and to state labels
-and charge actual state changes. See \link{simulation-cost-rules}. Rules are
+and charge actual state changes. Entry fees require an entry model and use
+pre-entry nonterminal profiles, before outcomes are drawn. Other rules use
+destination rows. See \link{simulation-cost-rules}. Rules are
 additional to an explicit bundle cost model. The component name healthcare
 is reserved when a cost model is present. No mean-cost calibration is fitted.}
 
@@ -97,7 +99,9 @@ state cannot be restored reliably. Callbacks must not change RNGkind().}
 
 \item{transitionEffects}{Optional named list of source-transition rules. Each
 rule supplies from, to, multiplier and redistributeTo, with optional
-eligible(sourceCandidates), startDay and endDay. Eligibility uses current
+eligible(sourceCandidates), startDay, endDay and applyAt. applyAt is
+"transitions" by default, or "entry" or "both" with an entry model.
+Eligibility uses current
 source snapshots and a lower-inclusive, upper-exclusive source-day window.
 Multiply the probability of to and move the exact difference to
 redistributeTo. At most one rule may apply per patient per step. These are
@@ -125,7 +129,9 @@ A tma_simulation list with final population, trajectories,
   With entry, entry retains the sampled pre-entry population, actual entry
   transitions, validated matrix and aggregate estimation metadata. It does
   not retain training subject identifiers. The main trajectories start with
-  post-entry outcomes at cycle zero.
+  post-entry outcomes at cycle zero. Entry effects retain their own audit
+  under entry$effects and rules under entry$effectRules. Entry transitions
+  record actual and baseline sampled probabilities when entry effects exist.
 }
 \description{
 Simulate patient snapshots through a model bundle
@@ -171,8 +177,12 @@ Every step selects the model using current covariates and the period
   intermediate states. Initial charges use the post-entry outcome and the
   pre-entry source, so explicit transition rules and estimated terminal-entry
   charges can apply. The baseline is not charged an additional cycle. Once
-  and recurring rules still apply only to nonterminal outcome labels;
-  pre-entry treatment fees are not implemented.
+  and recurring rules still apply only to nonterminal outcome labels.
+  A type = "entry" fee is assessed on pre-entry nonterminal profiles before
+  the entry draw. It is retained even when the patient becomes terminal
+  during entry, and is not charged again on resume. Its ledger state_label
+  records the pre-entry state, not the outcome. Fee and effect eligibility
+  are separate rules; use a shared baseline covariate to link them.
 
   Transition effects apply after selecting the source stratum and period and
   before drawing the next state. Their callbacks run in a batch before the
@@ -182,7 +192,12 @@ Every step selects the model using current covariates and the period
   Identity multipliers preserve draws and RNG state when eligibility is
   deterministic. This does not establish paired random draws across scenarios
   whose state-dependent paths or callbacks consume different random numbers.
-  They apply only to subsequent adjacent-cycle steps, never to entry draws.
+  Entry effects require applyAt = "entry" or "both" and use baseline
+  covariates and the entry matrix. Entry and the first adjacent step both
+  have source day zero. In a weekly model, applyAt = "both", endDay = 28
+  therefore affects entry and four adjacent steps, not four outcome labels.
+  For four affected labels, use a separate entry rule and a transitions rule
+  ending at source day 21. Saved matrices remain unchanged.
 }
 \seealso{
 \link{transition-effects} for rule fields and probability handling.

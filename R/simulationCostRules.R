@@ -10,12 +10,19 @@
 #'   \item once: charge at the first eligible labelled cycle for each simulated
 #'     patient. The simulator remembers this across later cycles and resumed runs.
 #'   \item recurring: charge at every eligible labelled cycle.
+#'   \item entry: pay once before the entry outcome is drawn. This requires an
+#'     explicit entry model. Eligibility, states and time windows refer to the
+#'     derived baseline population, not the resulting first-cycle labels.
+#'     Patients already terminal at baseline are not charged. A fee remains
+#'     paid even if the patient enters a terminal state during entry.
 #'   \item transition: charge the specified from-to state change. from and to
 #'     must be different known state labels. Remaining in a state is not a new
 #'     event. Initial snapshots do not imply a preceding transition.
 #' }
 #' amount is a finite cost per matching patient. Negative amounts represent
-#' credits. Optional states restrict the destination labels. startDay (default
+#' credits. Optional states restrict the destination labels, or baseline labels
+#' for entry rules. from and to are accepted only for transition rules.
+#' startDay (default
 #' zero, inclusive) and endDay (default infinity, exclusive) restrict elapsed
 #' follow-up days. Windows follow the label's day, not calendar year or a newly
 #' reset time since treatment. For a duration measured from treatment initiation,
@@ -31,7 +38,10 @@
 #' therefore describes up to k + 1 charged labels, consistent with projectCosts().
 #' Amounts are per complete label, not prorated daily rates. A simulation resumed
 #' with advanceSimulation() does not charge its saved starting label again.
-#' Once and recurring rules never charge explicitly terminal patients. A
+#' Entry fees are separate prepaid amounts and do not add another labelled cycle
+#' or another period of healthcare costs. They are assessed at day zero only,
+#' before entry effects and outcomes. Resuming a simulation never pays them again.
+#' Once, recurring and entry rules never charge explicitly terminal patients. A
 #' transition rule can charge entry into a terminal state once. Absorbing states
 #' not declared terminal can continue to incur costs.
 #'
@@ -50,4 +60,9 @@
 #' maintenance = list(type = "recurring", amount = 20, endDay = 28)).
 #' With weekly labels starting at day zero, maintenance is charged at days
 #' 0, 7, 14 and 21, provided the patient has not entered a terminal state.
+#' When treatment is paid before the first-cycle outcome, use
+#' list(treatment = list(type = "entry", amount = 1500)) with an entry model.
+#' Unlike once, this pays for eligible baseline patients regardless of their
+#' first-cycle outcome. Other rules and fitted healthcare costs still apply to
+#' the resulting first-cycle labels and can be combined with the entry fee.
 NULL

@@ -3,7 +3,7 @@
 #' @name transition-effects
 #' @description Supply transitionEffects to simulateTrajectories() as a named
 #'   list of rules. Each rule requires from, to, multiplier and redistributeTo.
-#'   Optional fields are eligible, startDay and endDay. Component names must be
+#'   Optional fields are eligible, startDay, endDay and applyAt. Component names must be
 #'   unique and fields not listed here are errors.
 #' @details A rule multiplies the source row's probability of to by multiplier
 #'   and assigns the remaining probability of the to/redistributeTo pair to
@@ -19,6 +19,17 @@
 #'   nonnegative scalar. A multiplier of one, or an original zero probability
 #'   for to, leaves the row unchanged. An unavailable source row is still an
 #'   error, including when multiplier is zero.
+#'
+#'   applyAt defaults to "transitions", which applies the rule only to the
+#'   adjacent-cycle steps after the first snapshot. Use "entry" for the explicit
+#'   entry model, or "both" for entry and subsequent steps. An entry application
+#'   uses the pre-entry state and covariates at elapsed day zero. Entry rules
+#'   require an entry model. Eligibility callbacks are not called in phases
+#'   excluded by applyAt, and the same rule is never applied twice at entry.
+#'   Entry and the first adjacent step both have source day zero. With weekly
+#'   cycles, applyAt = "both" and endDay = 28 affects entry plus four adjacent
+#'   steps, not four outcome labels. For four affected labels, supply a separate
+#'   entry rule and a transitions rule ending at source day 21.
 #'
 #'   startDay defaults to zero and endDay to infinity. Finite boundaries must
 #'   be whole days aligned with cycleLength. The start is included and the end
@@ -56,7 +67,7 @@ NULL
   }
   cycleLength <- .tmaProjectionInteger(cycleLength, "Transition effect cycleLength", 1)
   required <- c("from", "to", "multiplier", "redistributeTo")
-  fields <- c(required, "eligible", "startDay", "endDay")
+  fields <- c(required, "eligible", "startDay", "endDay", "applyAt")
   for (name in names(rules)) {
     rule <- rules[[name]]
     label <- paste0("transitionEffects[['", name, "']]")
@@ -64,7 +75,7 @@ NULL
         anyNA(names(rule)) || anyDuplicated(names(rule)) ||
         !all(required %in% names(rule)) || any(!names(rule) %in% fields)) {
       stop(label, " must contain from, to, multiplier and redistributeTo, with only ",
-           "eligible, startDay and endDay as optional fields.", call. = FALSE)
+           "eligible, startDay, endDay and applyAt as optional fields.", call. = FALSE)
     }
     for (field in c("from", "to", "redistributeTo")) {
       value <- rule[[field]]
@@ -87,6 +98,13 @@ NULL
       stop(label, "$multiplier must be one finite nonnegative numeric value.", call. = FALSE)
     }
     rule$multiplier <- unname(multiplier)
+    if (is.null(rule$applyAt)) rule$applyAt <- "transitions"
+    if (!is.character(rule$applyAt) || length(rule$applyAt) != 1L ||
+        !is.null(dim(rule$applyAt)) || is.na(rule$applyAt) ||
+        !rule$applyAt %in% c("transitions", "entry", "both")) {
+      stop(label, "$applyAt must be 'transitions', 'entry' or 'both'.", call. = FALSE)
+    }
+    rule$applyAt <- unname(rule$applyAt)
     if (!is.null(rule$eligible) && !is.function(rule$eligible)) {
       stop(label, "$eligible must be a function of candidate source snapshots.", call. = FALSE)
     }
@@ -112,11 +130,12 @@ NULL
   rules
 }
 
-.tmaEligibleEffects <- function(rules, population) {
+.tmaEligibleEffects <- function(rules, population, applyAt = "transitions") {
   selected <- stats::setNames(rep(NA_character_, nrow(population)),
                                as.character(population$simulation_id))
   for (name in names(rules)) {
     rule <- rules[[name]]
+    if (!rule$applyAt %in% c(applyAt, "both")) next
     candidates <- which(population$state_label == rule$from &
       population$elapsed_day >= rule$startDay & population$elapsed_day < rule$endDay)
     if (!length(candidates)) next

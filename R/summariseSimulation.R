@@ -49,7 +49,9 @@
 #'   first snapshot of every simulated patient, including identifiers and
 #'   covariates, so compareScenarios() can check the starting populations.
 #'   When an entry model was used, it instead retains the pre-entry profiles.
-#'   These profiles add no health time or charges. Metadata records this choice
+#'   These profiles add no health time. Explicit entry fees are included once
+#'   using their baseline ledger rows, even for terminal entry outcomes.
+#'   Metadata records this choice
 #'   as initial_population_basis, either first_label or pre_entry.
 #'   byPatient includes the final state. totals reports total and per_patient values for
 #'   cost, discounted_cost, life_years, discounted_life_years, qalys and
@@ -157,8 +159,7 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       any(!is.finite(totals$total[!is.na(totals$total)])) || any(is.nan(totals$total))) {
     stop("Simulation summary exceeds finite numeric limits.", call. = FALSE)
   }
-  initialPopulation <- .tmaSummaryInitialPopulation(simulation,
-    history[checked$first, , drop = FALSE], states, checked$terminalStates)
+  initialPopulation <- checked$initialPopulation
   rownames(initialPopulation) <- NULL
   structure(list(byPatient = byPatient, totals = totals, costs = costs, stateTime = stateTime,
     initialPopulation = initialPopulation,
@@ -218,7 +219,8 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
   }
   draws <- entry$transitions
   active <- !baseline$state_label %in% terminalStates
-  fields <- c("simulation_id", "source_state", "destination_state", "transition_probability")
+  clocks <- c("source_cycle", "destination_cycle", "source_day", "destination_day")
+  fields <- c("simulation_id", "source_state", "destination_state", "transition_probability", clocks)
   if (!is.data.frame(draws) || anyDuplicated(names(draws)) || !all(fields %in% names(draws)) ||
       !is.character(draws$simulation_id) || anyNA(draws$simulation_id) ||
       anyDuplicated(draws$simulation_id) ||
@@ -226,6 +228,10 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
     stop("Entry draws must identify each nonterminal pre-entry patient exactly once.", call. = FALSE)
   }
   draws <- draws[match(baseline$simulation_id[active], draws$simulation_id), , drop = FALSE]
+  if (!all(vapply(draws[clocks], function(value) is.numeric(value) &&
+      !is.complex(value) && !anyNA(value) && all(is.finite(value) & value == 0), logical(1)))) {
+    stop("Entry transition source and destination clocks must remain at cycle and day zero.", call. = FALSE)
+  }
   matrix <- entry$matrix
   if (!is.matrix(matrix) || !is.numeric(matrix) || is.complex(matrix) ||
       anyDuplicated(rownames(matrix)) || anyDuplicated(colnames(matrix)) ||
@@ -238,6 +244,8 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
   }
   expected <- matrix[cbind(match(draws$source_state, rownames(matrix)),
     match(draws$destination_state, colnames(matrix)))]
+  expected <- .tmaSummaryEntryEffects(simulation, draws,
+    baseline[active, , drop = FALSE], expected)
   probability <- draws$transition_probability
   if (!is.numeric(probability) || is.complex(probability) || anyNA(probability) ||
       any(!is.finite(probability) | probability <= 0 | probability > 1) ||
@@ -349,6 +357,33 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       stop("Simulation charge ", field, " must contain nonempty labels.", call. = FALSE)
     }
   }
+  initialPopulation <- .tmaSummaryInitialPopulation(simulation,
+    history[first, , drop = FALSE], states, terminalStates)
+  rules <- .tmaSimulationCostRules(simulation$.config$costRules, states)
+  entryComponents <- names(rules)[vapply(rules, function(rule) rule$type == "entry", logical(1))]
+  entryCharge <- ledger$type == "entry"
+  if (any(entryCharge != (ledger$component %in% entryComponents)) ||
+      (length(entryComponents) && is.null(simulation$entry))) {
+    stop("Entry charges must use configured entry rules and a retained pre-entry population.", call. = FALSE)
+  }
+  if (any(entryCharge)) {
+    fee <- ledger[entryCharge, , drop = FALSE]
+    baseline <- initialPopulation[match(fee$simulation_id, initialPopulation$simulation_id), , drop = FALSE]
+    if (anyDuplicated(fee[c("simulation_id", "component")]) ||
+        any(fee$cycle != 0 | fee$elapsed_day != 0) ||
+        any(fee$state_label != baseline$state_label) ||
+        any(baseline$state_label %in% terminalStates)) {
+      stop("Entry fees must match nonterminal baseline states once per component and patient at day zero.", call. = FALSE)
+    }
+    for (component in unique(fee$component)) {
+      rule <- rules[[component]]
+      selected <- fee$component == component
+      if (any(fee$amount[selected] != rule$amount) || rule$startDay > 0 || rule$endDay <= 0 ||
+          (!is.null(rule$states) && any(!fee$state_label[selected] %in% rule$states))) {
+        stop("Entry fee amounts, states and days must agree with their configured rules.", call. = FALSE)
+      }
+    }
+  }
   if (nrow(ledger)) {
     chargedPatient <- match(ledger$simulation_id, ids)
     offset <- ledger$cycle - history$cycle[first[chargedPatient]]
@@ -356,16 +391,10 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       stop("Every charge must align with a retained snapshot's cycle, day and state.", call. = FALSE)
     }
     matched <- first[chargedPatient] + offset
-    if (any(ledger$elapsed_day != history$elapsed_day[matched]) ||
-        any(ledger$state_label != history$state_label[matched])) {
+    if (any(ledger$elapsed_day[!entryCharge] != history$elapsed_day[matched[!entryCharge]]) ||
+        any(ledger$state_label[!entryCharge] != history$state_label[matched[!entryCharge]])) {
       stop("Every charge must align with a retained snapshot's cycle, day and state.", call. = FALSE)
     }
-  }
-  rules <- simulation$.config$costRules
-  if (!is.list(rules) || is.data.frame(rules) ||
-      (length(rules) && (is.null(names(rules)) || anyNA(names(rules)) ||
-        anyDuplicated(names(rules)) || any(!nzchar(trimws(names(rules))))))) {
-    stop("Simulation must retain its named configured cost rules.", call. = FALSE)
   }
   hasModel <- !is.null(simulation$.config$bundle$costModel)
   expectedComponents <- c(if (hasModel) "healthcare", names(rules))
@@ -398,7 +427,7 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
   list(population = population, history = history, ledger = ledger, states = states,
     terminalStates = terminalStates, cycleLength = cycleLength, patient = patient,
     counts = counts, first = first, last = last, components = components,
-    costsConfigured = costsConfigured)
+    costsConfigured = costsConfigured, initialPopulation = initialPopulation)
 }
 
 .tmaSimulationSummarySum <- function(values, group, size) {
