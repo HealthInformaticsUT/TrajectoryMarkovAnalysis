@@ -109,6 +109,12 @@
 #'   the global elapsed-day clock. The original bundle's cost model remains in
 #'   effect. This switch applies to patient simulation, not projectCohort().
 #'
+#'   A bundle from extrapolateMortality() recalculates late mortality using
+#'   each source profile's current background stratum and the specified excess
+#'   mortality assumption. Its decline clock starts at fromDay. Background
+#'   grouping does not change the clinical or cost groups in patient snapshots.
+#'   Transition effects are applied after the mortality model is evaluated.
+#'
 #'   If birth_date and index_date are supplied, completed age is recomputed at
 #'   index_date + elapsed_day for nonterminal patients. Without birth_date,
 #'   numeric age stays unchanged unless updateCovariates changes it; no birthday
@@ -188,6 +194,15 @@
 #'   transition-effect audits add source model_phase, model_source and model_day.
 #'   Transitions also record destination_model_phase. metadata$extrapolation
 #'   records the cutoff and supplied extrapolation model definition.
+#'   With mortality extrapolation, transitions additionally records
+#'   background_stratum_id, background_death_probability,
+#'   excess_hazard_per_day, integrated_excess_hazard and mortality_probability.
+#'   excess_hazard_per_day is the calibrated reference hazard before decline.
+#'   integrated_excess_hazard is the dimensionless excess hazard accumulated
+#'   over the source cycle after applying any decline, not a number of days.
+#'   These describe the source model before transition effects, not necessarily
+#'   the mortality probability after an intervention. They are NA for steps
+#'   using the original model. The same columns exist when no steps are drawn.
 #' @seealso \link{transition-effects} for rule fields and probability handling.
 #'   summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 #' @export
@@ -198,6 +213,9 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
                                  terminalStates = character(), stopWhen = NULL,
                                  seed = NULL, replace = FALSE,
                                  transitionEffects = NULL, entry = NULL) {
+  if (inherits(bundle, "tma_mortality_bundle")) {
+    stop("Supply the complete bundle returned by extrapolateMortality(), not its detached late-mortality model.", call. = FALSE)
+  }
   bundle <- .tmaValidateModelBundle(bundle)
   entry <- .tmaSimulationEntryModel(entry, bundle)
   nSteps <- .tmaProjectionInteger(nSteps, "nSteps", 0)
@@ -289,7 +307,8 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     if (!is.null(entryResult)) entryResult$metadata$population_source <- initialisation
     simulation <- structure(list(
       population = population, trajectories = population,
-      transitions = .tmaSimulationEmptyTransitions(extended), costs = initialCharge$ledger,
+      transitions = .tmaSimulationEmptyTransitions(extended,
+        .tmaBundleUsesFutureMortality(bundle)), costs = initialCharge$ledger,
       totals = .tmaSimulationTotals(initialCharge$ledger, rules, costModel),
       metadata = list(n = nrow(population), steps = 0, cycle = max(population$cycle),
         cycleLength = bundle$metadata$cycleLength, terminalStates = terminalStates,
@@ -306,6 +325,10 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
       .state = list(charged = initialCharge$charged, rng = NULL)
     ), class = "tma_simulation")
     if (extended) simulation$metadata$extrapolation <- .tmaBundleExtrapolationInfo(bundle)
+    if (.tmaBundleUsesFutureMortality(bundle)) {
+      simulation$metadata$mortality_audit <-
+        "source model before transition effects; NA during the original-model phase"
+    }
     if (!is.null(entryResult)) simulation$entry <- entryResult
     if (!is.null(costModel)) {
       simulation$metadata$cost_model <- costModel$metadata
@@ -350,6 +373,9 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   if (!inherits(simulation, "tma_simulation") || !is.list(simulation$.config) ||
       !is.list(simulation$.state) || !is.list(simulation$.state$rng)) {
     stop("simulation must be a saved result from simulateTrajectories().", call. = FALSE)
+  }
+  if (inherits(simulation$.config$bundle, "tma_mortality_bundle")) {
+    stop("Saved simulations must retain the complete bundle returned by extrapolateMortality().", call. = FALSE)
   }
   simulation$.config$bundle <- .tmaValidateModelBundle(simulation$.config$bundle)
   if (!identical(simulation$metadata$extrapolation,
@@ -558,18 +584,9 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     if (extended) previous$model_phase[active] <- selection$model_phase
     population <- previous
     # Validate every selected source row before intervention callbacks or draws.
-    sourceProbabilities <- lapply(seq_along(active), function(j) {
-      row <- active[j]
-      model <- .tmaBundleTransitionModel(bundle, selection$model_phase[j], sourceStratum[j])
-      probability <- model$matrices[[sourcePeriod[j]]][previous$state_label[row], ]
-      if (anyNA(probability)) {
-        stop("Unestimated transition row for state '", previous$state_label[row],
-          "' in stratum '", sourceStratum[j], "', period '", sourcePeriod[j],
-          if (extended) paste0("', model phase '", selection$model_phase[j]) else "",
-          "' for ", previous$simulation_id[row], ".", call. = FALSE)
-      }
-      probability
-    })
+    sourceRows <- .tmaBundleProbabilityRows(bundle,
+      previous[active, , drop = FALSE], selection)
+    sourceProbabilities <- sourceRows$probabilities
     drawProbability <- numeric(length(active))
     if (length(effects)) {
       effectIds <- .tmaEligibleEffects(effects, previous[active, , drop = FALSE])
@@ -664,6 +681,10 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       transitionRows[[currentStep]]$model_day <- selection$model_day
       transitionRows[[currentStep]]$destination_model_phase <- population$model_phase[active]
     }
+    if (!is.null(sourceRows$audit)) {
+      currentStep <- length(transitionRows)
+      transitionRows[[currentStep]] <- cbind(transitionRows[[currentStep]], sourceRows$audit)
+    }
     if (length(effects)) {
       currentStep <- length(transitionRows)
       transitionRows[[currentStep]]$baseline_transition_probability <- baselineDraw
@@ -743,7 +764,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   NULL
 }
 
-.tmaSimulationEmptyTransitions <- function(extended = FALSE) {
+.tmaSimulationEmptyTransitions <- function(extended = FALSE, mortality = FALSE) {
   rows <- data.frame(simulation_id = character(), source_cycle = numeric(),
     destination_cycle = numeric(), source_day = numeric(), destination_day = numeric(),
     source_state = character(), destination_state = character(),
@@ -756,6 +777,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     rows$model_day <- numeric()
     rows$destination_model_phase <- character()
   }
+  if (mortality) rows <- cbind(rows, .tmaBundleMortalityAudit(0L))
   rows
 }
 

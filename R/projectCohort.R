@@ -21,6 +21,9 @@
 #'   an infinite final period does not establish empirical lifetime validity.
 #'   Probabilities are never normalised. No costs, random sampling, database
 #'   operations or file writes are performed.
+#'   Mortality extrapolations from extrapolateMortality() require current
+#'   patient profiles and must use simulateTrajectories(). This function does
+#'   not substitute an average background mortality profile.
 #'
 #'   With entry supplied, cycle zero still means the first recorded cycle label.
 #'   Entry adds no timepoint and nCycles still counts subsequent adjacent-cycle
@@ -59,6 +62,11 @@
 #' @export
 projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
                            entry = NULL) {
+  if (inherits(transitions, "tma_mortality_bundle") ||
+      (inherits(transitions, "tma_model_bundle") &&
+       .tmaBundleUsesFutureMortality(transitions))) {
+    stop("Mortality extrapolation requires current patient profiles. Use simulateTrajectories() with the complete bundle from extrapolateMortality().", call. = FALSE)
+  }
   tolerance <- 1e-10
   if (inherits(entry, "tma_stratified_entry")) {
     stop("Stratified entry requires explicit patient profiles in simulateTrajectories(), or select one group from entry$models for projectCohort(). Entry groups are not pooled.", call. = FALSE)

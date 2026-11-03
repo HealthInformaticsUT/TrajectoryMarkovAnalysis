@@ -26,10 +26,15 @@
 #'   No support cutoff or probabilities are inferred from fitted counts. The
 #'   analyst chooses the switch day, late probabilities and source label. This
 #'   helper does not fit mortality or another extrapolation algorithm.
+#'   For a late model combining supplied background mortality with calibrated
+#'   excess mortality, use extrapolateMortality() instead.
 #' @return A tma_model_bundle retaining its original models and costs, with a
 #'   validated extrapolation definition for simulateTrajectories().
 #' @export
 extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, source) {
+  if (inherits(bundle, "tma_mortality_bundle")) {
+    stop("A mortality extrapolation must remain attached to its original bundle. Use extrapolateMortality() with the original model bundle.", call. = FALSE)
+  }
   if (inherits(bundle, "tma_model_bundle") && !is.null(bundle$extrapolation)) {
     stop("This bundle already has an extrapolation; only one explicit switch is supported.", call. = FALSE)
   }
@@ -77,20 +82,25 @@ extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, sourc
       tail$metadata$cycleLength != base$metadata$cycleLength) {
     stop("Extrapolation must share the original states, absorbing states and cycleLength.", call. = FALSE)
   }
-  # State names define the shared dictionary; normalize an independently
-  # supplied ordering without changing any probability or original model.
-  for (id in names(tail$models)) {
-    model <- tail$models[[id]]
-    model$metadata$states <- states
-    model$matrices <- lapply(model$matrices, function(x) x[states, states, drop = FALSE])
-    model$matrix <- if (length(model$matrices) == 1L) model$matrices[[1L]] else NULL
-    if (!is.null(model$stageMatrices)) {
-      model$stageMatrices <- .tmaStageDefinition(model$stageMatrices, model$periods,
-        states, base$metadata$absorbingStates)$stageMatrices
+  if (inherits(tail, "tma_mortality_bundle")) {
+    if (!identical(tail$metadata$states, states)) {
+      stop("A mortality extrapolation must retain the original state order. Recreate it with extrapolateMortality().", call. = FALSE)
     }
-    tail$models[[id]] <- model
+  } else {
+    # Ordinary late matrices may have an independently supplied state order.
+    for (id in names(tail$models)) {
+      model <- tail$models[[id]]
+      model$metadata$states <- states
+      model$matrices <- lapply(model$matrices, function(x) x[states, states, drop = FALSE])
+      model$matrix <- if (length(model$matrices) == 1L) model$matrices[[1L]] else NULL
+      if (!is.null(model$stageMatrices)) {
+        model$stageMatrices <- .tmaStageDefinition(model$stageMatrices, model$periods,
+          states, base$metadata$absorbingStates)$stageMatrices
+      }
+      tail$models[[id]] <- model
+    }
+    tail$metadata$states <- states
   }
-  tail$metadata$states <- states
   outputNames <- union(names(base$groups), names(tail$groups))
   rawNames <- vapply(c(base$groups, tail$groups), function(rule) rule$column, character(1))
   collisions <- intersect(outputNames, rawNames)
@@ -182,6 +192,51 @@ extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, sourc
   selected$models[[id]]
 }
 
+.tmaBundleUsesFutureMortality <- function(bundle) {
+  inherits(bundle$extrapolation$bundle, "tma_mortality_bundle")
+}
+
+.tmaBundleMortalityAudit <- function(n) {
+  data.frame(background_stratum_id = rep(NA_character_, n),
+    background_death_probability = rep(NA_real_, n),
+    excess_hazard_per_day = rep(NA_real_, n),
+    integrated_excess_hazard = rep(NA_real_, n),
+    mortality_probability = rep(NA_real_, n), stringsAsFactors = FALSE)
+}
+
+# Both model forms supply complete source rows before any intervention or draw.
+# Background grouping stays private to the mortality evaluator and cannot
+# overwrite clinical or cost groups in the patient profile.
+.tmaBundleProbabilityRows <- function(bundle, population, selection) {
+  probability <- vector("list", nrow(population))
+  audit <- if (.tmaBundleUsesFutureMortality(bundle)) {
+    .tmaBundleMortalityAudit(nrow(population))
+  } else NULL
+  for (phase in unique(selection$model_phase)) {
+    rows <- which(selection$model_phase == phase)
+    selected <- if (phase == "base") bundle else bundle$extrapolation$bundle
+    if (inherits(selected, "tma_mortality_bundle")) {
+      future <- .tmaFutureMortalityRows(selected, population[rows, , drop = FALSE],
+        selection$model_day[rows], selection$stratum_id[rows])
+      probability[rows] <- future$probabilities
+      audit[rows, ] <- future$audit
+    } else {
+      probability[rows] <- lapply(rows, function(row) {
+        model <- .tmaBundleTransitionModel(bundle, phase, selection$stratum_id[row])
+        result <- model$matrices[[selection$period[row]]][population$state_label[row], ]
+        if (anyNA(result)) {
+          stop("Unestimated transition row for state '", population$state_label[row],
+            "' in stratum '", selection$stratum_id[row], "', period '", selection$period[row],
+            if (!is.null(bundle$extrapolation)) paste0("', model phase '", phase) else "",
+            "' for ", population$simulation_id[row], ".", call. = FALSE)
+        }
+        result
+      })
+    }
+  }
+  list(probabilities = probability, audit = audit)
+}
+
 .tmaBundleGroupNames <- function(bundle) {
   union(names(bundle$groups), names(bundle$extrapolation$bundle$groups))
 }
@@ -189,8 +244,14 @@ extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, sourc
 .tmaBundleExtrapolationInfo <- function(bundle) {
   extension <- bundle$extrapolation
   if (is.null(extension)) return(NULL)
-  registry <- function(x) list(strata = x$strata, groups = x$groups,
-                               periods = x$metadata$periods)
+  registry <- function(x) {
+    result <- list(strata = x$strata, groups = x$groups,
+                   periods = x$metadata$periods)
+    if (inherits(x, "tma_mortality_bundle")) {
+      result$mortality <- .tmaFutureMortalityInfo(x)
+    }
+    result
+  }
   list(fromDay = extension$fromDay, source = extension$source,
        clock = "days since fromDay", base = registry(bundle),
        extrapolation = registry(extension$bundle))

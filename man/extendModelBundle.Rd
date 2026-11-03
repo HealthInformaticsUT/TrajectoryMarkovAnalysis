@@ -46,4 +46,6 @@ Exactly one explicit switch is supported. Late-model period day
   No support cutoff or probabilities are inferred from fitted counts. The
   analyst chooses the switch day, late probabilities and source label. This
   helper does not fit mortality or another extrapolation algorithm.
+  For a late model combining supplied background mortality with calibrated
+  excess mortality, use extrapolateMortality() instead.
 }

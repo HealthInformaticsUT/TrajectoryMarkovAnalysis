@@ -62,6 +62,9 @@ createModelBundle <- function(transitions, costs = NULL, groups = NULL) {
 }
 
 .tmaValidateModelBundle <- function(bundle) {
+  if (inherits(bundle, "tma_mortality_bundle")) {
+    return(.tmaValidateFutureMortalityBundle(bundle))
+  }
   if (!inherits(bundle, "tma_model_bundle") || !is.list(bundle$models) ||
       !length(bundle$models) || is.null(names(bundle$models)) ||
       anyNA(names(bundle$models)) || anyDuplicated(names(bundle$models)) ||

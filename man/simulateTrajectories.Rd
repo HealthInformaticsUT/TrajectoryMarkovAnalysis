@@ -151,6 +151,15 @@ A tma_simulation list with final population, trajectories,
   transition-effect audits add source model_phase, model_source and model_day.
   Transitions also record destination_model_phase. metadata$extrapolation
   records the cutoff and supplied extrapolation model definition.
+  With mortality extrapolation, transitions additionally records
+  background_stratum_id, background_death_probability,
+  excess_hazard_per_day, integrated_excess_hazard and mortality_probability.
+  excess_hazard_per_day is the calibrated reference hazard before decline.
+  integrated_excess_hazard is the dimensionless excess hazard accumulated
+  over the source cycle after applying any decline, not a number of days.
+  These describe the source model before transition effects, not necessarily
+  the mortality probability after an intervention. They are NA for steps
+  using the original model. The same columns exist when no steps are drawn.
 }
 \description{
 Simulate patient snapshots through a model bundle
@@ -173,6 +182,12 @@ Every step selects the model using current covariates and the period
   Covariate updates, transition-effect windows, costs and discounting retain
   the global elapsed-day clock. The original bundle's cost model remains in
   effect. This switch applies to patient simulation, not projectCohort().
+
+  A bundle from extrapolateMortality() recalculates late mortality using
+  each source profile's current background stratum and the specified excess
+  mortality assumption. Its decline clock starts at fromDay. Background
+  grouping does not change the clinical or cost groups in patient snapshots.
+  Transition effects are applied after the mortality model is evaluated.
 
   If birth_date and index_date are supplied, completed age is recomputed at
   index_date + elapsed_day for nonterminal patients. Without birth_date,

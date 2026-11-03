@@ -38,6 +38,8 @@ An analyst-supplied mortality table can also be converted into mortality-only
 cycle models, with current age and other covariates selecting the applicable row.
 Excess-mortality calibration matches that background to the source cycles behind
 each observed state and period estimate, and reports the resulting reference mix.
+An explicit mortality extension can then retain that excess or let it decline
+linearly while background mortality follows current patient covariates.
 
 This is not yet a release. Weekly labels do not identify separate within-cycle
 stages, and the package does not infer them. The older GUI, continuous-time model,
@@ -1392,6 +1394,101 @@ or attach a new simulation model.
 
 The [calibration example](inst/examples/excess-mortality-calibration.R) shows how
 the reference mix changes across periods and checks the transition denominators.
+
+### Extend mortality into future cycles
+
+`extrapolateMortality()` selects one fitted reference period and replaces its
+mortality with current background mortality plus calibrated excess. The original
+bundle still applies before the chosen switch day.
+
+```r
+future <- extrapolateMortality(
+  bundle,
+  calibration,
+  fromDay = 10 * 364,
+  referencePeriod = "Years 6-10",
+  excess = "linear",
+  declineDays = 5 * 365.25,
+  source = "Selected-period excess declines to zero over five years"
+)
+simulation <- simulateTrajectories(
+  future, population = baseline_patients, nSteps = 40 * 52,
+  terminalStates = calibration$metadata$deathStates, seed = 42
+)
+```
+
+Choose `excess = "constant"` and omit `declineDays` to retain the selected excess
+hazard. Neither choice is inferred from the observed data. `fromDay` must align
+with the cycle length. `declineDays` need not, because the calculation integrates
+the decline over each cycle, including one that crosses its endpoint.
+
+The clinical reference and calibration must use the same states, cycle length,
+estimation groups and selected period. The function checks their death counts
+and denominators, not just whether their labels match. It does not select a
+different reference period for an unsupported state. Strata are matched by
+their covariate values, not by local registry IDs. Fit and calibrate from the
+same prepared histories. Aggregate checks cannot establish that two different
+datasets contained the same patient-cycles.
+
+At every future source cycle, current covariates select the calibrated excess
+and the supplied background probability. Background grouping happens on a
+private copy of the profile. It cannot overwrite a clinical or cost group that
+uses the same column name with a different definition. Calendar ageing follows
+the existing simulator rules. No age interpolation, future calendar trend or
+missing-group fallback is introduced.
+
+For background cycle probability `b` and calibrated daily excess `e`, the new
+death probability is `1 - (1 - b) * exp(-e * A)`. With constant excess, `A` is
+the cycle length. With linear decline over `T` days, `A` is the integral of
+`max(1 - t/T, 0)` over the cycle, where `t` is days since the switch. Background
+mortality remains fixed at its source-profile value within that cycle. After
+the decline ends, excess is zero but background mortality continues to update.
+
+This **replaces** the old death probability. It does not add a second mortality
+stage. The remaining probability is distributed among non-death destinations
+in the same proportions as the reference row. For example, if one quarter of
+surviving transitions entered a complication state, that share remains one
+quarter. The absolute complication probability changes when survival changes.
+This is a scenario assumption about future transitions, not a new estimate of
+disease progression or an inferred order of events within the cycle.
+
+One death state needs no routing specification. With multiple death-history
+states, provide `deathAllocation` explicitly. A named character vector assigns
+each nonabsorbing source state to one death outcome:
+
+```r
+deathAllocation = c(
+  "Alive, no recorded pneumonia" = "Death, no pneumonia history",
+  "Alive, pneumonia history" = "Death, pneumonia history"
+)
+```
+
+This particular mapping preserves the history present at the start of the
+cycle. It does not represent pneumonia first occurring in a cycle that also
+ends in death. A numeric matrix with source states on rows and death states on
+columns can instead specify conditional death-outcome shares. Each row must
+sum to one. The package does not infer either choice. Other declared absorbing
+outcomes keep their identity rows and are not treated as deaths.
+
+The extension is a data-only recipe, not a matrix for every possible age and
+future cycle. Patient simulation evaluates it when a source row is needed.
+`projectCohort()` cannot evaluate this profile-dependent tail and rejects it.
+Original costs, entry handling, treatment windows and discount clocks are not
+reset at the switch. Treatment effects act on the newly calculated probabilities.
+
+For these simulations, the transition ledger also reports
+`background_stratum_id`, `background_death_probability`,
+`excess_hazard_per_day`, `integrated_excess_hazard` and `mortality_probability`.
+`excess_hazard_per_day` is the calibrated reference hazard before decline.
+`integrated_excess_hazard` is `e * A`, the dimensionless excess hazard accumulated
+over the cycle after applying any decline, not elapsed follow-up. These values
+describe the model
+**before** any treatment effect changes its probabilities. They are unavailable
+on rows before the switch. Source assumptions remain in the extrapolation
+metadata, including after saving, resuming and summarising the run.
+
+The [future-mortality example](inst/examples/future-mortality-simulation.R)
+shows a birthday, a decline ending inside a weekly cycle, and a resumed run.
 
 ### Stop, inspect or resume
 

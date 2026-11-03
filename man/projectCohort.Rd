@@ -55,6 +55,9 @@ Each step uses the matrix for the source cycle's start day. An
   an infinite final period does not establish empirical lifetime validity.
   Probabilities are never normalised. No costs, random sampling, database
   operations or file writes are performed.
+  Mortality extrapolations from extrapolateMortality() require current
+  patient profiles and must use simulateTrajectories(). This function does
+  not substitute an average background mortality profile.
 
   With entry supplied, cycle zero still means the first recorded cycle label.
   Entry adds no timepoint and nCycles still counts subsequent adjacent-cycle
