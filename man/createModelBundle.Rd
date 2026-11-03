@@ -8,7 +8,8 @@ createModelBundle(transitions, costs = NULL, groups = NULL)
 }
 \arguments{
 \item{transitions}{A result from estimateTransitions(), with or without
-strata, or an ordinary model from composeTransitionStages().}
+strata, a model from createMortalityTransitions(), or an ordinary model
+from composeTransitionStages().}
 
 \item{costs}{Optional result from estimateStateCosts() or createCostModel().
 Raw estimates remain descriptive and are not charged. A cost model explicitly

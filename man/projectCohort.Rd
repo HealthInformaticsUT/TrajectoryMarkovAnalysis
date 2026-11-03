@@ -14,8 +14,9 @@ projectCohort(
 }
 \arguments{
 \item{transitions}{A result from estimateTransitions() or
-composeTransitionStages(). A composed model needs an explicit initial
-distribution or a separate entry model.}
+composeTransitionStages(), or an unstratified createMortalityTransitions()
+model. Supplied models need an explicit initial distribution or a separate
+entry model. Select one stratum's model explicitly to project that group.}
 
 \item{nCycles}{Number of transition steps, a finite nonnegative integer.}
 

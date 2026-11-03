@@ -34,6 +34,8 @@ before calculating incremental outcomes and discounted ICERs.
 An explicit extrapolation model can replace the original transition model after
 a chosen source day. The simulator records that handover without changing the
 original estimates or extending the treatment window.
+An analyst-supplied mortality table can also be converted into mortality-only
+cycle models, with current age and other covariates selecting the applicable row.
 
 This is not yet a release. Weekly labels do not identify separate within-cycle
 stages, and the package does not infer them. The older GUI, continuous-time model,
@@ -1250,6 +1252,70 @@ This handover is currently supported by patient simulation and saved/resumed
 runs. It is not applied automatically by `projectCohort()`. The
 [extrapolation example](inst/examples/extrapolation-simulation.R) shows fitted
 and supplied probabilities, global and model-relative clocks, and a resumed run.
+
+### Use a supplied background-mortality table
+
+`createMortalityTransitions()` converts death probabilities from a stated time
+interval into cycle probabilities. You supply the table. The function does not
+download mortality data or interpret a source label as a data connection.
+
+```r
+# Synthetic annual probabilities, not clinical estimates.
+mortality <- data.frame(
+  age_group = c("under65", "65plus", "under65", "65plus"),
+  sex = c("female", "female", "male", "male"),
+  death_probability = c(0.02, 0.08, 0.04, 0.12)
+)
+age_groups <- list(age_group = list(
+  column = "age", breaks = c(0, 65, Inf),
+  labels = c("under65", "65plus")
+))
+mortality_model <- createMortalityTransitions(
+  mortality,
+  states = c("Stable", "Complication", "Dead"), deathState = "Dead",
+  cycleLength = 7, probabilityDays = 365.25,
+  strata = c("age_group", "sex"),
+  source = "Synthetic mortality table for this example"
+)
+mortality_bundle <- createModelBundle(mortality_model, groups = age_groups)
+```
+
+There must be one row per covariate combination, or exactly one row when
+`strata` is omitted. Labels and codes must match the patient profiles. Nothing
+maps sex codes, interpolates ages or substitutes a nearby group. Extra columns
+are not used. The model keeps the supplied probabilities, interval length,
+conversion and source label in each model's `metadata$mortality`.
+
+The conversion is `1 - (1 - death_probability)^(cycleLength / probabilityDays)`.
+It assumes a constant hazard over the supplied probability interval. Both time
+lengths are explicit and measured in days. Use probabilities between zero and
+one, not percentages, deaths per person-year, or death counts. A life-table
+probability covering several years needs that full interval length. An
+open-ended final age interval with probability one is not an annual mortality
+probability. Supplying one here means certain death in every positive cycle.
+
+With `birth_date` and `index_date` in the patient profiles, the simulator updates
+completed age at each cycle boundary. The current age group and other covariates
+then select the mortality model for that cycle. A birthday within a cycle does
+not split it. A supplied numeric `age` alone does not advance automatically.
+Using an open-ended age group, such as `65plus` above, explicitly holds that
+group's mortality probability at later ages. No future calendar trend is inferred.
+
+Each living state either stays unchanged or enters the declared death state.
+All living states use the same mortality probability within a stratum. This
+helper has one death state and does not model complications, recovery or excess
+mortality. It is not an adjustment to an existing all-cause mortality estimate.
+Adding it as a stage after such an estimate would count mortality again.
+
+You can pass `mortality_model` to `extendModelBundle()` with the same age grouping
+rules, provided the states, absorbing state and cycle length match. That means
+replacing the entire later transition model with mortality-only transitions,
+not adding background mortality while keeping other transitions. Choose this
+only when it is the intended scenario. Calibrating excess mortality against an
+appropriate reference population remains a separate step.
+
+The runnable [mortality example](inst/examples/background-mortality-simulation.R)
+shows the table, conversion, age-dependent selection and an explicit handover.
 
 ### Stop, inspect or resume
 

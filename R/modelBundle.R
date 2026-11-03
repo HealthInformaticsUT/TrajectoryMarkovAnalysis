@@ -1,7 +1,8 @@
 #' Collect transition models and their covariate definitions
 #'
 #' @param transitions A result from estimateTransitions(), with or without
-#'   strata, or an ordinary model from composeTransitionStages().
+#'   strata, a model from createMortalityTransitions(), or an ordinary model
+#'   from composeTransitionStages().
 #' @param costs Optional result from estimateStateCosts() or createCostModel().
 #'   Raw estimates remain descriptive and are not charged. A cost model explicitly
 #'   enables healthcare charges during simulation using its units, periods,
