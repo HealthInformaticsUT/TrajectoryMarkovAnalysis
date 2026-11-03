@@ -22,6 +22,10 @@
 #'   starting distribution separately when simulating. Composed models retain
 #'   their stage definitions, but patient simulation samples their combined
 #'   cycle outcomes, not unobserved intermediate patient events.
+#'
+#'   Use extendModelBundle() to attach an explicit late transition model at a
+#'   chosen source day. That model can use separate strata, groups and periods;
+#'   the original transitions and cost configuration remain unchanged.
 #' @return A tma_model_bundle with models, strata, groups, optional costEstimates
 #'   or costModel, and metadata. Cost and transition models can use different
 #'   covariates and periods. No database connection or patient-level cost records
@@ -148,10 +152,17 @@ createModelBundle <- function(transitions, costs = NULL, groups = NULL) {
     }
   }
   bundle$groups <- groups
+  if (!is.null(bundle$extrapolation)) {
+    bundle$extrapolation <- .tmaValidateBundleExtrapolation(bundle$extrapolation, bundle)
+  }
   bundle
 }
 
 .tmaBundleModel <- function(bundle, population, allowUnmatched = FALSE) {
+  .tmaBundleSelection(bundle, population, allowUnmatched)$stratum_id
+}
+
+.tmaBundleStratum <- function(bundle, population, allowUnmatched = FALSE) {
   columns <- bundle$metadata$strata
   if (!length(columns)) return(rep(bundle$strata$stratum_id[1L], nrow(population)))
   if (!all(columns %in% names(population))) {
@@ -234,7 +245,7 @@ addCovariateGroups <- function(data, groups, dateColumn = NULL) {
   }
   reserved <- c("subject_id", "simulation_id", "source_subject_id", "state_label",
                  "state_start_date", "state_end_date", "index_date", "birth_date",
-                 "cycle", "elapsed_day", "stratum_id", "period", "age")
+                 "cycle", "elapsed_day", "stratum_id", "period", "model_phase", "age")
   if (any(names(groups) %in% reserved)) {
     stop("Grouping outputs must not replace identifiers, states, dates, age or simulation bookkeeping.", call. = FALSE)
   }
@@ -276,7 +287,7 @@ addCovariateGroups <- function(data, groups, dateColumn = NULL) {
     as.integer(format(date, "%m%d") < format(birth, "%m%d"))
 }
 
-.tmaSimulationCovariates <- function(bundle, population) {
+.tmaSimulationCovariates <- function(bundle, population, deferMissing = FALSE) {
   if ("birth_date" %in% names(population)) {
     if (!"index_date" %in% names(population)) {
       stop("Profiles with birth_date need index_date to advance calendar age.", call. = FALSE)
@@ -286,5 +297,53 @@ addCovariateGroups <- function(data, groups, dateColumn = NULL) {
     population$age <- .tmaAgeAtDate(population$birth_date,
                                     population$index_date + population$elapsed_day)
   }
-  addCovariateGroups(population, bundle$groups)
+  if (is.null(bundle$extrapolation)) {
+    return(.tmaSimulationGroups(population, bundle$groups, deferMissing))
+  }
+  phase <- .tmaBundlePhase(bundle, population)
+  costGroups <- bundle$groups[intersect(names(bundle$groups),
+                                       bundle$costModel$metadata$strata)]
+  for (currentPhase in unique(phase)) {
+    rows <- which(phase == currentPhase)
+    selected <- if (currentPhase == "base") bundle else bundle$extrapolation$bundle
+    groups <- c(selected$groups, costGroups[setdiff(names(costGroups), names(selected$groups))])
+    retained <- union(names(groups), union(selected$metadata$strata,
+                                           bundle$costModel$metadata$strata))
+    inactive <- intersect(setdiff(.tmaBundleGroupNames(bundle), retained), names(population))
+    for (name in inactive) {
+      if (is.factor(population[[name]])) population[[name]] <- as.character(population[[name]])
+      population[[name]][rows] <- NA_character_
+    }
+    grouped <- .tmaSimulationGroups(population[rows, , drop = FALSE], groups, deferMissing)
+    for (name in names(groups)) {
+      if (!name %in% names(population)) population[[name]] <- rep(NA_character_, nrow(population))
+      if (is.factor(population[[name]])) population[[name]] <- as.character(population[[name]])
+      population[[name]][rows] <- grouped[[name]]
+    }
+  }
+  population
+}
+
+# A destination callback may supply a newly needed raw value at the phase
+# boundary. Defer only missing inputs, never invalid types or out-of-range data.
+.tmaSimulationGroups <- function(population, groups, deferMissing) {
+  if (!deferMissing) return(addCovariateGroups(population, groups))
+  groups <- .tmaCovariateGroups(groups)
+  for (name in names(groups)) {
+    rule <- groups[[name]]
+    population[[name]] <- rep(NA_character_, nrow(population))
+    if (!rule$column %in% names(population)) next
+    values <- population[[rule$column]]
+    if (!is.numeric(values) || is.complex(values) || inherits(values, "integer64") ||
+        !is.null(dim(values)) || any(is.nan(values)) ||
+        any(!is.finite(values[!is.na(values)]))) {
+      stop("Grouping column '", rule$column, "' must contain finite numeric values.", call. = FALSE)
+    }
+    available <- which(!is.na(values))
+    if (length(available)) {
+      grouped <- addCovariateGroups(population[available, , drop = FALSE], groups[name])
+      population[[name]][available] <- grouped[[name]]
+    }
+  }
+  population
 }

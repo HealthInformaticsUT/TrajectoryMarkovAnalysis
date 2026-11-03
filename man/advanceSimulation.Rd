@@ -28,4 +28,6 @@ Resumes the saved cost and transition-effect rules, callbacks,
   completed by terminal or custom stopping is returned unchanged. The input
   object and caller RNG state are not modified. Box-Muller RNG callers and
   checkpoints are unsupported; callbacks must not change RNGkind().
+  An extrapolation extension and its cutoff are retained and validated on
+  resume. Crossing the cutoff does not repeat entry or reset any global clock.
 }

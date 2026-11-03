@@ -42,4 +42,8 @@ Models share one clinical state dictionary, cycle length and set of
   starting distribution separately when simulating. Composed models retain
   their stage definitions, but patient simulation samples their combined
   cycle outcomes, not unobserved intermediate patient events.
+
+  Use extendModelBundle() to attach an explicit late transition model at a
+  chosen source day. That model can use separate strata, groups and periods;
+  the original transitions and cost configuration remain unchanged.
 }

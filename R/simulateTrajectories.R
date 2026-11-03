@@ -3,6 +3,8 @@
 #' @param bundle A model bundle from createModelBundle(). An explicit cost model
 #'   created with createCostModel() is charged automatically when retained in
 #'   bundle$costModel. Raw descriptive bundle$costEstimates are not charged.
+#'   An extension from extendModelBundle() switches transition models at its
+#'   source-day cutoff during patient simulation.
 #' @param population Optional data frame with one current snapshot per patient.
 #'   Supply state_label unless initial overrides states. Optional subject_id must
 #'   be unique and is retained as source_subject_id. Generated simulation_id
@@ -28,10 +30,13 @@
 #'   is allowed. IDs, states, dates defining age, cycle, elapsed_day and derived
 #'   stratum IDs cannot be changed. Grouping outputs and age derived from
 #'   birth_date are owned by the bundle; update raw grouping inputs instead.
-#'   current omits stratum_id until updates finish; previous retains the source
-#'   stratum_id. Use named covariate values to define eligibility. Callbacks
-#'   receive current snapshots, so any
+#'   current omits stratum_id and generated model_phase until updates finish;
+#'   previous retains the source values. Use named covariate values to define
+#'   eligibility. Callbacks receive current snapshots, so any
 #'   dependence on earlier history must be represented explicitly in covariates.
+#'   Available groups are recomputed before the callback. A group whose raw
+#'   covariate is missing is NA in current; supply that raw covariate in the
+#'   callback result before the strict post-callback grouping check.
 #' @param costRules Optional named list of rules with type (entry, once, recurring
 #'   or transition), a finite amount, optional states, eligible function of candidate
 #'   rows, and startDay/endDay (lower inclusive, upper
@@ -95,6 +100,15 @@
 #'   costs are retained. The next step fails if that snapshot is used as a
 #'   source. metadata$unsupported_current counts such nonterminal patients.
 #'
+#'   With an extended bundle, sources before fromDay use the original model;
+#'   sources at or after fromDay use the extrapolation model and its independent
+#'   covariate groups. Extrapolation periods start at model day zero at fromDay.
+#'   Unsupported extrapolation strata or probability rows fail without falling
+#'   back to the original model. Entry is still applied only once at day zero.
+#'   Covariate updates, transition-effect windows, costs and discounting retain
+#'   the global elapsed-day clock. The original bundle's cost model remains in
+#'   effect. This switch applies to patient simulation, not projectCohort().
+#'
 #'   If birth_date and index_date are supplied, completed age is recomputed at
 #'   index_date + elapsed_day for nonterminal patients. Without birth_date,
 #'   numeric age stays unchanged unless updateCovariates changes it; no birthday
@@ -103,6 +117,8 @@
 #'   patients continue, but their later rows incur no costs. Transitions record
 #'   actual draws only. Terminal destinations retain their last stratum and have
 #'   no destination period because no further model is needed.
+#'   With an extended bundle, terminal destinations also retain their last
+#'   model_phase; initially terminal patients have no selected phase.
 #'
 #'   k completed steps produce k + 1 labelled snapshots per patient, including
 #'   initial charges at cycle zero (or the supplied starting cycle), consistent
@@ -168,6 +184,10 @@
 #'   record actual and baseline sampled probabilities when entry effects exist.
 #'   Stratified entry effect audits include entry_stratum_id separately from the
 #'   later bundle's source_stratum.
+#'   Extended bundles add model_phase to population snapshots; transition and
+#'   transition-effect audits add source model_phase, model_source and model_day.
+#'   Transitions also record destination_model_phase. metadata$extrapolation
+#'   records the cutoff and supplied extrapolation model definition.
 #' @seealso \link{transition-effects} for rule fields and probability handling.
 #'   summariseSimulation() for costs, life-years, QALYs and explicit discounting.
 #' @export
@@ -233,12 +253,15 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     population <- .tmaSimulationInitial(bundle, population, n, initial, replace,
       terminalStates, entry)
     population$stratum_id <- rep(NA_character_, nrow(population))
+    extended <- !is.null(bundle$extrapolation)
+    if (extended) population$model_phase <- rep(NA_character_, nrow(population))
     active <- which(!population$state_label %in% terminalStates)
     if (length(active)) {
       population <- .tmaSimulationMergeRows(population, active,
         .tmaSimulationCovariates(bundle, population[active, , drop = FALSE]))
-      population$stratum_id[active] <- .tmaBundleModel(bundle,
-        population[active, , drop = FALSE])
+      selection <- .tmaBundleSelection(bundle, population[active, , drop = FALSE])
+      population$stratum_id[active] <- selection$stratum_id
+      if (extended) population$model_phase[active] <- selection$model_phase
     }
     baseline <- NULL
     entryResult <- NULL
@@ -266,7 +289,7 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     if (!is.null(entryResult)) entryResult$metadata$population_source <- initialisation
     simulation <- structure(list(
       population = population, trajectories = population,
-      transitions = .tmaSimulationEmptyTransitions(), costs = initialCharge$ledger,
+      transitions = .tmaSimulationEmptyTransitions(extended), costs = initialCharge$ledger,
       totals = .tmaSimulationTotals(initialCharge$ledger, rules, costModel),
       metadata = list(n = nrow(population), steps = 0, cycle = max(population$cycle),
         cycleLength = bundle$metadata$cycleLength, terminalStates = terminalStates,
@@ -282,13 +305,14 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         terminalStates = terminalStates, stopWhen = stopWhen),
       .state = list(charged = initialCharge$charged, rng = NULL)
     ), class = "tma_simulation")
+    if (extended) simulation$metadata$extrapolation <- .tmaBundleExtrapolationInfo(bundle)
     if (!is.null(entryResult)) simulation$entry <- entryResult
     if (!is.null(costModel)) {
       simulation$metadata$cost_model <- costModel$metadata
     }
     if (length(effects)) {
       simulation$.config$transitionEffects <- effects
-      simulation$effects <- .tmaSimulationEmptyEffects()
+      simulation$effects <- .tmaSimulationEmptyEffects(extended)
       simulation$transitions$baseline_transition_probability <- numeric()
       simulation$transitions$effect <- character()
       simulation$metadata$transition_effects <- list(
@@ -317,6 +341,8 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
 #'   completed by terminal or custom stopping is returned unchanged. The input
 #'   object and caller RNG state are not modified. Box-Muller RNG callers and
 #'   checkpoints are unsupported; callbacks must not change RNGkind().
+#'   An extrapolation extension and its cutoff are retained and validated on
+#'   resume. Crossing the cutoff does not repeat entry or reset any global clock.
 #' @return An updated tma_simulation with appended histories and charge ledger.
 #' @export
 advanceSimulation <- function(simulation, nSteps = 1) {
@@ -326,6 +352,10 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     stop("simulation must be a saved result from simulateTrajectories().", call. = FALSE)
   }
   simulation$.config$bundle <- .tmaValidateModelBundle(simulation$.config$bundle)
+  if (!identical(simulation$metadata$extrapolation,
+      .tmaBundleExtrapolationInfo(simulation$.config$bundle))) {
+    stop("Saved extrapolation metadata must match the simulation's model bundle.", call. = FALSE)
+  }
   if (!is.null(simulation$.config$transitionEffects)) {
     model <- simulation$.config$bundle$metadata
     simulation$.config$transitionEffects <- .tmaTransitionEffects(
@@ -408,8 +438,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       population <- population[sample.int(nrow(population), n, replace = replace), , drop = FALSE]
     }
   }
-  if (any(c("simulation_id", "source_subject_id", "stratum_id") %in% names(population))) {
-    stop("population must not supply generated simulation_id, source_subject_id or stratum_id fields.", call. = FALSE)
+  if (any(c("simulation_id", "source_subject_id", "stratum_id", "model_phase") %in% names(population))) {
+    stop("population must not supply generated simulation_id, source_subject_id, stratum_id or model_phase fields.", call. = FALSE)
   }
   if (!joint && !is.null(initial)) {
     population$state_label <- names(initial)[sample.int(length(initial), nrow(population),
@@ -502,6 +532,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   configuration <- simulation$.config
   bundle <- configuration$bundle
   cycleLength <- bundle$metadata$cycleLength
+  extended <- !is.null(bundle$extrapolation)
   effects <- configuration$transitionEffects
   population <- simulation$population
   if (nrow(simulation$trajectories) + nrow(population) * nSteps > .Machine$integer.max ||
@@ -518,12 +549,29 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   if (is.null(reason)) for (i in seq_len(nSteps)) {
     previous <- population
     active <- which(!previous$state_label %in% configuration$terminalStates)
-    sourceStratum <- .tmaBundleModel(bundle, previous[active, , drop = FALSE])
-    sourcePeriod <- character(length(active))
+    previous <- .tmaSimulationMergeRows(previous, active,
+      .tmaSimulationCovariates(bundle, previous[active, , drop = FALSE]))
+    selection <- .tmaBundleSelection(bundle, previous[active, , drop = FALSE])
+    sourceStratum <- selection$stratum_id
+    sourcePeriod <- selection$period
+    previous$stratum_id[active] <- sourceStratum
+    if (extended) previous$model_phase[active] <- selection$model_phase
+    population <- previous
+    # Validate every selected source row before intervention callbacks or draws.
+    sourceProbabilities <- lapply(seq_along(active), function(j) {
+      row <- active[j]
+      model <- .tmaBundleTransitionModel(bundle, selection$model_phase[j], sourceStratum[j])
+      probability <- model$matrices[[sourcePeriod[j]]][previous$state_label[row], ]
+      if (anyNA(probability)) {
+        stop("Unestimated transition row for state '", previous$state_label[row],
+          "' in stratum '", sourceStratum[j], "', period '", sourcePeriod[j],
+          if (extended) paste0("', model phase '", selection$model_phase[j]) else "",
+          "' for ", previous$simulation_id[row], ".", call. = FALSE)
+      }
+      probability
+    })
     drawProbability <- numeric(length(active))
     if (length(effects)) {
-      sourcePeriod <- bundle$metadata$periods$period[
-        .tmaPeriodIndex(previous$elapsed_day[active], bundle$metadata$periods)]
       effectIds <- .tmaEligibleEffects(effects, previous[active, , drop = FALSE])
       baselineDraw <- numeric(length(active))
       baselineTarget <- modifiedTarget <- baselineRedistributed <- modifiedRedistributed <-
@@ -531,15 +579,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     }
     for (j in seq_along(active)) {
       row <- active[j]
-      model <- bundle$models[[sourceStratum[j]]]
-      period <- .tmaPeriodIndex(previous$elapsed_day[row], model$periods)
-      sourcePeriod[j] <- model$periods$period[period]
-      probability <- model$matrices[[sourcePeriod[j]]][previous$state_label[row], ]
-      if (anyNA(probability)) {
-        stop("Unestimated transition row for state '", previous$state_label[row],
-          "' in stratum '", sourceStratum[j], "', period '", sourcePeriod[j],
-          "' for ", previous$simulation_id[row], ".", call. = FALSE)
-      }
+      probability <- sourceProbabilities[[j]]
       if (length(effects)) {
         baseline <- probability
         if (!is.na(effectIds[j])) {
@@ -566,7 +606,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       if (length(applied)) {
         effectRules <- effects[effectIds[applied]]
         rows <- active[applied]
-        effectRows[[length(effectRows) + 1L]] <- data.frame(
+        currentEffects <- data.frame(
           simulation_id = previous$simulation_id[rows], source_cycle = previous$cycle[rows],
           source_day = previous$elapsed_day[rows], source_state = previous$state_label[rows],
           source_stratum = sourceStratum[applied], source_period = sourcePeriod[applied],
@@ -578,6 +618,12 @@ advanceSimulation <- function(simulation, nSteps = 1) {
           baseline_redistributed_probability = baselineRedistributed[applied],
           modified_redistributed_probability = modifiedRedistributed[applied],
           row.names = NULL, stringsAsFactors = FALSE)
+        if (extended) {
+          currentEffects$model_phase <- selection$model_phase[applied]
+          currentEffects$model_source <- selection$model_source[applied]
+          currentEffects$model_day <- selection$model_day[applied]
+        }
+        effectRows[[length(effectRows) + 1L]] <- currentEffects
       }
     }
     population$elapsed_day <- previous$elapsed_day + cycleLength
@@ -585,20 +631,23 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     alive <- which(!population$state_label %in% configuration$terminalStates)
     if (length(alive)) {
       population <- .tmaSimulationMergeRows(population, alive,
-        .tmaSimulationCovariates(bundle, population[alive, , drop = FALSE]))
+        .tmaSimulationCovariates(bundle, population[alive, , drop = FALSE],
+          deferMissing = !is.null(configuration$updateCovariates)))
       if (!is.null(configuration$updateCovariates)) {
         population <- .tmaSimulationUpdate(population, previous, alive, configuration)
       }
       population <- .tmaSimulationMergeRows(population, alive,
         .tmaSimulationCovariates(bundle, population[alive, , drop = FALSE]))
-      population$stratum_id[alive] <- .tmaBundleModel(bundle,
+      destinationSelection <- .tmaBundleSelection(bundle,
         population[alive, , drop = FALSE], allowUnmatched = TRUE)
+      population$stratum_id[alive] <- destinationSelection$stratum_id
+      if (extended) population$model_phase[alive] <- destinationSelection$model_phase
     }
     destinationPeriod <- rep(NA_character_, length(active))
-    for (j in which(active %in% alive)) {
-      row <- active[j]
-      destinationPeriod[j] <- bundle$metadata$periods$period[
-        .tmaPeriodIndex(population$elapsed_day[row], bundle$metadata$periods)]
+    if (length(alive)) {
+      destinationRows <- match(active, alive)
+      continuing <- which(!is.na(destinationRows))
+      destinationPeriod[continuing] <- destinationSelection$period[destinationRows[continuing]]
     }
     transitionRows[[length(transitionRows) + 1L]] <- data.frame(
       simulation_id = population$simulation_id[active],
@@ -608,6 +657,13 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       source_stratum = sourceStratum, destination_stratum = population$stratum_id[active],
       source_period = sourcePeriod, destination_period = destinationPeriod,
       transition_probability = drawProbability, stringsAsFactors = FALSE)
+    if (extended) {
+      currentStep <- length(transitionRows)
+      transitionRows[[currentStep]]$model_phase <- selection$model_phase
+      transitionRows[[currentStep]]$model_source <- selection$model_source
+      transitionRows[[currentStep]]$model_day <- selection$model_day
+      transitionRows[[currentStep]]$destination_model_phase <- population$model_phase[active]
+    }
     if (length(effects)) {
       currentStep <- length(transitionRows)
       transitionRows[[currentStep]]$baseline_transition_probability <- baselineDraw
@@ -645,6 +701,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
 .tmaSimulationUpdate <- function(population, previous, alive, configuration) {
   current <- population[alive, , drop = FALSE]
   current$stratum_id <- NULL
+  current$model_phase <- NULL
   patch <- configuration$updateCovariates(current,
     previous[alive, , drop = FALSE])
   patch <- .tmaSimulationData(patch, "updateCovariates result", allowEmpty = TRUE)
@@ -654,8 +711,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     stop("updateCovariates must return unique, known nonterminal simulation_id keys.", call. = FALSE)
   }
   protected <- c("subject_id", "source_subject_id", "state_label", "cycle",
-    "elapsed_day", "stratum_id", "index_date", "birth_date",
-    names(configuration$bundle$groups))
+    "elapsed_day", "stratum_id", "model_phase", "index_date", "birth_date",
+    .tmaBundleGroupNames(configuration$bundle))
   if ("birth_date" %in% names(population)) protected <- c(protected, "age")
   if (any(setdiff(names(patch), "simulation_id") %in% protected)) {
     stop("updateCovariates cannot change protected IDs, states, time, automatic age or derived grouping fields.", call. = FALSE)
@@ -686,22 +743,35 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   NULL
 }
 
-.tmaSimulationEmptyTransitions <- function() {
-  data.frame(simulation_id = character(), source_cycle = numeric(),
+.tmaSimulationEmptyTransitions <- function(extended = FALSE) {
+  rows <- data.frame(simulation_id = character(), source_cycle = numeric(),
     destination_cycle = numeric(), source_day = numeric(), destination_day = numeric(),
     source_state = character(), destination_state = character(),
     source_stratum = character(), destination_stratum = character(),
     source_period = character(), destination_period = character(),
     transition_probability = numeric(), stringsAsFactors = FALSE)
+  if (extended) {
+    rows$model_phase <- character()
+    rows$model_source <- character()
+    rows$model_day <- numeric()
+    rows$destination_model_phase <- character()
+  }
+  rows
 }
 
-.tmaSimulationEmptyEffects <- function() {
-  data.frame(simulation_id = character(), source_cycle = numeric(), source_day = numeric(),
+.tmaSimulationEmptyEffects <- function(extended = FALSE) {
+  rows <- data.frame(simulation_id = character(), source_cycle = numeric(), source_day = numeric(),
     source_state = character(), source_stratum = character(), source_period = character(),
     effect = character(), to_state = character(), redistribute_to = character(),
     multiplier = numeric(), baseline_probability = numeric(), modified_probability = numeric(),
     baseline_redistributed_probability = numeric(), modified_redistributed_probability = numeric(),
     stringsAsFactors = FALSE)
+  if (extended) {
+    rows$model_phase <- character()
+    rows$model_source <- character()
+    rows$model_day <- numeric()
+  }
+  rows
 }
 
 .tmaSimulationBind <- function(frames) {

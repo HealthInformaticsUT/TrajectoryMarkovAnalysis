@@ -10,7 +10,7 @@
   strata <- unname(strata)
   reserved <- c("subject_id", "state_label", "state_start_date", "state_end_date",
                 "index_date", "observation_end", "observed_days", ".row_id",
-                "seq_ordinal", "stratum_id", "period", "from_state", "to_state",
+                "seq_ordinal", "stratum_id", "model_phase", "period", "from_state", "to_state",
                 "state", "count", "denominator", "probability", "structural",
                 "patients", "source_patients", "cost_state", "currency_concept_id",
                 "measure", "cost_records", "missing_amounts", "known_recorded_cost",

@@ -25,7 +25,9 @@ simulateTrajectories(
 \arguments{
 \item{bundle}{A model bundle from createModelBundle(). An explicit cost model
 created with createCostModel() is charged automatically when retained in
-bundle$costModel. Raw descriptive bundle$costEstimates are not charged.}
+bundle$costModel. Raw descriptive bundle$costEstimates are not charged.
+An extension from extendModelBundle() switches transition models at its
+source-day cutoff during patient simulation.}
 
 \item{population}{Optional data frame with one current snapshot per patient.
 Supply state_label unless initial overrides states. Optional subject_id must
@@ -56,10 +58,13 @@ simulation_id and only covariate columns to change; a subset of these IDs
 is allowed. IDs, states, dates defining age, cycle, elapsed_day and derived
 stratum IDs cannot be changed. Grouping outputs and age derived from
 birth_date are owned by the bundle; update raw grouping inputs instead.
-current omits stratum_id until updates finish; previous retains the source
-stratum_id. Use named covariate values to define eligibility. Callbacks
-receive current snapshots, so any
-dependence on earlier history must be represented explicitly in covariates.}
+current omits stratum_id and generated model_phase until updates finish;
+previous retains the source values. Use named covariate values to define
+eligibility. Callbacks receive current snapshots, so any
+dependence on earlier history must be represented explicitly in covariates.
+Available groups are recomputed before the callback. A group whose raw
+covariate is missing is NA in current; supply that raw covariate in the
+callback result before the strict post-callback grouping check.}
 
 \item{costRules}{Optional named list of rules with type (entry, once, recurring
 or transition), a finite amount, optional states, eligible function of candidate
@@ -142,6 +147,10 @@ A tma_simulation list with final population, trajectories,
   record actual and baseline sampled probabilities when entry effects exist.
   Stratified entry effect audits include entry_stratum_id separately from the
   later bundle's source_stratum.
+  Extended bundles add model_phase to population snapshots; transition and
+  transition-effect audits add source model_phase, model_source and model_day.
+  Transitions also record destination_model_phase. metadata$extrapolation
+  records the cutoff and supplied extrapolation model definition.
 }
 \description{
 Simulate patient snapshots through a model bundle
@@ -156,6 +165,15 @@ Every step selects the model using current covariates and the period
   costs are retained. The next step fails if that snapshot is used as a
   source. metadata$unsupported_current counts such nonterminal patients.
 
+  With an extended bundle, sources before fromDay use the original model;
+  sources at or after fromDay use the extrapolation model and its independent
+  covariate groups. Extrapolation periods start at model day zero at fromDay.
+  Unsupported extrapolation strata or probability rows fail without falling
+  back to the original model. Entry is still applied only once at day zero.
+  Covariate updates, transition-effect windows, costs and discounting retain
+  the global elapsed-day clock. The original bundle's cost model remains in
+  effect. This switch applies to patient simulation, not projectCohort().
+
   If birth_date and index_date are supplied, completed age is recomputed at
   index_date + elapsed_day for nonterminal patients. Without birth_date,
   numeric age stays unchanged unless updateCovariates changes it; no birthday
@@ -164,6 +182,8 @@ Every step selects the model using current covariates and the period
   patients continue, but their later rows incur no costs. Transitions record
   actual draws only. Terminal destinations retain their last stratum and have
   no destination period because no further model is needed.
+  With an extended bundle, terminal destinations also retain their last
+  model_phase; initially terminal patients have no selected phase.
 
   k completed steps produce k + 1 labelled snapshots per patient, including
   initial charges at cycle zero (or the supplied starting cycle), consistent

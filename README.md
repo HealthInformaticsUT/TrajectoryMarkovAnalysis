@@ -31,6 +31,9 @@ A separate summary reports costs and, with explicit living states and utilities,
 life-years and QALYs. Cost and health discount rates are supplied independently.
 Scenario comparisons check the starting profiles and accounting assumptions
 before calculating incremental outcomes and discounted ICERs.
+An explicit extrapolation model can replace the original transition model after
+a chosen source day. The simulator records that handover without changing the
+original estimates or extending the treatment window.
 
 This is not yet a release. Weekly labels do not identify separate within-cycle
 stages, and the package does not infer them. The older GUI, continuous-time model,
@@ -265,6 +268,8 @@ rejected. There is no automatic normalization or replacement with a later matrix
 
 The last period's matrix continues for the requested horizon. This is a modelling
 assumption, not evidence that the matrix remains appropriate indefinitely.
+For an explicit switch in patient simulation, use `extendModelBundle()` as
+described below. This does not change how `projectCohort()` works.
 Projection does not add observational censoring or remove patients when their
 original follow-up ended. Observed proportions with changing follow-up
 denominators are therefore not a direct validation of this fixed-cohort trace.
@@ -1179,6 +1184,73 @@ not convert observed daily means.
 Keep ordinary care and intervention charges in separate components,
 and avoid charging the same expenditure twice.
 
+### Specify transitions beyond fitted follow-up
+
+Attach a separate transition model when the original estimates should no longer
+be used. The original bundle and its estimates are left unchanged:
+
+```r
+extended <- extendModelBundle(
+  bundle,
+  fromDay = 52 * 7,
+  transitions = supplied_transitions,
+  source = "External follow-up model, version 1"
+)
+
+simulation <- simulateTrajectories(
+  extended, population = baseline_patients,
+  nSteps = 104, terminalStates = "Dead", seed = 42
+)
+simulation$metadata$extrapolation
+simulation$transitions[c("source_day", "model_phase", "model_source",
+                         "model_day", "source_stratum", "source_period")]
+```
+
+`supplied_transitions` uses the same model format as `createModelBundle()`. It
+can come from a separate set of histories or from explicit matrices supplied
+through `composeTransitionStages()`. The source label records where the model
+came from. It does not establish its suitability for the study population.
+
+`fromDay` must be positive and aligned with the cycle length. Selection uses the
+source day. With seven-day cycles and a cutoff of 364, the step from day 357 to
+364 still uses the original model. The step from day 364 to 371 uses the supplied
+model. Its period clock starts at zero at the cutoff. For example, a supplied
+period beginning at day 14 starts at global day 378. Patient age, treatment
+windows, costs and discounting keep their original clocks.
+
+The supplied model may have different covariate groups and periods. Pass its
+numeric grouping rules through `groups`, just as for `createModelBundle()`.
+Current patient values select its probabilities after the switch. The simulator
+does not require a matching original-model group at that point, but it does
+require support in the selected extrapolation model. Missing groups or
+probability rows are errors, not a request to reuse the original estimates.
+Grouping needed by the original healthcare cost model still applies.
+Other derived groups are cleared when their rules stop applying, so they cannot
+silently retain an old age or risk category. Raw covariates are retained. A late
+rule cannot overwrite a directly supplied cost category or another rule's raw
+input. Use distinct names when the definitions differ.
+
+Both models must use the same clinical states, absorbing declarations and cycle
+length. There is one handover per bundle. To compare different assumptions,
+extend the original bundle separately for each scenario. Nothing infers a
+cutoff, adds background mortality, smooths probabilities or converts hazards.
+Entry probabilities and the configured costs are not replaced. The last period
+of the supplied model continues for the remaining requested horizon, which is
+also an analyst assumption.
+
+Generated snapshots identify their current `model_phase`, either `base` or
+`extrapolation`. Transition and treatment-effect records identify the phase,
+source label and model-relative day used for each draw. Internal stratum IDs
+are local to that phase, so read them together with `model_phase`. `base` means
+the original bundle, which may itself contain estimated or specified models.
+Terminal snapshots retain their last selected phase because no further draw
+occurs. Summaries and scenario comparisons retain the extrapolation definitions.
+
+This handover is currently supported by patient simulation and saved/resumed
+runs. It is not applied automatically by `projectCohort()`. The
+[extrapolation example](inst/examples/extrapolation-simulation.R) shows fitted
+and supplied probabilities, global and model-relative clocks, and a resumed run.
+
 ### Stop, inspect or resume
 
 ```r
@@ -1335,6 +1407,13 @@ index date and birth date cannot be excluded. The result records the columns
 checked and the declared exclusions. Without source IDs, matching profiles
 establishes the same recorded starting distribution, not the same individuals.
 Neither case establishes paired random draws or causal identification.
+
+Model-generated grouping columns are skipped when their raw inputs are present
+in both initial populations. The raw values are still compared. This allows
+different group definitions, or groups introduced only after extrapolation,
+without treating those model choices as different patients. Directly supplied
+baseline groups do not receive this exemption. The comparison reports which
+generated columns it skipped.
 
 Summaries retain `initialPopulation` for these checks. This table contains
 starting patient identifiers and covariates, so it is not an aggregate-only

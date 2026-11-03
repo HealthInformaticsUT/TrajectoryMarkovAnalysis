@@ -53,6 +53,12 @@ A tma_simulation_summary containing byPatient, totals, costs,
   discounted_qalys. costs retains every configured component, including
   zeros. stateTime retains every model state. Metadata records the full-label
   convention, discount assumptions and the simulation's stop reason.
+  When the bundle has an extrapolation model, metadata also retains its
+  cutoff, source label, grouping rules and period definitions. Summarising
+  the run does not add further extrapolated outcomes.
+  derived_group_inputs records the raw inputs of generated grouping columns
+  so scenario comparisons can check the patients without comparing different
+  model-specific categorisations of the same inputs.
 }
 \description{
 Summarise recorded simulation costs and explicitly defined health outcomes

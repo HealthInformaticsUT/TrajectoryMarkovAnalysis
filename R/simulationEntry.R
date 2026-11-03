@@ -184,8 +184,12 @@
   if (length(alive)) {
     population <- .tmaSimulationMergeRows(population, alive,
       .tmaSimulationCovariates(bundle, population[alive, , drop = FALSE]))
-    population$stratum_id[alive] <- .tmaBundleModel(bundle,
+    selection <- .tmaBundleSelection(bundle,
       population[alive, , drop = FALSE], allowUnmatched = TRUE)
+    population$stratum_id[alive] <- selection$stratum_id
+    if (!is.null(bundle$extrapolation)) {
+      population$model_phase[alive] <- selection$model_phase
+    }
   }
   transitions <- data.frame(
     simulation_id = baseline$simulation_id[active],

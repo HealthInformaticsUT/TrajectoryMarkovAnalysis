@@ -58,6 +58,12 @@
 #'   discounted_qalys. costs retains every configured component, including
 #'   zeros. stateTime retains every model state. Metadata records the full-label
 #'   convention, discount assumptions and the simulation's stop reason.
+#'   When the bundle has an extrapolation model, metadata also retains its
+#'   cutoff, source label, grouping rules and period definitions. Summarising
+#'   the run does not add further extrapolated outcomes.
+#'   derived_group_inputs records the raw inputs of generated grouping columns
+#'   so scenario comparisons can check the patients without comparing different
+#'   model-specific categorisations of the same inputs.
 #' @seealso compareScenarios() for differences between compatible summaries.
 #' @export
 summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL,
@@ -161,7 +167,7 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
   }
   initialPopulation <- checked$initialPopulation
   rownames(initialPopulation) <- NULL
-  structure(list(byPatient = byPatient, totals = totals, costs = costs, stateTime = stateTime,
+  result <- structure(list(byPatient = byPatient, totals = totals, costs = costs, stateTime = stateTime,
     initialPopulation = initialPopulation,
     metadata = list(n = n, states = states, cycleLength = cycleLength,
       steps = simulation$metadata$steps, stop_reason = simulation$metadata$stop_reason,
@@ -174,13 +180,38 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       currency = simulation$metadata$currency, priceYear = simulation$metadata$priceYear,
       costs_configured = checked$costsConfigured,
       timing = "each retained label represents one complete cycle, including the initial label",
-      coverage = "retained labels only, including terminal snapshots, without extrapolation",
+      coverage = "retained labels only, including terminal snapshots; no extension beyond the saved simulation",
       discount_timing = "recorded elapsed_day of each label or charge, from one shared origin",
       state_time = "represented full-label snapshot occupancy, not observed clinical person-time",
       health_time = "full labelled cycles in explicitly supplied aliveStates",
       half_cycle_correction = "none", within_cycle_timing = "not inferred",
       denominator = "original simulated patients, including terminal and zero-cost patients")),
     class = "tma_simulation_summary")
+  if (!is.null(simulation$metadata$extrapolation)) {
+    result$metadata$extrapolation <- simulation$metadata$extrapolation
+  }
+  bundle <- simulation$.config$bundle
+  groupRules <- c(bundle$groups, bundle$extrapolation$bundle$groups)
+  if (length(groupRules)) {
+    outputs <- unique(names(groupRules))
+    phase <- .tmaBundlePhase(bundle, initialPopulation)
+    costGroups <- intersect(names(bundle$groups), bundle$costModel$metadata$strata)
+    outputs <- outputs[vapply(outputs, function(output) {
+      if (!output %in% names(initialPopulation)) return(TRUE)
+      generated <- rep(FALSE, nrow(initialPopulation))
+      for (p in unique(phase)) {
+        phaseGroups <- if (p == "base") names(bundle$groups) else
+          names(bundle$extrapolation$bundle$groups)
+        if (output %in% union(phaseGroups, costGroups)) generated[phase == p] <- TRUE
+      }
+      generated[initialPopulation$state_label %in% checked$terminalStates] <- FALSE
+      !any(!is.na(initialPopulation[[output]]) & !generated)
+    }, logical(1))]
+    result$metadata$derived_group_inputs <- stats::setNames(lapply(outputs, function(output) {
+      unique(vapply(groupRules[names(groupRules) == output], `[[`, character(1), "column"))
+    }), outputs)
+  }
+  result
 }
 
 .tmaSummaryInitialPopulation <- function(simulation, first, states, terminalStates) {
@@ -266,6 +297,10 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
     stop("simulation must retain the data and configuration from simulateTrajectories().", call. = FALSE)
   }
   model <- simulation$.config$bundle$metadata
+  if (!identical(simulation$metadata$extrapolation,
+                 .tmaBundleExtrapolationInfo(simulation$.config$bundle))) {
+    stop("Simulation extrapolation metadata must agree with the saved bundle.", call. = FALSE)
+  }
   states <- model$states
   if (!is.character(states) || !is.null(dim(states)) || !length(states) ||
       anyNA(states) || anyDuplicated(states) ||

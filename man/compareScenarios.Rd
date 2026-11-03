@@ -16,7 +16,7 @@ definitions and the same recorded initial joint population distribution.}
 between scenarios, for example "treatment_active". Each must exist in at
 least one initial population. Source patient identifiers, initial state,
 elapsed_day, index_date and birth_date cannot be excluded. Generated
-simulation_id, stratum_id and cycle columns are ignored automatically.}
+simulation_id, stratum_id, model_phase and cycle columns are ignored automatically.}
 }
 \value{
 A tma_scenario_comparison with outcomes, costs, costEffectiveness and
@@ -58,4 +58,10 @@ Initial populations must have the same rows and multiplicities on
   nonnegative incremental cost. Other quadrants receive an explicit status
   and an NA ICER. Zero differences are evaluated exactly. No willingness-to-pay
   threshold, uncertainty estimate or causal interpretation is supplied.
+  Scenarios may use different extrapolation assumptions. Each supplied
+  extrapolation definition is retained separately in the comparison metadata.
+  Model-generated group columns are not compared when their recorded raw
+  inputs are present in both initial populations. Those raw inputs remain
+  subject to the population check. Directly supplied groups are not inferred
+  to be generated, and missing raw inputs do not justify skipping a column.
 }

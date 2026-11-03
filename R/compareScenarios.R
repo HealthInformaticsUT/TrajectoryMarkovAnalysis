@@ -7,7 +7,7 @@
 #'   between scenarios, for example "treatment_active". Each must exist in at
 #'   least one initial population. Source patient identifiers, initial state,
 #'   elapsed_day, index_date and birth_date cannot be excluded. Generated
-#'   simulation_id, stratum_id and cycle columns are ignored automatically.
+#'   simulation_id, stratum_id, model_phase and cycle columns are ignored automatically.
 #' @details Initial populations must have the same rows and multiplicities on
 #'   the checked columns, regardless of row order. Matching separate covariate
 #'   distributions is insufficient when their joint distributions differ.
@@ -36,6 +36,12 @@
 #'   nonnegative incremental cost. Other quadrants receive an explicit status
 #'   and an NA ICER. Zero differences are evaluated exactly. No willingness-to-pay
 #'   threshold, uncertainty estimate or causal interpretation is supplied.
+#'   Scenarios may use different extrapolation assumptions. Each supplied
+#'   extrapolation definition is retained separately in the comparison metadata.
+#'   Model-generated group columns are not compared when their recorded raw
+#'   inputs are present in both initial populations. Those raw inputs remain
+#'   subject to the population check. Directly supplied groups are not inferred
+#'   to be generated, and missing raw inputs do not justify skipping a column.
 #' @return A tma_scenario_comparison with outcomes, costs, costEffectiveness and
 #'   metadata. outcomes contains six outcome metrics with scenario totals,
 #'   per-patient values and differences. costs uses the same columns for each
@@ -80,8 +86,9 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
       (extension[["intervention"]] && !(i$stop_reason == "all_terminal" && i$all_terminal))) {
     stop("Different recorded horizons require the shorter scenario to have stopped all_terminal.", call. = FALSE)
   }
+  derivedColumns <- .tmaScenarioDerivedColumns(reference, intervention)
   columns <- .tmaScenarioPopulation(reference$initialPopulation, intervention$initialPopulation,
-    scenarioCovariates)
+    scenarioCovariates, derivedColumns)
   metrics <- c("cost", "discounted_cost", "life_years", "discounted_life_years", "qalys", "discounted_qalys")
   rt <- reference$totals[match(metrics, reference$totals$metric), ]
   it <- intervention$totals[match(metrics, intervention$totals$metric), ]
@@ -129,11 +136,12 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
     stop("Scenario ICER exceeds finite numeric limits.", call. = FALSE)
   }
   units <- if (r$costs_configured) r else if (i$costs_configured) i else NULL
-  structure(list(outcomes = outcomes, costs = costs, costEffectiveness = costEffectiveness,
+  result <- structure(list(outcomes = outcomes, costs = costs, costEffectiveness = costEffectiveness,
     metadata = list(n = r$n, states = r$states, common_steps = commonSteps,
       cycleLength = r$cycleLength, compared_labelled_days = (commonSteps + 1) * r$cycleLength,
       reference_steps = r$steps, intervention_steps = i$steps, terminal_extension = extension,
       scenarioCovariates = scenarioCovariates, checked_population_columns = columns,
+      derived_group_columns_ignored = derivedColumns,
       initial_population_basis = r$initial_population_basis,
       terminalStates = r$terminalStates, aliveStates = r$aliveStates, utilities = r$utilities,
       currency = units$currency, priceYear = units$priceYear,
@@ -147,6 +155,11 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
       pairing = "simulation IDs and shared starting distributions do not establish paired random streams",
       interpretation = "scenario differences without causal identification, uncertainty or willingness-to-pay thresholds")),
     class = "tma_scenario_comparison")
+  if (!is.null(r$extrapolation) || !is.null(i$extrapolation)) {
+    result$metadata$extrapolation <- list(reference = r$extrapolation,
+                                         intervention = i$extrapolation)
+  }
+  result
 }
 
 .tmaScenarioSummary <- function(summary, label) {
@@ -289,7 +302,37 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
   summary
 }
 
-.tmaScenarioPopulation <- function(reference, intervention, exclusions) {
+.tmaScenarioDerivedColumns <- function(reference, intervention) {
+  maps <- list(reference$metadata$derived_group_inputs,
+               intervention$metadata$derived_group_inputs)
+  for (map in maps) if (length(map)) {
+    if (!is.list(map) || is.data.frame(map) || is.null(names(map)) ||
+        anyNA(names(map)) || anyDuplicated(names(map)) || any(!nzchar(names(map))) ||
+        !all(vapply(map, function(x) is.character(x) && length(x) > 0 &&
+          !anyNA(x) && !anyDuplicated(x) && all(nzchar(x)), logical(1)))) {
+      stop("Derived group metadata must identify each output and its raw input columns.", call. = FALSE)
+    }
+  }
+  rules <- c(maps[[1L]], maps[[2L]])
+  if (!length(rules)) return(character())
+  common <- intersect(names(reference$initialPopulation), names(intervention$initialPopulation))
+  # Never drop a column used as another rule's raw input, or rely on ignored
+  # simulation bookkeeping as evidence that patient characteristics agree.
+  raw <- unique(unlist(rules, use.names = FALSE))
+  outputs <- setdiff(unique(names(rules)), raw)
+  bookkeeping <- c("simulation_id", "stratum_id", "model_phase", "cycle")
+  outputs[vapply(outputs, function(output) {
+    inputs <- unique(unlist(rules[names(rules) == output], use.names = FALSE))
+    generatedReference <- !output %in% names(reference$initialPopulation) ||
+      output %in% names(maps[[1L]])
+    generatedIntervention <- !output %in% names(intervention$initialPopulation) ||
+      output %in% names(maps[[2L]])
+    generatedReference && generatedIntervention && all(inputs %in% setdiff(common, bookkeeping))
+  }, logical(1))]
+}
+
+.tmaScenarioPopulation <- function(reference, intervention, exclusions,
+                                  derivedColumns = character()) {
   protected <- c("source_subject_id", "state_label", "elapsed_day", "index_date", "birth_date")
   available <- union(names(reference), names(intervention))
   if (!is.character(exclusions) || !is.null(dim(exclusions)) || anyNA(exclusions) ||
@@ -300,7 +343,7 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
     stop("scenarioCovariates cannot exclude protected initial columns: ",
       paste(intersect(exclusions, protected), collapse = ", "), ".", call. = FALSE)
   }
-  ignored <- c("simulation_id", "stratum_id", "cycle", exclusions)
+  ignored <- c("simulation_id", "stratum_id", "model_phase", "cycle", exclusions, derivedColumns)
   columns <- setdiff(names(reference), ignored)
   other <- setdiff(names(intervention), ignored)
   if (!setequal(columns, other)) {
