@@ -36,6 +36,8 @@ a chosen source day. The simulator records that handover without changing the
 original estimates or extending the treatment window.
 An analyst-supplied mortality table can also be converted into mortality-only
 cycle models, with current age and other covariates selecting the applicable row.
+Excess-mortality calibration matches that background to the source cycles behind
+each observed state and period estimate, and reports the resulting reference mix.
 
 This is not yet a release. Weekly labels do not identify separate within-cycle
 stages, and the package does not infer them. The older GUI, continuous-time model,
@@ -1316,6 +1318,80 @@ appropriate reference population remains a separate step.
 
 The runnable [mortality example](inst/examples/background-mortality-simulation.R)
 shows the table, conversion, age-dependent selection and an explicit handover.
+
+### Calibrate excess mortality against the supporting cycles
+
+The patients contributing to a later state or period may differ from those at
+entry. `calibrateExcessMortality()` therefore takes the original trajectories,
+not just their aggregate transition matrices. It matches background mortality
+to the exact source cycles used by `estimateTransitions()`.
+
+```r
+calibration <- calibrateExcessMortality(
+  histories,
+  background = mortality_bundle,
+  deathStates = c("Death, no pneumonia history", "Death, pneumonia history"),
+  periodBreaks = c(0, 364, Inf),
+  periodLabels = c("First year", "Later follow-up")
+)
+calibration$estimates
+calibration$reference
+```
+
+`histories` is a prepared trajectory object with its cycle length and absorbing
+states declared. Raw C2T rows also work when `cycleLength` is supplied. Declare
+death states explicitly. An absorbing state such as discharge is not necessarily
+death. The background bundle comes from `createMortalityTransitions()` and may
+use different state labels because it supplies background probabilities, not
+clinical transitions. Both inputs must use the same cycle length.
+
+A contributing pair has a full source cycle and an immediately adjacent known
+destination. Gaps, unresolved pairs, final cycles without a successor and deaths
+already present in the first cycle do not create extra outgoing transitions.
+The source row determines the state, period and optional `strata`. Background
+matching uses that same row's covariates, with age calculated at its start date
+when `birth_date` is available. Only contributing source rows need background
+coverage. A missing combination is an error, not a request to use a pooled rate.
+
+Each contributing cycle has equal weight. A patient can contribute several
+cycles, including cycles in different age groups or periods. `reference` reports
+the weights and supporting counts by background group. Its
+`background_stratum_id` refers to `calibration$background$strata`, while
+`stratum_id` refers to `calibration$strata`. Patient counts across cells are not
+additive. No patient identifiers or row-level histories are retained.
+
+Within each state, period and estimation group, the function calibrates a common
+daily excess hazard so that the average reconstructed death probability matches
+the observed proportion of death transitions. It averages background
+**probabilities**, not hazards. With observed probability `p`, mean background
+probability `b` and cycle length `c`, the excess is
+`(log(1 - b) - log(1 - p)) / c`. The corresponding probability for a cycle with
+background probability `q` is `1 - (1 - q) * exp(-excess * c)`.
+
+This is count-matching calibration, not a fitted survival regression or a causal
+effect. The additive-hazard framework uses individually matched background
+mortality, as described by [Sweeting et al. (2023)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10422853/).
+The closed-form calculation here follows from the stated equal-length cycle
+model. It does not estimate confidence intervals, adjust for informative
+censoring or recover event dates within a cycle.
+
+By default, observed mortality below the matched background is an error. An
+explicit `negativeExcess = "zero"` instead floors the excess at zero and warns.
+The output retains the raw excess, flags the affected cells and shows how their
+reconstructed probabilities differ from the observations. Cells without support
+remain unavailable. Cells in which every outgoing transition is death, or a
+matched background probability is one, cannot supply a finite calibration and
+are rejected.
+
+Reconstruction is exact for the reference cycles in a supported, non-floored
+cell. It does not guarantee that a simulation reproduces observed mortality,
+because simulated patients can have a different survivor and state composition.
+The function returns calibration evidence only. It does not choose a late
+reference period, assume excess mortality declines, alter existing transitions
+or attach a new simulation model.
+
+The [calibration example](inst/examples/excess-mortality-calibration.R) shows how
+the reference mix changes across periods and checks the transition denominators.
 
 ### Stop, inspect or resume
 

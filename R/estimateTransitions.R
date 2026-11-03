@@ -57,28 +57,17 @@ estimateTransitions <- function(trajectories, cycleLength = NULL,
   absorbingStates <- prepared$absorbingStates
   periods <- .tmaPeriods(periodBreaks, periodLabels, prepared$cycleLength)
   grouping <- .tmaStrata(data, strata)
-  source <- seq_len(max(0L, nrow(data) - 1L))
-  target <- source + 1L
-  sameSubject <- data$subject_id[source] == data$subject_id[target]
-  contiguous <- data$state_start_date[target] == data$state_end_date[source] + 1
-  known <- data$state_label[source] != "OUT OF COHORT" &
-    data$state_label[target] != "OUT OF COHORT"
-  fullSource <- data$observed_days[source] == prepared$cycleLength
-  eligible <- sameSubject & contiguous & known & fullSource
-  origins <- prepared$patients$index_date[match(data$subject_id,
-                                               prepared$patients$subject_id)]
-  periodIndex <- .tmaPeriodIndex(as.numeric(data$state_start_date - origins), periods)
-  model <- .tmaTransitionModel(prepared, periods, source, target, sameSubject,
-                               contiguous, known, eligible, origins, periodIndex)
+  support <- .tmaTransitionSupport(prepared, periods)
+  model <- do.call(.tmaTransitionModel,
+                   c(list(prepared = prepared, periods = periods), support))
   if (is.null(grouping)) return(model)
   registry <- grouping$registry
   models <- vector("list", nrow(registry))
   names(models) <- registry$stratum_id
   for (i in seq_len(nrow(registry))) {
     selected <- !is.na(grouping$row_ids) & grouping$row_ids == registry$stratum_id[i]
-    models[[i]] <- .tmaTransitionModel(prepared, periods, source, target, sameSubject,
-                                       contiguous, known, eligible, origins, periodIndex,
-                                       selected)
+    models[[i]] <- do.call(.tmaTransitionModel,
+      c(list(prepared = prepared, periods = periods), support, list(selected = selected)))
     models[[i]]$metadata$strata <- grouping$columns
     models[[i]]$metadata$stratum_id <- registry$stratum_id[i]
   }
@@ -100,6 +89,26 @@ estimateTransitions <- function(trajectories, cycleLength = NULL,
                  entryCounts = if (length(entries)) do.call(rbind, entries) else emptyEntries,
                  periods = periods, diagnostics = model$diagnostics, metadata = model$metadata),
             class = "tma_stratified_transitions")
+}
+
+# Keep the observed pair population shared by transition estimation and any
+# reference calculation that must use exactly the same source-cycle support.
+.tmaTransitionSupport <- function(prepared, periods) {
+  data <- prepared$data
+  source <- seq_len(max(0L, nrow(data) - 1L))
+  target <- source + 1L
+  sameSubject <- data$subject_id[source] == data$subject_id[target]
+  contiguous <- data$state_start_date[target] == data$state_end_date[source] + 1
+  known <- data$state_label[source] != "OUT OF COHORT" &
+    data$state_label[target] != "OUT OF COHORT"
+  fullSource <- data$observed_days[source] == prepared$cycleLength
+  eligible <- sameSubject & contiguous & known & fullSource
+  origins <- prepared$patients$index_date[match(data$subject_id,
+                                               prepared$patients$subject_id)]
+  periodIndex <- .tmaPeriodIndex(as.numeric(data$state_start_date - origins), periods)
+  list(source = source, target = target, sameSubject = sameSubject,
+       contiguous = contiguous, known = known, eligible = eligible,
+       origins = origins, periodIndex = periodIndex)
 }
 
 .tmaTransitionModel <- function(prepared, periods, source, target, sameSubject,
