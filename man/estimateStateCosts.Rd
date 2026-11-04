@@ -104,6 +104,12 @@ An interval with no matching cost record has zero recorded cost.
   numerator changes. All observed state-days still contribute, including
   days without a qualifying visit. The result is not a mean per selected visit.
   Extraction scope and visit criteria are retained in metadata.
+  For records in original service-year prices, use adjustCostPrices() before
+  estimation. Its audit columns are checked against its index and price basis.
+  The result retains metadata$price_adjustment. No automatic price adjustment
+  is performed here. With duration allocation, original_amount in the ledger
+  is the full adjusted input amount and nominal_amount is the full unadjusted
+  charge. Both repeat across fragments and are not additive shares.
 
   With strata, each interval's covariate values group its costs and observed
   days together. Period fragments retain the original interval's values and

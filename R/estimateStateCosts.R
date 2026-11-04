@@ -78,6 +78,12 @@
 #'   numerator changes. All observed state-days still contribute, including
 #'   days without a qualifying visit. The result is not a mean per selected visit.
 #'   Extraction scope and visit criteria are retained in metadata.
+#'   For records in original service-year prices, use adjustCostPrices() before
+#'   estimation. Its audit columns are checked against its index and price basis.
+#'   The result retains metadata$price_adjustment. No automatic price adjustment
+#'   is performed here. With duration allocation, original_amount in the ledger
+#'   is the full adjusted input amount and nominal_amount is the full unadjusted
+#'   charge. Both repeat across fragments and are not additive shares.
 #'
 #'   With strata, each interval's covariate values group its costs and observed
 #'   days together. Period fragments retain the original interval's values and
@@ -123,6 +129,7 @@ estimateStateCosts <- function(trajectories, costData,
   sourceCostScope <- attr(costData, "cost_scope")
   sourceVisitFilter <- attr(costData, "visit_filter")
   sourceAllocation <- attr(costData, "allocation")
+  priceAdjustment <- .tmaCostPriceAdjustment(costData)
   if (is.null(allocation)) {
     allocation <- if (is.null(sourceAllocation)) "start" else sourceAllocation
   }
@@ -292,6 +299,7 @@ estimateStateCosts <- function(trajectories, costData,
       extraction = sourceDiagnostics
     ),
     metadata = list(measure = measure, currencies = currencies, periods = periods,
+                    price_adjustment = priceAdjustment,
                     allocation = allocation, source_allocation = sourceAllocation,
                     cost_record_counts = "interval estimates count contributing record fragments; diagnostics count unique input records",
                     cost_scope = if (is.null(sourceCostScope)) "supplied_cost_records" else sourceCostScope,

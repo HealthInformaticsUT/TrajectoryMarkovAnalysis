@@ -520,7 +520,8 @@ state-cost estimates.
 Uniform allocation is an explicit accounting assumption, not evidence that care
 was delivered evenly. Neither mode changes the measure, converts currencies or
 adjusts prices for inflation. The examples use `total_charge` deliberately.
-Choose the appropriate measure and perform any price-year adjustment separately.
+Choose the appropriate measure, then use `adjustCostPrices()` for an explicit
+price-year adjustment before allocation.
 
 The extractor reads only. It does not create scratch tables or disconnect the
 CDM. Patients and their follow-up dates are filtered in SQL before records are
@@ -617,6 +618,69 @@ Check whether visit-level charges already include itemised event costs before
 combining domains. The package preserves distinct cost records and does not
 attempt to remove overlapping charges by guessing how the source bills care.
 
+### Adjust recorded amounts to a common price year
+
+Call `adjustCostPrices()` on the full event records before `estimateStateCosts()`.
+Supply your own index table and an explicit source-year column; no index is
+built in or downloaded. This demonstration assumes the records use currency
+concept `44818568` and source years covered by the table. The index values are
+wholly synthetic, not published prices:
+
+```r
+price_index <- data.frame(
+  year = c(2020L, 2025L),
+  index = c(100, 120),
+  currency_concept_id = "44818568"
+)
+priced_events <- adjustCostPrices(
+  cost_events, priceIndex = price_index, priceYear = 2025L,
+  sourceYear = "event_date",
+  source = paste(
+    "Synthetic geography and demonstration series; version 1;",
+    "annual values; no partial-year observations"
+  )
+)
+observed_costs <- estimateStateCosts(histories, priced_events)
+healthcare <- createCostModel(
+  observed_costs, unit = "day", currency = "EUR", priceYear = 2025L,
+  terminal = "none"
+)
+```
+
+The table needs `year` as numeric integer years, `index` as positive finite
+values, and `currency_concept_id` as exact source codes, with one row per year
+and currency. It must cover every source year and the positive integer target
+`priceYear` for each currency in the records. Codes are matched exactly; missing
+or unknown currency codes must be resolved before adjustment. The `source`
+string records the geography, series, version and any partial-year limitation.
+Select an index appropriate to the cost measure and document that choice.
+
+`sourceYear` names a column containing `Date` values or numeric integer years.
+Choosing `"event_date"` explicitly uses the original event start year for the
+whole charge, including events that cross a calendar year or start before
+follow-up. It does not use the year of an allocated fragment. A different
+accounting convention requires a source-year column prepared by the analyst.
+
+The returned data frame replaces `amount` with
+`nominal_amount * index[target year] / index[source year]`, retaining the input
+amount in `nominal_amount` and adding `source_price_year`, `price_factor` and
+`target_price_year`. Missing amounts stay missing and credits retain their sign.
+The original input and its extraction attributes remain unchanged; those
+attributes, including allocation and visit selection, are retained on the
+returned data. Duplicate index keys, missing coverage, invalid index values,
+nonfinite adjusted amounts and repeated adjustment cause errors.
+
+Provenance is stored in `attr(priced_events, "price_adjustment")` and carried
+into `observed_costs$metadata$price_adjustment` and
+`healthcare$metadata$price_adjustment`. A cost model's `priceYear` must match the
+recorded target year. For unadjusted inputs it remains the analyst's assertion.
+The currency label in `createCostModel()` is also an assertion about the source
+code; it performs no currency conversion. Price adjustment and outcome
+discounting are separate operations.
+
+See [`inst/examples/price-adjustment.R`](inst/examples/price-adjustment.R) for a
+runnable synthetic example with an event spanning two calendar years.
+
 ## Estimate costs without a transition model
 
 ```r
@@ -679,6 +743,9 @@ For duration allocation, `allocatedCosts` and `unallocatedCosts` provide the
 allocation audit. Their `amount` is the assigned or unassigned share, while
 `original_amount` retains the full source amount and `.cost_row_id` identifies
 the input row. `allocation_days` and `allocation_fraction` explain the share.
+After `adjustCostPrices()`, `original_amount` is the full adjusted charge and
+`nominal_amount` is the full unadjusted charge. Both repeat on fragments and
+must not be summed across them; sum `amount` to reconcile adjusted shares.
 Original event dates remain available alongside fragment dates where applicable.
 An outside remainder can combine days in gaps and outside follow-up, so its
 original dates do not describe a single contiguous unallocated interval.
@@ -1159,8 +1226,11 @@ simulation <- simulateTrajectories(
 ```
 
 Use the currency and price year of your actual amounts. These arguments label
-the data. They do not adjust historical prices or convert currencies. If the
-estimates contain several source currencies, select one with
+the data. They do not adjust historical prices or convert currencies. Apply
+`adjustCostPrices()` before estimation when historical amounts need adjustment;
+the model retains its provenance and rejects a different `priceYear`. Without
+that provenance, the supplied year remains your assertion. If the estimates
+contain several source currencies, select one with
 `currencyConceptId`. An unknown source currency also requires explicit
 selection, such as `currencyConceptId = NA_character_`, and your declaration of
 what currency those amounts represent. Unknown and known amounts are not pooled.

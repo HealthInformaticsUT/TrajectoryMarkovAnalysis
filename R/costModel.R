@@ -8,7 +8,9 @@
 #'   the estimated daily mean by cycleLength and require aligned boundaries.
 #' @param currency One explicit currency label. Its association with the source
 #'   currency concept is the user's assertion; no conversion is performed.
-#' @param priceYear Reference price year, with no inflation adjustment.
+#' @param priceYear Reference price year, with no inflation adjustment. Must
+#'   match the target year if adjustCostPrices() was used before estimation.
+#'   Without that provenance, this remains the analyst's assertion.
 #' @param terminal Explicitly choose "entry" or "none". Entry charges one full
 #'   labelled interval on an observed simulation transition into a terminal
 #'   state. Initial terminal patients and later terminal residency are skipped.
@@ -31,6 +33,8 @@
 #'   not an exact replay of the estimation data. Absorbing states not declared
 #'   terminal receive ordinary ongoing charges. No intervention effect,
 #'   discounting, uncertainty or additional within-cycle events are inferred.
+#'   Any supplied price-adjustment provenance is retained and passed to the
+#'   simulation. Adjust individual records before estimation, not pooled rates.
 #' @return A tma_cost_model with rates, periods and explicit unit, currency,
 #'   price-year, terminal and covariate definitions in metadata.
 #' @export
@@ -97,6 +101,8 @@ createCostModel <- function(costs, unit, currency, priceYear, terminal,
     metadata = list(strata = strata, currency = currency, priceYear = priceYear,
       unit = unit, cycleLength = cycleLength, terminal = terminal,
       source_currency_concept_id = unname(currencyConceptId),
+      price_adjustment = costs$metadata$price_adjustment,
+      allocation = costs$metadata$allocation,
       terminal_cost_map = terminalMap, measure = costs$metadata$measure,
       cost_scope = costs$metadata$cost_scope,
       source_visit_filter = costs$metadata$source_visit_filter,
@@ -120,6 +126,7 @@ createCostModel <- function(costs, unit, currency, priceYear, terminal,
     }
   }
   meta$priceYear <- .tmaProjectionInteger(meta$priceYear, "Cost model priceYear", 1)
+  .tmaValidatePriceBasis(meta$price_adjustment, meta$priceYear, meta$source_currency_concept_id)
   if (!is.character(meta$unit) || length(meta$unit) != 1L || is.na(meta$unit) ||
       !meta$unit %in% c("day", "cycle")) {
     stop("Cost model unit must be 'day' or 'cycle'.", call. = FALSE)
