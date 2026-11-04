@@ -18,7 +18,8 @@ TrajectoryMarkovAnalysis(
   periodLabels = NULL,
   terminalCostMap = NULL,
   costVisitFilter = NULL,
-  strata = NULL
+  strata = NULL,
+  costAllocation = NULL
 )
 }
 \arguments{
@@ -61,6 +62,13 @@ its records before calling this function.}
 
 \item{strata}{Optional categorical trajectory column names passed to both
 estimators. Values may change by row; numeric values group by exact value.}
+
+\item{costAllocation}{Cost allocation passed to extractCosts() and
+estimateStateCosts(). "start" assigns the amount to the event date.
+"duration" spreads it uniformly across the full inclusive event duration.
+NULL uses "start" for CDM extraction and otherwise preserves the allocation
+recorded by extractCosts(), or uses "start" for plain local costData.
+Only valid when analyses includes "costs".}
 }
 \value{
 A list containing transitions, costs and the prepared trajectories.
@@ -75,6 +83,8 @@ created, and supplied database connections remain open.
 This interface replaces the former database-driven workflow.
   It does not run the legacy GUI, continuous-time model, simulation or
   first-state cost reports. Transitions use the source cycle's period.
-  Costs use each record's event date and split observed days at period
-  boundaries. Within-cycle models require separate, explicit rules.
+  Costs use the selected allocation rule and split observed days at period
+  boundaries. Duration allocation retains unobserved shares for review rather
+  than redistributing them across observed days. Within-cycle models require
+  separate, explicit rules.
 }

@@ -108,6 +108,18 @@ testthat::test_that("visit-detail costs use detail dates and filter by the paren
     "unmatched_event_references", "out_of_window", "missing_visit_links",
     "unmatched_visit_references", "visits_not_selected", "extracted_rows"
   )], use.names = FALSE)), c(1, 1, 1, 1, 1, 2))
+
+  DBI::dbExecute(db$con, paste(
+    "UPDATE visit_detail SET visit_detail_start_date = DATE '2019-12-30'",
+    "WHERE visit_detail_id = 1"
+  ))
+  duration <- extractCosts(db$cdm, db$history, domains = "Visit Detail",
+    visitFilter = list(visitConceptIds = 9201L, eventConcepts = list(Condition = 100L)),
+    allocation = "duration")
+  testthat::expect_equal(duration$cost_id, c("401", "402"))
+  testthat::expect_equal(duration$event_date, as.Date(c("2019-12-30", "2020-01-03")))
+  testthat::expect_equal(duration$event_end_date, rep(as.Date("2020-01-10"), 2))
+  testthat::expect_equal(duration$amount, c(40, 60))
 })
 
 testthat::test_that("concept-linked visits include their other costs without duplication", {

@@ -17,13 +17,20 @@
 #'   of exact standard concept IDs in Condition, Drug, Procedure, Device,
 #'   Measurement or Observation. For example,
 #'   list(eventConcepts = list(Condition = c(123, 456))).
+#' @param allocation How costs will be assigned by `estimateStateCosts()`.
+#'   `"start"` selects events starting within follow-up. `"duration"` selects
+#'   events overlapping follow-up and keeps their full source dates and amounts
+#'   for allocation across their inclusive duration.
 #' @return A data frame with `subject_id`, `event_date`, `amount`, `cost_id`,
 #'   `cost_domain_id`, `cost_event_id`, `currency_concept_id`, `measure`, and
 #'   `visit_occurrence_id`. Visit IDs are text and can be missing in all-cost mode.
+#'   Duration extraction also returns `event_end_date`. The `allocation`
+#'   attribute records the choice for `estimateStateCosts()`.
 #'   The `diagnostics` attribute reports counts per domain. Unmatched event
 #'   references are counted across the database for selected domains, since their
 #'   patients cannot be identified. Other counts refer to selected patients.
-#'   Visit exclusions refer to costs whose event dates are within follow-up.
+#'   In-window counts and visit exclusions refer to events starting within
+#'   follow-up in start mode, or overlapping follow-up in duration mode.
 #'   Missing visit links, unmatched or wrong-patient visit references, and valid
 #'   visits not selected are reported separately. They are NA when no visit
 #'   filter was requested. Attributes cost_scope and visit_filter retain the
@@ -36,7 +43,7 @@
 #'   A matching clinical record qualifies its visit only when its own date lies
 #'   within the patient's trajectory follow-up. All selected-domain costs linked
 #'   to that visit can then be included, not only the cost of the matching record.
-#'   Their own event dates must also remain within follow-up. A later qualifying
+#'   Their own events must meet the selected allocation window rule. A later qualifying
 #'   record within follow-up can select earlier costs from the same visit. This
 #'   is a retrospective visit selection, not prospective treatment eligibility.
 #'
@@ -49,14 +56,22 @@
 #'   the qualifying condition. Bundled visit charges and itemised costs can
 #'   overlap in the source, so select cost domains and measures accordingly.
 #'
+#'   Start allocation assigns the full amount to the source event date. Duration
+#'   allocation uses start and end dates for Visit, Visit Detail, Drug and Device.
+#'   Procedure, Measurement, Observation and Specimen remain single-day events.
+#'   Required end-date columns must exist. Missing or reversed dates in cost
+#'   records linked to selected patients cause an error before window or visit
+#'   filtering. No dates are imputed. Source dates and amounts are not clipped
+#'   to follow-up, so costs outside observed days can remain unallocated when
+#'   passed to estimateStateCosts().
+#'
 #'   Visit Detail costs link to visit_detail_id and use visit_detail_start_date
-#'   as the event date. Their full amount is assigned to that date, not spread
-#'   across the detail's duration. Visit filters use the detail's parent
+#'   as the event date. Visit filters use the detail's parent
 #'   visit_occurrence_id. visitConceptIds therefore selects the parent's
 #'   visit_concept_id, not visit_detail_concept_id.
 #' @export
 extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = NULL,
-                           visitFilter = NULL) {
+                           visitFilter = NULL, allocation = "start") {
   if (!inherits(cdm, "cdm_reference")) {
     stop("`cdm` must be a CDMConnector cdm_reference.", call. = FALSE)
   }
@@ -64,13 +79,17 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
       !measure %in% c("total_charge", "total_cost", "total_paid")) {
     stop("`measure` must be total_charge, total_cost, or total_paid.", call. = FALSE)
   }
+  if (!is.character(allocation) || length(allocation) != 1L || is.na(allocation) ||
+      !allocation %in% c("start", "duration")) {
+    stop("`allocation` must be start or duration.", call. = FALSE)
+  }
   visitFilter <- .tmaCostVisitFilter(visitFilter, cdm)
   domain_map <- list(
-    Drug = c("drug_exposure", "drug_exposure_id", "drug_exposure_start_date"),
-    Visit = c("visit_occurrence", "visit_occurrence_id", "visit_start_date"),
-    "Visit Detail" = c("visit_detail", "visit_detail_id", "visit_detail_start_date"),
+    Drug = c("drug_exposure", "drug_exposure_id", "drug_exposure_start_date", "drug_exposure_end_date"),
+    Visit = c("visit_occurrence", "visit_occurrence_id", "visit_start_date", "visit_end_date"),
+    "Visit Detail" = c("visit_detail", "visit_detail_id", "visit_detail_start_date", "visit_detail_end_date"),
     Procedure = c("procedure_occurrence", "procedure_occurrence_id", "procedure_date"),
-    Device = c("device_exposure", "device_exposure_id", "device_exposure_start_date"),
+    Device = c("device_exposure", "device_exposure_id", "device_exposure_start_date", "device_exposure_end_date"),
     Measurement = c("measurement", "measurement_id", "measurement_date"),
     Observation = c("observation", "observation_id", "observation_date"),
     Specimen = c("specimen", "specimen_id", "specimen_date")
@@ -98,7 +117,10 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   }
   for (domain in domains) {
     spec <- domain_map[[domain]]
-    .tmaRequireCostTable(cdm, spec[[1]], c(spec[[2]], "person_id", spec[[3]]))
+    end_column <- if (length(spec) == 4L) spec[[4]] else spec[[3]]
+    required <- c(spec[[2]], "person_id", spec[[3]],
+                  if (allocation == "duration") end_column)
+    .tmaRequireCostTable(cdm, spec[[1]], required)
     if (!is.null(visitFilter) && domain != "Visit" &&
         !"visit_occurrence_id" %in% colnames(cdm[[spec[[1]]]])) {
       stop("Visit-filtered costs require visit_occurrence_id in `", spec[[1]],
@@ -130,6 +152,7 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
     currency_concept_id = character(), measure = character(),
     visit_occurrence_id = character(), stringsAsFactors = FALSE
   )
+  if (allocation == "duration") result$event_end_date <- as.Date(character())
   diagnostics <- data.frame(
     cost_domain_id = character(), unmatched_event_references = double(),
     selected_patient_cost_rows = double(), missing_event_dates = double(),
@@ -168,6 +191,14 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
       subject_id = as.character(.data$person_id), event_date = .data[[spec[[3]]]],
       visit_occurrence_id = !!visit_expression
     )
+    if (allocation == "duration") {
+      end_column <- if (length(spec) == 4L) spec[[4]] else spec[[3]]
+      source <- dplyr::transmute(
+        cdm[[spec[[1]]]], cost_event_id = .data[[spec[[2]]]],
+        subject_id = as.character(.data$person_id), event_date = .data[[spec[[3]]]],
+        event_end_date = .data[[end_column]], visit_occurrence_id = !!visit_expression
+      )
+    }
     domain_cost <- dplyr::filter(cost_table, .data$cost_domain_id == domain)
     domain_cost <- dplyr::transmute(
       domain_cost, cost_id = as.character(.data$cost_id),
@@ -196,13 +227,24 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
       ids <- windows$subject_id
       selected_source <- dplyr::filter(source, .data$subject_id %in% ids)
       selected <- dplyr::inner_join(domain_cost, selected_source, by = "cost_event_id")
+      duration_check <- if (allocation == "duration") list(
+        invalid_dates = rlang::expr(sum(dplyr::if_else(
+          is.na(.data$event_date) | is.na(.data$event_end_date) |
+            .data$event_end_date < .data$event_date, 1L, 0L), na.rm = TRUE))
+      ) else list()
       counts <- dplyr::collect(dplyr::summarise(
         selected, n = dplyr::n(),
-        missing_dates = sum(dplyr::if_else(is.na(.data$event_date), 1L, 0L), na.rm = TRUE)
+        missing_dates = sum(dplyr::if_else(is.na(.data$event_date), 1L, 0L), na.rm = TRUE),
+        !!!duration_check
       ))
       selected_count <- as.numeric(counts$n[[1]])
       missing_dates <- if (selected_count) as.numeric(counts$missing_dates[[1]]) else 0
-      predicate <- .tmaCostWindowPredicate(windows)
+      if (allocation == "duration" && selected_count > 0 && counts$invalid_dates[[1]] > 0) {
+        stop("Duration allocation found missing or reversed event dates for ",
+             counts$invalid_dates[[1]], " selected-patient cost records in domain `", domain,
+             "`. Review the source dates before extraction; no dates were imputed.", call. = FALSE)
+      }
+      predicate <- .tmaCostWindowPredicate(windows, allocation)
       in_window <- dplyr::filter(selected, !!predicate)
       window_count <- NULL
       if (!is.null(visitFilter)) {
@@ -235,6 +277,7 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
       in_window <- dplyr::mutate(in_window, cost_event_id = as.character(.data$cost_event_id))
       extracted <- as.data.frame(dplyr::collect(in_window))
       extracted$event_date <- as.Date(extracted$event_date)
+      if (allocation == "duration") extracted$event_end_date <- as.Date(extracted$event_end_date)
       extracted$amount <- as.numeric(extracted$amount)
       extracted$visit_occurrence_id <- as.character(extracted$visit_occurrence_id)
       extracted$measure <- rep(measure, nrow(extracted))
@@ -268,6 +311,7 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   attr(result, "unmatched_diagnostics_scope") <- "database-wide selected domains"
   attr(result, "cost_scope") <- if (is.null(visitFilter)) "all_recorded_costs" else "selected_visits"
   attr(result, "visit_filter") <- visitFilter
+  attr(result, "allocation") <- allocation
   result
 }
 
@@ -291,11 +335,15 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   as.numeric(count$n[[1]])
 }
 
-.tmaCostWindowPredicate <- function(windows) {
+.tmaCostWindowPredicate <- function(windows, allocation = "start") {
   predicates <- lapply(seq_len(nrow(windows)), function(i) {
     id <- windows$subject_id[[i]]
     start <- windows$index_date[[i]]
     end <- windows$observation_end[[i]]
+    if (allocation == "duration") {
+      return(rlang::expr(.data$subject_id == !!id &
+                          .data$event_end_date >= !!start & .data$event_date <= !!end))
+    }
     rlang::expr(.data$subject_id == !!id &
                   .data$event_date >= !!start & .data$event_date <= !!end)
   })

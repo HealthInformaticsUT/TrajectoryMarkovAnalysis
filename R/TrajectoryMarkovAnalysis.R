@@ -30,13 +30,21 @@
 #'   when analyses includes "costs". Clinical trajectories remain unchanged.
 #' @param strata Optional categorical trajectory column names passed to both
 #'   estimators. Values may change by row; numeric values group by exact value.
+#' @param costAllocation Cost allocation passed to extractCosts() and
+#'   estimateStateCosts(). "start" assigns the amount to the event date.
+#'   "duration" spreads it uniformly across the full inclusive event duration.
+#'   NULL uses "start" for CDM extraction and otherwise preserves the allocation
+#'   recorded by extractCosts(), or uses "start" for plain local costData.
+#'   Only valid when analyses includes "costs".
 #' @return A list containing transitions, costs and the prepared trajectories.
 #'   An analysis not requested has a NULL result. No connection is stored.
 #' @details This interface replaces the former database-driven workflow.
 #'   It does not run the legacy GUI, continuous-time model, simulation or
 #'   first-state cost reports. Transitions use the source cycle's period.
-#'   Costs use each record's event date and split observed days at period
-#'   boundaries. Within-cycle models require separate, explicit rules.
+#'   Costs use the selected allocation rule and split observed days at period
+#'   boundaries. Duration allocation retains unobserved shares for review rather
+#'   than redistributing them across observed days. Within-cycle models require
+#'   separate, explicit rules.
 #' @export
 TrajectoryMarkovAnalysis <- function(trajectories,
                                      cycleLength = NULL,
@@ -51,7 +59,8 @@ TrajectoryMarkovAnalysis <- function(trajectories,
                                      periodLabels = NULL,
                                      terminalCostMap = NULL,
                                      costVisitFilter = NULL,
-                                     strata = NULL) {
+                                     strata = NULL,
+                                     costAllocation = NULL) {
   if (!is.character(analyses) || !length(analyses) || anyNA(analyses) ||
       anyDuplicated(analyses) || any(!analyses %in% c("transitions", "costs"))) {
     stop("analyses must contain 'transitions', 'costs', or both, without duplicates.", call. = FALSE)
@@ -62,6 +71,9 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   }
   if (!costing && !is.null(terminalCostMap)) {
     stop("Include 'costs' in analyses to use terminalCostMap.", call. = FALSE)
+  }
+  if (!costing && !is.null(costAllocation)) {
+    stop("Include 'costs' in analyses to use costAllocation.", call. = FALSE)
   }
   if (costing && (is.null(cdm) == is.null(costData))) {
     stop("For costing, supply exactly one of cdm and costData.", call. = FALSE)
@@ -86,11 +98,13 @@ TrajectoryMarkovAnalysis <- function(trajectories,
   if (costing) {
     if (!is.null(cdm)) {
       costData <- extractCosts(cdm, prepared, measure = costMeasure, domains = costDomains,
-                                visitFilter = costVisitFilter)
+                                visitFilter = costVisitFilter,
+                                allocation = if (is.null(costAllocation)) "start" else costAllocation)
     }
     costs <- estimateStateCosts(prepared, costData,
                                 periodBreaks = periodBreaks, periodLabels = periodLabels,
-                                terminalCostMap = terminalCostMap, strata = strata)
+                                terminalCostMap = terminalCostMap, strata = strata,
+                                allocation = costAllocation)
   }
   list(transitions = transitions, costs = costs, trajectories = prepared)
 }

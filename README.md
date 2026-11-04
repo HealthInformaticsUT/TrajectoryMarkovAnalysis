@@ -467,15 +467,60 @@ source tables raise errors so that omissions require an explicit choice.
 
 Costs are linked to events within their domain. A drug and a visit can share
 an event ID without their costs being mixed. Patient and event identifiers are
-kept as text when collected. The event's source date is used for allocation.
-It is not necessarily a payment date, and a visit's amount is not automatically
-spread over the visit's duration.
+kept as text when collected. By default, the full amount is assigned to the
+event's source date. This is not necessarily a payment date. To spread charges
+over an event's duration, select `allocation = "duration"` explicitly.
 
 For charges linked to visit details, use `domains = "Visit Detail"`. The
 extractor links each charge to `visit_detail_id`, keeps its parent
 `visit_occurrence_id` and uses `visit_detail_start_date` as the event date.
-The full amount stays on that date. Visit filters apply to the parent visit,
+Duration allocation also uses `visit_detail_end_date`. Visit filters apply to the parent visit,
 so `visitConceptIds` selects `visit_concept_id`, not `visit_detail_concept_id`.
+
+### Choose when a cost is assigned
+
+The two allocation modes answer different questions. Start-date allocation
+assigns the full recorded amount when the event begins. Duration allocation
+spreads that amount evenly over the event's inclusive calendar days:
+
+```r
+start_events <- extractCosts(
+  cdm, histories, measure = "total_charge", domains = "Visit Detail",
+  allocation = "start"
+)
+start_costs <- estimateStateCosts(histories, start_events)
+
+duration_events <- extractCosts(
+  cdm, histories, measure = "total_charge", domains = "Visit Detail",
+  allocation = "duration"
+)
+duration_costs <- estimateStateCosts(histories, duration_events)
+```
+
+The estimator reads the extraction's allocation setting, so it need not be
+repeated. Duration extraction retains the original start date, end date and
+full amount. It includes events that start before follow-up but overlap it.
+Start-date extraction excludes those records. A start-date extraction therefore
+cannot be switched to duration allocation later. Extract again with the chosen
+mode to avoid missing overlapping events.
+
+Visit, Visit Detail, Drug and Device use their source end-date fields. The other
+supported cost domains are treated as one-day events. Missing end dates or end
+dates before the start cause an error in duration mode. They are not silently
+replaced with the start date.
+
+The daily share always uses the **full event duration**, not just its observed
+portion. A seven-day event costing 700 contributes 100 per observed day. If only
+five days fall in resolved trajectories, 500 is assigned and 200 remains
+unallocated. State and period changes split the assigned shares. This differs
+from clipping the event first and spreading its entire amount over the remaining
+days. Analyses that used that approach will not necessarily reproduce the same
+state-cost estimates.
+
+Uniform allocation is an explicit accounting assumption, not evidence that care
+was delivered evenly. Neither mode changes the measure, converts currencies or
+adjusts prices for inflation. The examples use `total_charge` deliberately.
+Choose the appropriate measure and perform any price-year adjustment separately.
 
 The extractor reads only. It does not create scratch tables or disconnect the
 CDM. Patients and their follow-up dates are filtered in SQL before records are
@@ -538,12 +583,14 @@ of them. Concepts match exactly, without automatic descendant expansion. An
 explicitly empty ID vector selects nothing. Omit unused fields rather than
 setting them to `NULL`.
 
-Both the qualifying clinical record and the cost's own event date must be
-within the patient's follow-up. A visit can begin before follow-up and still
-have eligible events during it. Its whole bill is not automatically included
-or prorated. A qualifying record later in follow-up can select earlier costs
-from that same visit, so this is retrospective visit selection, not a rule for
-prospective treatment eligibility.
+The qualifying clinical record must occur within the patient's follow-up.
+In start mode the cost's event date must also be within follow-up. In duration
+mode its event interval must overlap follow-up, and only the observed portion
+is allocated. A visit can begin before follow-up and still have eligible events
+during it. Selecting a visit does not by itself include its whole bill. A
+qualifying record later in follow-up can select earlier costs from that same
+visit, so this is retrospective visit selection, not a rule for prospective
+treatment eligibility.
 
 Linkage follows recorded patient and `visit_occurrence_id` values. It never
 assigns visits using overlapping dates. Costs without a usable visit link are
@@ -592,9 +639,11 @@ costs <- estimateStateCosts(
 )
 ```
 
-Costs follow the event date, not the source-cycle rule used for transitions.
-An interval that spans a boundary is split so each period receives only its
-observed days. An event's amount stays on its recorded date and is not prorated.
+Costs follow the chosen allocation rule, not the source-cycle rule used for
+transitions. An interval that spans a period boundary is split so each period
+receives only its observed days. In start mode the amount stays on the event
+date. In duration mode each period receives the share of the event covered by
+its resolved observed days.
 For cost-only analyses, boundaries can fall inside an interval without requiring
 a cycle length. A state with no observed days in a period has no estimate there.
 This is different from an observed interval with no recorded cost.
@@ -608,6 +657,10 @@ You can supply a local data frame instead of using `extractCosts()`. It needs
 `subject_id`, `event_date` and `amount`. Include `currency_concept_id`, `measure`
 and unique `cost_id` values when available. Currency is kept separate in every
 summary. Missing currency remains unknown. No conversion is performed.
+For local duration records, also supply `event_end_date` and call
+`estimateStateCosts(histories, costData, allocation = "duration")`. Plain local
+records otherwise use start-date allocation. Keep the original event dates and
+full amount, including any portion outside follow-up.
 
 Costs are assigned to the supplied non-overlapping intervals. An interval with
 no matching event has zero **recorded** cost. A missing monetary amount remains
@@ -621,6 +674,21 @@ returned for review, not silently reassigned. For weekly trajectories, the
 selected label describes the entire cycle. By default, a death-labelled
 cycle retains its own costs. The function does not infer the last living state
 or distribute that cycle's costs between clinical events.
+
+For duration allocation, `allocatedCosts` and `unallocatedCosts` provide the
+allocation audit. Their `amount` is the assigned or unassigned share, while
+`original_amount` retains the full source amount and `.cost_row_id` identifies
+the input row. `allocation_days` and `allocation_fraction` explain the share.
+Original event dates remain available alongside fragment dates where applicable.
+An outside remainder can combine days in gaps and outside follow-up, so its
+original dates do not describe a single contiguous unallocated interval.
+
+A partially observed record can appear in both allocated and unallocated
+diagnostics. Those record counts are not mutually exclusive. Within state and
+period summaries, `cost_records` counts allocated fragments, not distinct source
+records across the whole result. Use `.cost_row_id` to identify the original
+records and reconcile their shares. Missing amounts remain missing in every
+affected fragment.
 
 ## Assign terminal-cycle costs explicitly
 
@@ -1719,6 +1787,11 @@ supply either `costData` or `cdm`, not both. The result contains `transitions`,
 For database-backed costing, pass the same visit selection as `costVisitFilter`.
 For local `costData`, select the records before calling the wrapper. Neither
 approach changes the transition analysis or the trajectory population.
+Set `costAllocation = "duration"` to request duration allocation. The default
+`costAllocation = NULL` uses start-date extraction from `cdm`, or preserves the
+allocation attribute on previously extracted `costData`. Plain local records
+default to start-date allocation. `costAllocation` is rejected when `analyses`
+does not include `"costs"`.
 
 ## Publication
 

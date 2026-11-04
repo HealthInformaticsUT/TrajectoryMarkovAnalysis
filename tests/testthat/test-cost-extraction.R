@@ -109,6 +109,50 @@ testthat::test_that("selected domains and measures are respected", {
   testthat::expect_s3_class(empty$event_date, "Date")
 })
 
+testthat::test_that("duration extraction preserves full events overlapping follow-up", {
+  db <- cost_test_database()
+  on.exit(DBI::dbDisconnect(db$con, shutdown = TRUE), add = TRUE)
+  DBI::dbExecute(db$con, paste(
+    "UPDATE visit_occurrence SET visit_start_date = DATE '2019-12-30'",
+    "WHERE visit_occurrence_id = 1"
+  ))
+  start <- extractCosts(db$cdm, cost_test_trajectories(), domains = "Visit")
+  testthat::expect_equal(nrow(start), 0L)
+  testthat::expect_false("event_end_date" %in% names(start))
+
+  duration <- extractCosts(db$cdm, cost_test_trajectories(), domains = "Visit",
+                           allocation = "duration")
+  testthat::expect_equal(duration$cost_id, "21")
+  testthat::expect_equal(duration$event_date, as.Date("2019-12-30"))
+  testthat::expect_equal(duration$event_end_date, as.Date("2020-01-04"))
+  testthat::expect_equal(duration$amount, 100)
+  testthat::expect_equal(attr(duration, "allocation"), "duration")
+  testthat::expect_equal(attr(duration, "diagnostics")$in_window_cost_rows, 1)
+  history <- data.frame(subject_id = "9007199254740993", state_label = "A",
+    state_start_date = as.Date("2020-01-01"), state_end_date = as.Date("2020-01-03"))
+  fitted <- estimateStateCosts(history, duration)
+  testthat::expect_equal(fitted$estimates$total_cost, 50)
+  testthat::expect_equal(fitted$unallocatedCosts$amount, 50)
+  wrapped <- TrajectoryMarkovAnalysis(history, analyses = "costs", cdm = db$cdm,
+    costDomains = "Visit", costAllocation = "duration")
+  testthat::expect_equal(wrapped$costs$estimates, fitted$estimates)
+})
+
+testthat::test_that("duration extraction refuses missing or reversed source dates", {
+  db <- cost_test_database()
+  on.exit(DBI::dbDisconnect(db$con, shutdown = TRUE), add = TRUE)
+  for (dates in c(
+    "visit_start_date = DATE '2020-01-02', visit_end_date = NULL",
+    "visit_start_date = DATE '2020-02-01', visit_end_date = DATE '2020-01-31'",
+    "visit_start_date = NULL, visit_end_date = DATE '2020-01-04'"
+  )) {
+    DBI::dbExecute(db$con, paste("UPDATE visit_occurrence SET", dates,
+                                 "WHERE visit_occurrence_id = 1"))
+    testthat::expect_error(extractCosts(db$cdm, cost_test_trajectories(), domains = "Visit",
+                                       allocation = "duration"), "missing or reversed")
+  }
+})
+
 testthat::test_that("patients across query chunks and chunks without costs retain correct results", {
   db <- cost_test_database()
   on.exit(DBI::dbDisconnect(db$con, shutdown = TRUE), add = TRUE)

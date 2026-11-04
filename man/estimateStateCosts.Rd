@@ -10,7 +10,8 @@ estimateStateCosts(
   periodBreaks = NULL,
   periodLabels = NULL,
   terminalCostMap = NULL,
-  strata = NULL
+  strata = NULL,
+  allocation = NULL
 )
 }
 \arguments{
@@ -20,7 +21,9 @@ prepareTrajectories().}
 \item{costData}{A data frame returned by extractCosts(), or a local data frame
 with subject_id, event_date and amount. Optional columns are cost_id,
 currency_concept_id and measure. Supply currency and measure information
-when known. Missing currency is reported as unknown, not converted.}
+when known. Missing currency is reported as unknown, not converted.
+Duration allocation additionally requires event_end_date. Keep the full
+source dates and amount, including time outside the trajectories.}
 
 \item{periodBreaks}{Follow-up day boundaries relative to each subject's index
 date, starting with 0 and ending with Inf. NULL pools all follow-up.}
@@ -36,6 +39,12 @@ their own costs. NULL leaves every label unchanged.}
 \item{strata}{Optional character vector of categorical trajectory column names.
 Values may change between rows. Numeric values define exact-value groups;
 create age bands or other categories explicitly before estimation.}
+
+\item{allocation}{"start" assigns the full amount to event_date. "duration"
+spreads it uniformly over event_date through event_end_date, inclusive.
+NULL uses the allocation attribute from extractCosts(), or "start" for
+plain local records. To use duration allocation after start-date extraction,
+extract again with allocation = "duration" so overlapping events are not lost.}
 }
 \value{
 A list with state estimates, interval costs, unallocated cost records,
@@ -43,6 +52,13 @@ A list with state estimates, interval costs, unallocated cost records,
   separately. Costs
   with missing amounts make the corresponding interval and state total
   unknown. known_recorded_cost reports only the observed monetary amounts.
+  Duration results also include allocatedCosts. In both allocation ledgers,
+  amount is the share, original_amount is the full source amount, .cost_row_id
+  identifies its input row, and allocation_days and allocation_fraction
+  describe the share. Original event dates are preserved. Allocated and
+  unresolved fragments have allocation_start_date and allocation_end_date.
+  An outside remainder can combine gaps and time outside observation, so its
+  allocation dates and period are NA rather than implying a single interval.
 }
 \description{
 Allocate dated cost records to non-overlapping trajectory intervals. Dates
@@ -59,7 +75,8 @@ An interval with no matching cost record has zero recorded cost.
   Periods include their starting day and exclude their ending day. Clinical
   intervals spanning a boundary are split: intervalCosts contains the clipped
   dates and observed days, retaining the original .row_id. Costs are assigned
-  by their event date. The intervals and intervals_without_records estimates
+  by their event date in start mode or by overlapping days in duration mode.
+  The intervals and intervals_without_records estimates
   count fragments within each period; an original interval can contribute to
   multiple periods. Deduplicate .row_id to count original intervals across
   periods. Period-state combinations without observed days are absent, not
@@ -93,6 +110,20 @@ An interval with no matching cost record has zero recorded cost.
   patient index. The result includes a strata registry; stratum_id and the
   requested covariates appear in intervalCosts and estimates. Patient counts
   are distinct within each group and may overlap between groups.
+
+  Duration allocation divides by the full original event duration. Only days
+  overlapping resolved clinical intervals receive costs. Unobserved shares
+  remain unallocated and are not redistributed over the remaining days.
+  Missing or reversed end dates cause an error, not an imputed duration.
+  Missing amounts affect only cells with an actual overlap. Uniform spreading
+  is an accounting assumption, not a claim that care occurred evenly.
+
+  Cost-record diagnostics count unique input rows. A partly allocated record
+  appears in both allocated_cost_records and unallocated_cost_records and is
+  also counted in partially_allocated_cost_records. Fragment counts report
+  ledger rows. The cost_records and missing_amounts in interval and state
+  estimates count contributing record fragments, so they can exceed the
+  number of source records when summed across periods or states.
 }
 \seealso{
 createCostModel() for explicitly applying these daily means to

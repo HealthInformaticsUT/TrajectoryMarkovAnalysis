@@ -9,7 +9,8 @@ extractCosts(
   trajectories,
   measure = "total_charge",
   domains = NULL,
-  visitFilter = NULL
+  visitFilter = NULL,
+  allocation = "start"
 )
 }
 \arguments{
@@ -30,15 +31,23 @@ visit_concept_id, not visit_type_concept_id. eventConcepts is a named list
 of exact standard concept IDs in Condition, Drug, Procedure, Device,
 Measurement or Observation. For example,
 list(eventConcepts = list(Condition = c(123, 456))).}
+
+\item{allocation}{How costs will be assigned by `estimateStateCosts()`.
+`"start"` selects events starting within follow-up. `"duration"` selects
+events overlapping follow-up and keeps their full source dates and amounts
+for allocation across their inclusive duration.}
 }
 \value{
 A data frame with `subject_id`, `event_date`, `amount`, `cost_id`,
   `cost_domain_id`, `cost_event_id`, `currency_concept_id`, `measure`, and
   `visit_occurrence_id`. Visit IDs are text and can be missing in all-cost mode.
+  Duration extraction also returns `event_end_date`. The `allocation`
+  attribute records the choice for `estimateStateCosts()`.
   The `diagnostics` attribute reports counts per domain. Unmatched event
   references are counted across the database for selected domains, since their
   patients cannot be identified. Other counts refer to selected patients.
-  Visit exclusions refer to costs whose event dates are within follow-up.
+  In-window counts and visit exclusions refer to events starting within
+  follow-up in start mode, or overlapping follow-up in duration mode.
   Missing visit links, unmatched or wrong-patient visit references, and valid
   visits not selected are reported separately. They are NA when no visit
   filter was requested. Attributes cost_scope and visit_filter retain the
@@ -58,7 +67,7 @@ Each visit filter vector matches any supplied ID. eventConcepts
   A matching clinical record qualifies its visit only when its own date lies
   within the patient's trajectory follow-up. All selected-domain costs linked
   to that visit can then be included, not only the cost of the matching record.
-  Their own event dates must also remain within follow-up. A later qualifying
+  Their own events must meet the selected allocation window rule. A later qualifying
   record within follow-up can select earlier costs from the same visit. This
   is a retrospective visit selection, not prospective treatment eligibility.
 
@@ -71,9 +80,17 @@ Each visit filter vector matches any supplied ID. eventConcepts
   the qualifying condition. Bundled visit charges and itemised costs can
   overlap in the source, so select cost domains and measures accordingly.
 
+  Start allocation assigns the full amount to the source event date. Duration
+  allocation uses start and end dates for Visit, Visit Detail, Drug and Device.
+  Procedure, Measurement, Observation and Specimen remain single-day events.
+  Required end-date columns must exist. Missing or reversed dates in cost
+  records linked to selected patients cause an error before window or visit
+  filtering. No dates are imputed. Source dates and amounts are not clipped
+  to follow-up, so costs outside observed days can remain unallocated when
+  passed to estimateStateCosts().
+
   Visit Detail costs link to visit_detail_id and use visit_detail_start_date
-  as the event date. Their full amount is assigned to that date, not spread
-  across the detail's duration. Visit filters use the detail's parent
+  as the event date. Visit filters use the detail's parent
   visit_occurrence_id. visitConceptIds therefore selects the parent's
   visit_concept_id, not visit_detail_concept_id.
 }
