@@ -9,6 +9,8 @@
 #' @param measure One of `total_charge`, `total_cost`, or `total_paid`.
 #' @param domains Cost domain IDs to include. `NULL` selects every observed domain;
 #'   unsupported observed domains cause an error rather than silent exclusion.
+#'   Supported domains are Drug, Visit, Visit Detail, Procedure, Device,
+#'   Measurement, Observation and Specimen.
 #' @param visitFilter Optional named list with visitIds, visitConceptIds or
 #'   eventConcepts. NULL retains all costs in follow-up. visitConceptIds selects
 #'   visit_concept_id, not visit_type_concept_id. eventConcepts is a named list
@@ -46,6 +48,12 @@
 #'   estimateStateCosts(). Visit-associated costs are not necessarily caused by
 #'   the qualifying condition. Bundled visit charges and itemised costs can
 #'   overlap in the source, so select cost domains and measures accordingly.
+#'
+#'   Visit Detail costs link to visit_detail_id and use visit_detail_start_date
+#'   as the event date. Their full amount is assigned to that date, not spread
+#'   across the detail's duration. Visit filters use the detail's parent
+#'   visit_occurrence_id. visitConceptIds therefore selects the parent's
+#'   visit_concept_id, not visit_detail_concept_id.
 #' @export
 extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = NULL,
                            visitFilter = NULL) {
@@ -60,6 +68,7 @@ extractCosts <- function(cdm, trajectories, measure = "total_charge", domains = 
   domain_map <- list(
     Drug = c("drug_exposure", "drug_exposure_id", "drug_exposure_start_date"),
     Visit = c("visit_occurrence", "visit_occurrence_id", "visit_start_date"),
+    "Visit Detail" = c("visit_detail", "visit_detail_id", "visit_detail_start_date"),
     Procedure = c("procedure_occurrence", "procedure_occurrence_id", "procedure_date"),
     Device = c("device_exposure", "device_exposure_id", "device_exposure_start_date"),
     Measurement = c("measurement", "measurement_id", "measurement_date"),

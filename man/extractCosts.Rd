@@ -20,7 +20,9 @@ extractCosts(
 \item{measure}{One of `total_charge`, `total_cost`, or `total_paid`.}
 
 \item{domains}{Cost domain IDs to include. `NULL` selects every observed domain;
-unsupported observed domains cause an error rather than silent exclusion.}
+unsupported observed domains cause an error rather than silent exclusion.
+Supported domains are Drug, Visit, Visit Detail, Procedure, Device,
+Measurement, Observation and Specimen.}
 
 \item{visitFilter}{Optional named list with visitIds, visitConceptIds or
 eventConcepts. NULL retains all costs in follow-up. visitConceptIds selects
@@ -68,4 +70,10 @@ Each visit filter vector matches any supplied ID. eventConcepts
   estimateStateCosts(). Visit-associated costs are not necessarily caused by
   the qualifying condition. Bundled visit charges and itemised costs can
   overlap in the source, so select cost domains and measures accordingly.
+
+  Visit Detail costs link to visit_detail_id and use visit_detail_start_date
+  as the event date. Their full amount is assigned to that date, not spread
+  across the detail's duration. Visit filters use the detail's parent
+  visit_occurrence_id. visitConceptIds therefore selects the parent's
+  visit_concept_id, not visit_detail_concept_id.
 }

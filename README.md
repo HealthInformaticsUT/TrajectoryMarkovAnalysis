@@ -471,6 +471,12 @@ kept as text when collected. The event's source date is used for allocation.
 It is not necessarily a payment date, and a visit's amount is not automatically
 spread over the visit's duration.
 
+For charges linked to visit details, use `domains = "Visit Detail"`. The
+extractor links each charge to `visit_detail_id`, keeps its parent
+`visit_occurrence_id` and uses `visit_detail_start_date` as the event date.
+The full amount stays on that date. Visit filters apply to the parent visit,
+so `visitConceptIds` selects `visit_concept_id`, not `visit_detail_concept_id`.
+
 The extractor reads only. It does not create scratch tables or disconnect the
 CDM. Patients and their follow-up dates are filtered in SQL before records are
 collected. Queries use patient batches, so database latency can matter for large

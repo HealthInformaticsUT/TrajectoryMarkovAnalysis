@@ -1,4 +1,4 @@
-visit_cost_database <- function() {
+visit_cost_database <- function(include_visit_detail = FALSE) {
   testthat::skip_if_not_installed("CDMConnector")
   testthat::skip_if_not_installed("DBI")
   testthat::skip_if_not_installed("duckdb")
@@ -60,6 +60,22 @@ visit_cost_database <- function() {
     cost_type_concept_id = 0L, currency_concept_id = 1L,
     total_charge = c(seq(10, 100, 10), 110, 120, 1000, 2000, 3000)
   ), "cost_event_id")
+  if (include_visit_detail) {
+    write_table("visit_detail", data.frame(
+      visit_detail_id = 1:6, person_id = person,
+      visit_detail_concept_id = 9202L, visit_detail_type_concept_id = 0L,
+      visit_detail_start_date = as.Date(c("2020-01-02", "2020-01-03",
+                                          "2020-01-02", "2020-01-10",
+                                          "2020-01-02", "2020-01-02")),
+      visit_detail_end_date = as.Date("2020-01-10"),
+      visit_occurrence_id = c(visits[1], visits[1], visits[2], visits[1], visits[3], NA)
+    ), c("person_id", "visit_occurrence_id"))
+    DBI::dbAppendTable(con, "cost", data.frame(
+      cost_id = c(401:406, 499L), cost_event_id = c(1:6, 999L),
+      cost_domain_id = "Visit Detail", cost_type_concept_id = 0L,
+      currency_concept_id = 1L, total_charge = c(40, 60, 70, 80, 90, NA, 50)
+    ))
+  }
   cdm <- suppressWarnings(CDMConnector::cdmFromCon(
     con, cdmSchema = "main", cdmVersion = "5.3", cdmName = "visit costs",
     .softValidation = TRUE
@@ -70,6 +86,29 @@ visit_cost_database <- function() {
   )
   list(con = con, cdm = cdm, history = history, visits = visits, person = person)
 }
+
+testthat::test_that("visit-detail costs use detail dates and filter by the parent visit", {
+  db <- visit_cost_database(include_visit_detail = TRUE)
+  on.exit(DBI::dbDisconnect(db$con, shutdown = TRUE), add = TRUE)
+  all_costs <- extractCosts(db$cdm, db$history)
+  details <- subset(all_costs, cost_domain_id == "Visit Detail")
+  testthat::expect_setequal(details$cost_id, c("401", "402", "403", "405", "406"))
+  testthat::expect_true(is.na(details$amount[details$cost_id == "406"]))
+
+  # Parent visits, not detail concepts, determine inpatient selection.
+  selected <- extractCosts(db$cdm, db$history, domains = "Visit Detail",
+                            visitFilter = list(visitConceptIds = 9201L))
+  testthat::expect_equal(selected$cost_id, c("401", "402"))
+  testthat::expect_equal(selected$cost_event_id, c("1", "2"))
+  testthat::expect_equal(selected$visit_occurrence_id, rep(db$visits[1], 2))
+  testthat::expect_equal(selected$event_date, as.Date(c("2020-01-02", "2020-01-03")))
+  testthat::expect_equal(selected$amount, c(40, 60))
+  diagnostics <- attr(selected, "diagnostics")
+  testthat::expect_equal(unname(unlist(diagnostics[c(
+    "unmatched_event_references", "out_of_window", "missing_visit_links",
+    "unmatched_visit_references", "visits_not_selected", "extracted_rows"
+  )], use.names = FALSE)), c(1, 1, 1, 1, 1, 2))
+})
 
 testthat::test_that("concept-linked visits include their other costs without duplication", {
   db <- visit_cost_database()
