@@ -9,7 +9,8 @@ projectCohort(
   nCycles,
   initial = NULL,
   cohortSize = 1,
-  entry = NULL
+  entry = NULL,
+  transitionEffects = NULL
 )
 }
 \arguments{
@@ -32,11 +33,20 @@ cycle zero. Do not supply a non-NULL initial together with entry.
 For stratified entry, select one model from entry$models, or use
 simulateTrajectories() with explicit baseline patient profiles. This
 function does not pool entry groups.}
+
+\item{transitionEffects}{Optional rules described in transition-effects.
+An optional stage targets a composed stage. Eligibility callbacks require
+patient simulation and are not accepted here. Effects leave the input
+model unchanged.}
 }
 \value{
 A list containing occupancy, steps, flows, metadata and diagnostics.
   For composed models, stageMatrices and stageFlows retain the stage models
-  and their expected movements. Both are NULL for ordinary models. stageFlows
+  and their expected movements. Both are NULL for ordinary models. With
+  stage effects, stageCycleMatrices retains the matrices actually used at
+  each source cycle and cycleMatrices retains their products. stageMatrices
+  retains the original stage definitions. Net-cycle effects leave stageFlows
+  unavailable because intermediate paths are no longer defined. stageFlows
   is an empty table when a composed model takes no adjacent steps.
   Occupancy includes cycle zero and nCycles subsequent distributions.
   Metadata preserves the source subject count when available and the entry

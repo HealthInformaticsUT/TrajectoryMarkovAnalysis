@@ -1,6 +1,6 @@
 #' Compare compatible summaries of simulated scenarios
 #'
-#' @param reference A tma_simulation_summary from summariseSimulation().
+#' @param reference A summary from summariseSimulation() or summariseOutcomes().
 #' @param intervention A second tma_simulation_summary with compatible outcome
 #'   definitions and the same recorded initial joint population distribution.
 #' @param scenarioCovariates Explicit initial covariate columns that may differ
@@ -50,6 +50,8 @@
 #'   status. Metadata records checked population columns and terminal extension.
 #' @export
 compareScenarios <- function(reference, intervention, scenarioCovariates = character()) {
+  if (inherits(reference, "tma_outcomes") || inherits(intervention, "tma_outcomes"))
+    return(.tmaCompareIntervalOutcomes(reference, intervention, scenarioCovariates))
   reference <- .tmaScenarioSummary(reference, "reference")
   intervention <- .tmaScenarioSummary(intervention, "intervention")
   r <- reference$metadata

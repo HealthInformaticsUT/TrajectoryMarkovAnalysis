@@ -281,7 +281,7 @@ LEFT JOIN @cdmTmpSchema.tma_states
 # All credit to HealthInformaticsUT/TrajectoryViz package developers
 #' Visualise patients' trajectories with sunburst plot
 #'
-#' @param pateintData A data.frame object which is output of Cohort2Trajectory package data.frame object which is resulting from
+#' @param patientData A data frame of patient trajectories.
 #' @keywords internal
 drawSunburst <- function(patientData) {
   tmpInputData <-

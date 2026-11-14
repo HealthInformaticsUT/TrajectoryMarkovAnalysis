@@ -12,11 +12,14 @@ calibrateExcessMortality(
   periodBreaks = NULL,
   periodLabels = NULL,
   strata = NULL,
-  negativeExcess = "error"
+  negativeExcess = "error",
+  stage = NULL,
+  probabilityCeiling = NULL
 )
 }
 \arguments{
-\item{trajectories}{Lowercase C2T trajectories or a tma_trajectories object.
+\item{trajectories}{Lowercase C2T trajectories, a tma_trajectories object,
+or a fitted estimateStageTransitions() result.
 Raw trajectories use deathStates as their absorbing states. To declare
 other absorbing outcomes or unobserved clinical states, prepare trajectories
 first. All declared absorbing outcomes terminate follow-up, but only
@@ -47,6 +50,15 @@ source-row values, even when a background grouping rule has the same name.}
 background expectation. "error" stops. "zero" explicitly floors the
 excess hazard at zero, warns, and retains the signed raw estimate and the
 resulting calibration difference.}
+
+\item{stage}{Stage name required for a fitted stage model. Its observed
+outcome rows define the calibration population, including first-cycle
+events. Omit it for ordinary adjacent-cycle histories.}
+
+\item{probabilityCeiling}{Optional finite probability strictly between zero
+and one. Explicitly caps the observed probability for the hazard calculation
+only. Raw observed probabilities and reconstruction differences remain
+visible. NULL rejects a cell in which every outcome is death.}
 }
 \value{
 A tma_excess_mortality list with estimates, reference, strata, periods,
@@ -64,7 +76,10 @@ A tma_excess_mortality list with estimates, reference, strata, periods,
 Calibrate excess mortality against the observed source-cycle population
 }
 \details{
-This function uses exactly the adjacent, known pairs with a full
+With stage input, periods and strata come from the fitted model.
+  Supplied overrides must match. When birth_date is supplied, index_date
+  must also be supplied so age can be evaluated at index_date + source_day.
+  For ordinary histories this function uses exactly the adjacent, known pairs with a full
   source cycle that contribute to estimateTransitions(). Only nonabsorbing
   source states are calibrated. A first-cycle death has no observed preceding
   source state and does not contribute. Final censored cycles, gaps and

@@ -104,12 +104,13 @@ state cannot be restored reliably. Callbacks must not change RNGkind().}
 
 \item{transitionEffects}{Optional named list of source-transition rules. Each
 rule supplies from, to, multiplier and redistributeTo, with optional
-eligible(sourceCandidates), startDay, endDay and applyAt. applyAt is
+eligible(sourceCandidates), startDay, endDay, applyAt and stage. applyAt is
 "transitions" by default, or "entry" or "both" with an entry model.
 Eligibility uses current
 source snapshots and a lower-inclusive, upper-exclusive source-day window.
 Multiply the probability of to and move the exact difference to
-redistributeTo. At most one rule may apply per patient per step. These are
+redistributeTo. At most one rule may apply per patient per stage, or per
+net step when stage is omitted. These are
 analyst-specified effects on discrete full-cycle probabilities, not hazards
 or effects estimated from the fitted trajectories. Invalid probability rows
 fail rather than being clipped or normalized.}
@@ -131,7 +132,10 @@ Without entry strata, probabilities remain pooled within entry state.}
 }
 \value{
 A tma_simulation list with final population, trajectories,
-  transitions, costs (charge ledger), totals by component, and metadata.
+  transitions, stageTransitions, costs (charge ledger), totals by component,
+  and metadata. stageTransitions retains source and destination clock values,
+  stage name/index, from_state, to_state, source stratum/period and the sampled
+  stage probability. Its rows do not add time or cycles.
   Internal configuration and RNG checkpoints support advanceSimulation().
   With nonempty transitionEffects, effects records each eligible application;
   transitions additionally records baseline_transition_probability for its
@@ -237,7 +241,10 @@ Every step selects the model using current covariates and the period
   before drawing the next state. Their callbacks run in a batch before the
   step's draws and receive candidate source snapshots. Effects do not modify
   the saved bundle, initial distribution or cost rules. For composed models,
-  effects act on the combined full-cycle row, not on an individual stage.
+  a rule without stage acts on the combined full-cycle row. A named stage
+  is changed before later stages, and composed models sample each stage
+  in order when no net-cycle rules are supplied. Sampled stages are retained
+  in stageTransitions. Net-cycle rules leave stage paths unavailable.
   Identity multipliers preserve draws and RNG state when eligibility is
   deterministic. This does not establish paired random draws across scenarios
   whose state-dependent paths or callbacks consume different random numbers.

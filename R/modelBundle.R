@@ -21,8 +21,9 @@
 #'   The bundle keeps estimated counts and model definitions, not training
 #'   patient histories or a starting population. Supply a population or a joint
 #'   starting distribution separately when simulating. Composed models retain
-#'   their stage definitions, but patient simulation samples their combined
-#'   cycle outcomes, not unobserved intermediate patient events.
+#'   their stage definitions. Patient simulation samples the specified stages
+#'   in order and records them as model-generated events. Net-cycle effect
+#'   rules instead act on the combined matrix and do not invent stage paths.
 #'
 #'   Use extendModelBundle() to attach an explicit late transition model at a
 #'   chosen source day. That model can use separate strata, groups and periods;

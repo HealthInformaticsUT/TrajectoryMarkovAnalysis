@@ -14,7 +14,7 @@
 #' @param cdmResultsSchema Schema which has the information about the cohorts created in Atlas
 #' @param databaseDescription Information about the OMOP CDM database data
 #'
-#' @export
+#' @keywords internal
 runGUI <- function(connection,
                    connectionDetails,
                    pathToDriver = './Drivers',
@@ -110,7 +110,7 @@ runGUI <- function(connection,
 #' This function starts the dashboard application for comparing results from different databases
 #'
 #' @param pathToResults Path to target directory where results will be saved
-#' @export
+#' @keywords internal
 runDashboard <- function(pathToResults = NULL) {
   runDashboard <<- pathToResults
   shiny::runApp("./resultsDashboard")

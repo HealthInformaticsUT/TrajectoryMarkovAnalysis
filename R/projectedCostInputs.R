@@ -139,7 +139,10 @@
     joint[pair[rows]] <- flows$probability_mass[rows]
     conditional <- .tmaTransitionMatrix(conditional, states, model$absorbingStates,
                                      paste0("Projection flow block ", i))
-    reference <- if (isEntry[first]) entryMatrix else {
+    periodIndex <- match(flows$period[first], periods$period)
+    reference <- if (isEntry[first]) entryMatrix else if (!is.null(projection$cycleMatrices)) {
+      projection$cycleMatrices[[flows$source_cycle[first] + 1L]]
+    } else {
       periodIndex <- match(flows$period[first], periods$period)
       periodMatrices[[periodIndex]]
     }

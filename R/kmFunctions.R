@@ -2,7 +2,7 @@
 #'
 #' This function prepares patientData dataframe for Kaplan-Meier plots
 #'
-#' @param cohortData A data.frame object which is output of Cohort2Trajectory package
+#' @param patientData A data frame of patient trajectories.
 #' @param startCohortId Start cohort Id
 #' @param endCohortId End cohort Id
 #' @param ageInterval Indicator whether age analysis are prohibited or allowed, if 0 then prohibited

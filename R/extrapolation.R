@@ -209,6 +209,7 @@ extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, sourc
 # overwrite clinical or cost groups in the patient profile.
 .tmaBundleProbabilityRows <- function(bundle, population, selection) {
   probability <- vector("list", nrow(population))
+  stageMatrices <- vector("list", nrow(population))
   audit <- if (.tmaBundleUsesFutureMortality(bundle)) {
     .tmaBundleMortalityAudit(nrow(population))
   } else NULL
@@ -219,10 +220,15 @@ extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, sourc
       future <- .tmaFutureMortalityRows(selected, population[rows, , drop = FALSE],
         selection$model_day[rows], selection$stratum_id[rows])
       probability[rows] <- future$probabilities
+      if (!is.null(future$stageMatrices)) stageMatrices[rows] <- future$stageMatrices
       audit[rows, ] <- future$audit
     } else {
       probability[rows] <- lapply(rows, function(row) {
         model <- .tmaBundleTransitionModel(bundle, phase, selection$stratum_id[row])
+        if (!is.null(model$stageMatrices)) {
+          stageMatrices[[row]] <<- lapply(model$stageMatrices, function(stage)
+            stage[[selection$period[row]]])
+        }
         result <- model$matrices[[selection$period[row]]][population$state_label[row], ]
         if (anyNA(result)) {
           stop("Unestimated transition row for state '", population$state_label[row],
@@ -234,7 +240,7 @@ extendModelBundle <- function(bundle, fromDay, transitions, groups = NULL, sourc
       })
     }
   }
-  list(probabilities = probability, audit = audit)
+  list(probabilities = probability, audit = audit, stageMatrices = stageMatrices)
 }
 
 .tmaBundleGroupNames <- function(bundle) {

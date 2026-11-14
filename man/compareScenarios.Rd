@@ -7,7 +7,7 @@
 compareScenarios(reference, intervention, scenarioCovariates = character())
 }
 \arguments{
-\item{reference}{A tma_simulation_summary from summariseSimulation().}
+\item{reference}{A summary from summariseSimulation() or summariseOutcomes().}
 
 \item{intervention}{A second tma_simulation_summary with compatible outcome
 definitions and the same recorded initial joint population distribution.}

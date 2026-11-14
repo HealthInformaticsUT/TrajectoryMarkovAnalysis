@@ -14,3 +14,4 @@ compareTrajectoryDataLogRank(observedData, generatedData)
 \description{
 This function outputs a matrix table comparing two patient trajectory dataframes with logRank tests
 }
+\keyword{internal}

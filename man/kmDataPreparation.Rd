@@ -14,6 +14,8 @@ kmDataPreparation(
 )
 }
 \arguments{
+\item{patientData}{A data frame of patient trajectories.}
+
 \item{startCohortId}{Start cohort Id}
 
 \item{endCohortId}{End cohort Id}
@@ -23,8 +25,6 @@ kmDataPreparation(
 \item{selectedIntervals}{Age intervals which were selected}
 
 \item{survivalType}{If "nearest", then comparisons are made with the startCohortId state present nearest to the endCohortId}
-
-\item{cohortData}{A data.frame object which is output of Cohort2Trajectory package}
 }
 \value{
 A dataframe ready for using msm package

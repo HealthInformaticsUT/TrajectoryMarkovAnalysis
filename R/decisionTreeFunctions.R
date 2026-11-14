@@ -87,7 +87,7 @@ getDTreeProbabilities <- function(cohortData,
 #'
 #' This function outputs a data.frame object which describes the movement of patients between the defined states and the probabilities
 #' @param cohortData A data.frame object which is output of Cohort2Trajectory package
-#' @param dTreeEdged A data.frame object which describes edge formulation
+#' @param dTreeEdges A data.frame object which describes edge formulation
 #' @param inputLayersDT A list of layers, which are included for decision tree in GUI
 #' @param stateTransitionTable A data.frame object with data of the relevant probabilities
 #' @param probabilityType Type of probability calculated

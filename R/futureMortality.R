@@ -19,7 +19,9 @@
 #'   is allowed when there is only one death state.
 #' @param source Required nonblank label describing the future assumption.
 #' @details Future mortality replaces the selected fitted row's total death
-#'   probability. It is not added as another mortality stage. The relative
+#'   probability. With a fitted stage model, calibration must identify the
+#'   mortality stage. Only that stage is replaced and the other stages retain
+#'   their reference-period matrices. The relative
 #'   probabilities of all nondeath destinations are retained conditional on
 #'   survival. Other absorbing outcomes keep their identity rows.
 #'
@@ -145,7 +147,8 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
     cycleLength = reference$metadata$cycleLength, strata = reference$metadata$strata,
     periods = periods, selection = "source clinical covariates; separate current background lookup",
     estimator = "calibrated_future_mortality", clock = "days since extrapolation fromDay",
-    mortality = "replace fitted death probability; preserve nondeath conditional shares",
+    mortality = "replace selected fitted death probability; preserve nondeath conditional shares",
+    mortality_stage = calibration$metadata$mortality_stage,
     background = "source profile held fixed within each cycle",
     excess = excess, declineDays = declineDays,
     age = reference$metadata$age)
@@ -283,7 +286,12 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
     probs <- unname(bgProb[r$background_stratum_id])
     q <- cell$deaths / cell$cycles
     back <- sum(r$cycles * probs) / cell$cycles
-    calculatedRaw <- (log1p(-back) - log1p(-q)) / cycle
+    cap <- meta$probabilityCeiling
+    if (!is.null(cap) && (!is.numeric(cap) || length(cap) != 1L || !is.finite(cap) || cap <= 0 || cap >= 1)) {
+      stop("Calibration probabilityCeiling is invalid.", call. = FALSE)
+    }
+    targetProbability <- if (is.null(cap)) q else min(q, cap)
+    calculatedRaw <- (log1p(-back) - log1p(-targetProbability)) / cycle
     if (!.tmaMortalityEqual(cell$raw_excess_hazard_per_day, calculatedRaw)) {
       stop("Calibration excess hazard does not match the retained reference inputs.", call. = FALSE)
     }
@@ -305,10 +313,21 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
   parameters <- list()
   for (id in reference$strata$stratum_id) {
     model <- reference$models[[id]]
-    if (!identical(model$metadata$estimator, "adjacent_cycles") ||
-        !is.data.frame(model$estimates)) {
-      stop("Future mortality requires fitted adjacent-cycle transition models.", call. = FALSE)
+    stage <- meta$mortality_stage
+    stageFit <- identical(model$metadata$estimator, "observed_stages")
+    if (!is.data.frame(model$estimates) ||
+        (!stageFit && !identical(model$metadata$estimator, "adjacent_cycles"))) {
+      stop("Future mortality requires fitted adjacent-cycle or observed-stage models.", call. = FALSE)
     }
+    if (stageFit && (!is.character(stage) || length(stage) != 1L || is.na(stage) ||
+        !stage %in% names(model$stageMatrices))) {
+      stop("Stage-model calibration must identify its fitted mortality stage.", call. = FALSE)
+    }
+    if (!stageFit && !is.null(stage)) {
+      stop("Stage calibration cannot be used with adjacent-cycle fitted models.", call. = FALSE)
+    }
+    fittedEstimates <- model$estimates
+    if (stageFit) fittedEstimates <- fittedEstimates[fittedEstimates$stage == stage, , drop = FALSE]
     calibrationId <- registry$stratum_id[match(id, ids)]
     for (state in living) {
       cell <- est[est$stratum_id == calibrationId & est$period == referencePeriod &
@@ -316,8 +335,8 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
       if (cell$cycles == 0 || !is.finite(cell$excess_hazard_per_day) || cell$excess_hazard_per_day < 0) {
         stop("The selected referencePeriod requires supported, finite nonnegative excess for every nonabsorbing state and stratum.", call. = FALSE)
       }
-      fitted <- model$estimates[model$estimates$period == referencePeriod &
-        model$estimates$from_state == state, , drop = FALSE]
+      fitted <- fittedEstimates[fittedEstimates$period == referencePeriod &
+        fittedEstimates$from_state == state, , drop = FALSE]
       if (!all(c("to_state", "count", "denominator", "probability", "structural") %in% names(fitted)) ||
           nrow(fitted) != length(states) || anyDuplicated(fitted$to_state) ||
           !setequal(fitted$to_state, states) ||
@@ -327,7 +346,8 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
           sum(fitted$count[fitted$to_state %in% meta$deathStates]) != cell$deaths) {
         stop("Selected fitted counts and denominators do not match the calibration source-cycle support.", call. = FALSE)
       }
-      row <- model$matrices[[referencePeriod]][state, ]
+      row <- if (stageFit) model$stageMatrices[[stage]][[referencePeriod]][state, ] else
+        model$matrices[[referencePeriod]][state, ]
       if (anyNA(row) || !.tmaMortalityEqual(fitted$probability, fitted$count / cell$cycles) ||
           !.tmaMortalityEqual(fitted$probability, row[fitted$to_state]) ||
           !.tmaMortalityEqual(sum(row[meta$deathStates]), cell$observed_probability) ||
@@ -355,6 +375,8 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
     stop("Future mortality needs known source states, current covariates and nonnegative model days.", call. = FALSE)
   }
   probabilities <- vector("list", n)
+  stageMatrices <- vector("list", n)
+  stage <- tail$calibration$metadata$mortality_stage
   audit <- data.frame(background_stratum_id = rep(NA_character_, n),
     background_death_probability = rep(NA_real_, n),
     excess_hazard_per_day = rep(NA_real_, n), integrated_excess_hazard = rep(NA_real_, n),
@@ -363,7 +385,8 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
   for (i in setdiff(seq_len(n), active)) {
     probabilities[[i]] <- stats::setNames(as.numeric(states == population$state_label[i]), states)
   }
-  if (!length(active)) return(list(probabilities = probabilities, audit = audit))
+  if (!length(active)) return(list(probabilities = probabilities, audit = audit,
+    stageMatrices = stageMatrices))
   if (anyNA(ids[active]) || any(!ids[active] %in% tail$strata$stratum_id)) {
     stop("No clinical reference stratum supports a future mortality source row.", call. = FALSE)
   }
@@ -389,22 +412,39 @@ extrapolateMortality <- function(bundle, calibration, fromDay, referencePeriod,
     e <- parameter$excess_hazard_per_day
     b <- unname(bgProb[bgIds[j]])
     q <- -expm1(log1p(-b) - e * duration[j])
-    original <- tail$reference$models[[ids[i]]]$matrices[[tail$referencePeriod]][state, ]
+    model <- tail$reference$models[[ids[i]]]
     nondeath <- setdiff(states, deathStates)
-    row <- stats::setNames(numeric(length(states)), states)
-    row[nondeath] <- (1 - q) * original[nondeath] / sum(original[nondeath])
-    row[deathStates] <- q * tail$deathAllocation[state, deathStates]
-    if (anyNA(row) || any(!is.finite(row) | row < 0 | row > 1) || abs(sum(row) - 1) > 1e-10) {
-      stop("Future mortality produced an invalid probability row.", call. = FALSE)
+    replaceRow <- function(original, state, deathProbability) {
+      row <- stats::setNames(numeric(length(states)), states)
+      row[nondeath] <- (1 - deathProbability) * original[nondeath] / sum(original[nondeath])
+      row[deathStates] <- deathProbability * tail$deathAllocation[state, deathStates]
+      if (anyNA(row) || any(!is.finite(row) | row < 0 | row > 1) || abs(sum(row) - 1) > 1e-10) {
+        stop("Future mortality produced an invalid probability row.", call. = FALSE)
+      }
+      row
     }
-    probabilities[[i]] <- row
+    if (is.null(stage)) {
+      original <- model$matrices[[tail$referencePeriod]][state, ]
+      probabilities[[i]] <- replaceRow(original, state, q)
+    } else {
+      stages <- lapply(model$stageMatrices, function(matrices) matrices[[tail$referencePeriod]])
+      for (livingState in setdiff(states, absorbing)) {
+        eState <- tail$parameters$excess_hazard_per_day[
+          tail$parameters$stratum_id == ids[i] & tail$parameters$from_state == livingState]
+        qState <- -expm1(log1p(-b) - eState * duration[j])
+        stages[[stage]][livingState, ] <- replaceRow(stages[[stage]][livingState, ], livingState, qState)
+      }
+      combined <- .tmaStageDefinition(stages, tail$metadata$periods, states, absorbing)$matrices[[1L]]
+      probabilities[[i]] <- combined[state, ]
+      stageMatrices[[i]] <- stages
+    }
     audit$background_stratum_id[i] <- bgIds[j]
     audit$background_death_probability[i] <- b
     audit$excess_hazard_per_day[i] <- e
     audit$integrated_excess_hazard[i] <- e * duration[j]
     audit$mortality_probability[i] <- q
   }
-  list(probabilities = probabilities, audit = audit)
+  list(probabilities = probabilities, audit = audit, stageMatrices = stageMatrices)
 }
 
 .tmaFutureMortalityInfo <- function(tail) {

@@ -68,12 +68,13 @@
 #' @param replace Whether sampling population profiles is with replacement.
 #' @param transitionEffects Optional named list of source-transition rules. Each
 #'   rule supplies from, to, multiplier and redistributeTo, with optional
-#'   eligible(sourceCandidates), startDay, endDay and applyAt. applyAt is
+#'   eligible(sourceCandidates), startDay, endDay, applyAt and stage. applyAt is
 #'   "transitions" by default, or "entry" or "both" with an entry model.
 #'   Eligibility uses current
 #'   source snapshots and a lower-inclusive, upper-exclusive source-day window.
 #'   Multiply the probability of to and move the exact difference to
-#'   redistributeTo. At most one rule may apply per patient per step. These are
+#'   redistributeTo. At most one rule may apply per patient per stage, or per
+#'   net step when stage is omitted. These are
 #'   analyst-specified effects on discrete full-cycle probabilities, not hazards
 #'   or effects estimated from the fitted trajectories. Invalid probability rows
 #'   fail rather than being clipped or normalized.
@@ -163,7 +164,10 @@
 #'   before drawing the next state. Their callbacks run in a batch before the
 #'   step's draws and receive candidate source snapshots. Effects do not modify
 #'   the saved bundle, initial distribution or cost rules. For composed models,
-#'   effects act on the combined full-cycle row, not on an individual stage.
+#'   a rule without stage acts on the combined full-cycle row. A named stage
+#'   is changed before later stages, and composed models sample each stage
+#'   in order when no net-cycle rules are supplied. Sampled stages are retained
+#'   in stageTransitions. Net-cycle rules leave stage paths unavailable.
 #'   Identity multipliers preserve draws and RNG state when eligibility is
 #'   deterministic. This does not establish paired random draws across scenarios
 #'   whose state-dependent paths or callbacks consume different random numbers.
@@ -174,7 +178,10 @@
 #'   For four affected labels, use a separate entry rule and a transitions rule
 #'   ending at source day 21. Saved matrices remain unchanged.
 #' @return A tma_simulation list with final population, trajectories,
-#'   transitions, costs (charge ledger), totals by component, and metadata.
+#'   transitions, stageTransitions, costs (charge ledger), totals by component,
+#'   and metadata. stageTransitions retains source and destination clock values,
+#'   stage name/index, from_state, to_state, source stratum/period and the sampled
+#'   stage probability. Its rows do not add time or cycles.
 #'   Internal configuration and RNG checkpoints support advanceSimulation().
 #'   With nonempty transitionEffects, effects records each eligible application;
 #'   transitions additionally records baseline_transition_probability for its
@@ -237,6 +244,7 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
   rules <- .tmaSimulationCostRules(costRules, bundle$metadata$states)
   effects <- .tmaTransitionEffects(transitionEffects, bundle$metadata$states,
     bundle$metadata$absorbingStates, bundle$metadata$cycleLength)
+  .tmaCheckEffectStages(effects, .tmaSimulationStageNames(bundle))
   needsEntry <- any(vapply(rules, function(rule) rule$type == "entry", logical(1))) ||
     any(vapply(effects, function(rule) rule$applyAt %in% c("entry", "both"), logical(1)))
   if (needsEntry && is.null(entry)) {
@@ -308,7 +316,8 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
     simulation <- structure(list(
       population = population, trajectories = population,
       transitions = .tmaSimulationEmptyTransitions(extended,
-        .tmaBundleUsesFutureMortality(bundle)), costs = initialCharge$ledger,
+        .tmaBundleUsesFutureMortality(bundle)),
+      stageTransitions = .tmaSimulationEmptyStages(), costs = initialCharge$ledger,
       totals = .tmaSimulationTotals(initialCharge$ledger, rules, costModel),
       metadata = list(n = nrow(population), steps = 0, cycle = max(population$cycle),
         cycleLength = bundle$metadata$cycleLength, terminalStates = terminalStates,
@@ -344,7 +353,7 @@ simulateTrajectories <- function(bundle, population = NULL, n = NULL,
         estimand = "specified multiplier on a discrete full-cycle transition probability",
         application = "source covariates and source-day window, after model selection and before drawing",
         redistribution = "exact probability difference assigned to the declared redistribution state",
-        stages = "combined full-cycle probabilities; stage models remain unchanged")
+        stages = "named stage rules precede later stages; net rules do not retain stage paths")
     }
     .tmaSimulationRun(simulation, nSteps, checkInitial = TRUE)
   })
@@ -387,6 +396,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     simulation$.config$transitionEffects <- .tmaTransitionEffects(
       simulation$.config$transitionEffects, model$states, model$absorbingStates,
       model$cycleLength)
+    .tmaCheckEffectStages(simulation$.config$transitionEffects,
+      .tmaSimulationStageNames(simulation$.config$bundle))
   }
   if (simulation$metadata$stop_reason %in% c("all_terminal", "stop_when")) return(simulation)
   .tmaSimulationRng(state = simulation$.state$rng, run = function() {
@@ -571,7 +582,10 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   trajectoryRows <- list()
   transitionRows <- list()
   effectRows <- list()
+  stageRows <- list()
   costRows <- list()
+  netEffects <- effects[is.na(.tmaEffectStages(effects)) &
+    vapply(effects, function(rule) rule$applyAt %in% c("transitions", "both"), logical(1))]
   if (is.null(reason)) for (i in seq_len(nSteps)) {
     previous <- population
     active <- which(!previous$state_label %in% configuration$terminalStates)
@@ -588,6 +602,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
       previous[active, , drop = FALSE], selection)
     sourceProbabilities <- sourceRows$probabilities
     drawProbability <- numeric(length(active))
+    stageEffectIds <- rep(NA_character_, length(active))
     if (length(effects)) {
       effectIds <- .tmaEligibleEffects(effects, previous[active, , drop = FALSE])
       baselineDraw <- numeric(length(active))
@@ -597,6 +612,24 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     for (j in seq_along(active)) {
       row <- active[j]
       probability <- sourceProbabilities[[j]]
+      stages <- sourceRows$stageMatrices[[j]]
+      activeRules <- .tmaActiveCycleEffects(effects, previous$elapsed_day[row])
+      .tmaCheckEffectStages(activeRules, names(stages))
+      if (!is.null(stages) && !length(netEffects)) {
+        sampled <- .tmaSimulationDrawStages(stages, previous[row, , drop = FALSE],
+          activeRules, bundle$metadata$states, cycleLength, selection[j, , drop = FALSE])
+        population$state_label[row] <- sampled$state
+        drawProbability[j] <- sampled$probability
+        stageRows[[length(stageRows) + 1L]] <- sampled$stages
+        if (length(effects)) {
+          baselineDraw[j] <- probability[sampled$state]
+          if (!is.null(sampled$effects)) {
+            effectRows[[length(effectRows) + 1L]] <- sampled$effects
+            stageEffectIds[j] <- paste(unique(sampled$effects$effect), collapse = ", ")
+          }
+        }
+        next
+      }
       if (length(effects)) {
         baseline <- probability
         if (!is.na(effectIds[j])) {
@@ -688,7 +721,8 @@ advanceSimulation <- function(simulation, nSteps = 1) {
     if (length(effects)) {
       currentStep <- length(transitionRows)
       transitionRows[[currentStep]]$baseline_transition_probability <- baselineDraw
-      transitionRows[[currentStep]]$effect <- unname(effectIds)
+      transitionRows[[currentStep]]$effect <- ifelse(is.na(stageEffectIds),
+        unname(effectIds), stageEffectIds)
     }
     charge <- .tmaSimulationCharge(population, previous, configuration$costRules,
       simulation$.state$charged, configuration$terminalStates)
@@ -707,6 +741,7 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   simulation$population <- population
   simulation$trajectories <- .tmaSimulationBind(c(list(simulation$trajectories), trajectoryRows))
   simulation$transitions <- .tmaSimulationBind(c(list(simulation$transitions), transitionRows))
+  simulation$stageTransitions <- .tmaSimulationBind(c(list(simulation$stageTransitions), stageRows))
   if (length(effects)) {
     simulation$effects <- .tmaSimulationBind(c(list(simulation$effects), effectRows))
   }
@@ -858,4 +893,66 @@ advanceSimulation <- function(simulation, nSteps = 1) {
   }
   result$.state$rng <- list(kind = privateKind, seed = get(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
   result
+}
+
+
+.tmaSimulationStageNames <- function(bundle) {
+  if (inherits(bundle, "tma_mortality_bundle")) return(.tmaSimulationStageNames(bundle$reference))
+  names <- unique(unlist(lapply(bundle$models, function(model) names(model$stageMatrices))))
+  if (!is.null(bundle$extrapolation)) {
+    names <- union(names, .tmaSimulationStageNames(bundle$extrapolation$bundle))
+  }
+  names
+}
+
+.tmaActiveCycleEffects <- function(effects, day) {
+  effects[vapply(effects, function(rule) rule$applyAt %in% c("transitions", "both") &&
+    day >= rule$startDay && day < rule$endDay, logical(1))]
+}
+
+.tmaSimulationEmptyStages <- function() {
+  data.frame(simulation_id = character(), source_cycle = numeric(), source_day = numeric(),
+    destination_cycle = numeric(), destination_day = numeric(), stage = character(),
+    stage_index = integer(), from_state = character(), to_state = character(),
+    source_stratum = character(), source_period = character(),
+    transition_probability = numeric(), effect = character(), stringsAsFactors = FALSE)
+}
+
+.tmaSimulationDrawStages <- function(stages, profile, effects, states, cycleLength, selection) {
+  source <- stats::setNames(as.numeric(states == profile$state_label), states)
+  altered <- .tmaStageCycle(stages, source, effects, profile$elapsed_day, states, profile)
+  rows <- vector("list", length(stages))
+  applications <- list()
+  current <- profile$state_label
+  for (k in seq_along(stages)) {
+    name <- names(stages)[k]
+    probability <- altered$stages[[k]][current, ]
+    if (anyNA(probability)) stop("Unestimated sampled stage row.", call. = FALSE)
+    destination <- states[sample.int(length(states), 1L, prob = probability)]
+    audit <- altered$applications
+    if (!is.null(audit)) audit <- audit[audit$stage == name & audit$source_state == current, , drop = FALSE]
+    effect <- if (is.null(audit) || !nrow(audit)) NA_character_ else audit$effect
+    rows[[k]] <- data.frame(simulation_id = profile$simulation_id,
+      source_cycle = profile$cycle, source_day = profile$elapsed_day,
+      destination_cycle = profile$cycle + 1, destination_day = profile$elapsed_day + cycleLength,
+      stage = name, stage_index = k, from_state = current, to_state = destination,
+      source_stratum = selection$stratum_id, source_period = selection$period,
+      transition_probability = unname(probability[destination]), effect = effect,
+      stringsAsFactors = FALSE)
+    if (!is.null(audit) && nrow(audit)) {
+      audit$simulation_id <- profile$simulation_id
+      audit$source_cycle <- profile$cycle
+      audit$source_day <- profile$elapsed_day
+      audit$source_stratum <- selection$stratum_id
+      audit$source_period <- selection$period
+      audit$model_phase <- selection$model_phase
+      audit$model_source <- selection$model_source
+      audit$model_day <- selection$model_day
+      applications[[length(applications) + 1L]] <- audit
+    }
+    current <- destination
+  }
+  list(state = current, probability = unname(altered$probability[current]),
+    stages = do.call(rbind, rows),
+    effects = if (length(applications)) do.call(rbind, applications) else NULL)
 }

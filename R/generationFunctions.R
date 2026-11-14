@@ -19,7 +19,7 @@
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
 #' @param stateDuration  Integer for declaring state duration in days
-#' @export
+#' @keywords internal
 generateDataDiscrete <- function(transitionMatrix,
                                  n = 100,
                                  minDate = "1900-01-01",
@@ -226,7 +226,7 @@ generateDataDiscrete <- function(transitionMatrix,
 #' @param generateCost Value [0,1] indicating whether to generate cost of states
 #' @param statisticsTable Table retrieved from observed data for cost values
 #' @param studyName  Customized study name
-#' @export
+#' @keywords internal
 generateDataContinuous <- function(model,
                                    n = 100,
                                    minDate = "2020-01-01",
@@ -430,7 +430,7 @@ compareTrajectoryData <- function(observedData, generatedData) {
 #'
 #' @param observedData data.frame object which is output of Cohort2Trajectory package
 #' @param generatedData the data frame of generated data
-#' @export
+#' @keywords internal
 compareTrajectoryDataLogRank <-
   function(observedData, generatedData) {
     observedData$START_DATE <- as.Date(observedData$STATE_START_DATE)

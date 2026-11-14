@@ -6,7 +6,7 @@
 \description{
 Supply transitionEffects to simulateTrajectories() as a named
   list of rules. Each rule requires from, to, multiplier and redistributeTo.
-  Optional fields are eligible, startDay, endDay and applyAt. Component names must be
+  Optional fields are eligible, startDay, endDay, applyAt and stage. Component names must be
   unique and fields not listed here are errors.
 }
 \details{
@@ -42,11 +42,17 @@ A rule multiplies the source row's probability of to by multiplier
   the current nonterminal source rows matching from and this time window;
   return one logical value per supplied row, without missing values. It is
   not called for an empty candidate set. At most one rule may apply to a
-  patient at a step, even when different rules name different destinations.
+  patient at a stage, even when different rules name different destinations.
+  Separate stages may each have a rule. Without stage, this limit applies
+  to the complete transition step.
 
   Effects are applied to the selected transition row before sampling and
   leave stored models unchanged. For composed models they affect combined
-  cycle outcomes, not individual stage mechanisms. Cost rules and cost
+  cycle outcomes unless stage names a declared stage. A stage rule changes
+  that stage before later stages are evaluated. Stage eligibility receives
+  cycle-start covariates with state_label set to each reachable stage source.
+  Callbacks must be deterministic functions of these supplied values. Net
+  and stage-targeted rules cannot be mixed in the same transition run. Cost rules and cost
   models are independent and need separate explicit specification.
 
   The only endpoint accommodation is binary floating-point roundoff: a

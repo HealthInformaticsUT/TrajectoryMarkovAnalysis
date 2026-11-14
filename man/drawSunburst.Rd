@@ -7,7 +7,7 @@
 drawSunburst(patientData)
 }
 \arguments{
-\item{pateintData}{A data.frame object which is output of Cohort2Trajectory package data.frame object which is resulting from}
+\item{patientData}{A data frame of patient trajectories.}
 }
 \description{
 Visualise patients' trajectories with sunburst plot

@@ -35,3 +35,4 @@ generateDataContinuous(
 \description{
 This function outputs a data.frame object which describes the movement of patients between the defined states and state duration
 }
+\keyword{internal}

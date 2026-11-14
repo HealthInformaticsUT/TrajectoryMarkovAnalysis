@@ -15,13 +15,13 @@ mergeEdgeTransition(
 \arguments{
 \item{cohortData}{A data.frame object which is output of Cohort2Trajectory package}
 
+\item{dTreeEdges}{A data.frame object which describes edge formulation}
+
 \item{stateTransitionTable}{A data.frame object with data of the relevant probabilities}
 
 \item{inputLayersDT}{A list of layers, which are included for decision tree in GUI}
 
 \item{probabilityType}{Type of probability calculated}
-
-\item{dTreeEdged}{A data.frame object which describes edge formulation}
 }
 \description{
 This function outputs a data.frame object which describes the movement of patients between the defined states and the probabilities

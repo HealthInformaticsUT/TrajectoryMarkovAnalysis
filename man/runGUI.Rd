@@ -35,3 +35,4 @@ runGUI(
 \description{
 This function initiates the connection with database and starts Shiny application
 }
+\keyword{internal}

@@ -53,7 +53,9 @@ Extend fitted transitions with an explicit future mortality assumption
 }
 \details{
 Future mortality replaces the selected fitted row's total death
-  probability. It is not added as another mortality stage. The relative
+  probability. With a fitted stage model, calibration must identify the
+  mortality stage. Only that stage is replaced and the other stages retain
+  their reference-period matrices. The relative
   probabilities of all nondeath destinations are retained conditional on
   survival. Other absorbing outcomes keep their identity rows.
 

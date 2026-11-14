@@ -9,6 +9,10 @@
 #'   zero probability. NULL uses entryCounts probabilities for known first-cycle
 #'   labels, including first-cycle terminal labels, not a pre-event baseline.
 #' @param cohortSize Positive exact integer cohort size. Defaults to 1.
+#' @param transitionEffects Optional rules described in transition-effects.
+#'   An optional stage targets a composed stage. Eligibility callbacks require
+#'   patient simulation and are not accepted here. Effects leave the input
+#'   model unchanged.
 #' @param entry Optional result from estimateEntryTransitions(). Its eligible
 #'   baseline distribution passes through its entry matrix once to initialise
 #'   cycle zero. Do not supply a non-NULL initial together with entry.
@@ -51,7 +55,11 @@
 #'   occupancy comparisons use cycle outcomes, not stageFlows.
 #' @return A list containing occupancy, steps, flows, metadata and diagnostics.
 #'   For composed models, stageMatrices and stageFlows retain the stage models
-#'   and their expected movements. Both are NULL for ordinary models. stageFlows
+#'   and their expected movements. Both are NULL for ordinary models. With
+#'   stage effects, stageCycleMatrices retains the matrices actually used at
+#'   each source cycle and cycleMatrices retains their products. stageMatrices
+#'   retains the original stage definitions. Net-cycle effects leave stageFlows
+#'   unavailable because intermediate paths are no longer defined. stageFlows
 #'   is an empty table when a composed model takes no adjacent steps.
 #'   Occupancy includes cycle zero and nCycles subsequent distributions.
 #'   Metadata preserves the source subject count when available and the entry
@@ -61,7 +69,7 @@
 #'   must remain within the permitted patient-level analysis environment.
 #' @export
 projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
-                           entry = NULL) {
+                           entry = NULL, transitionEffects = NULL) {
   if (inherits(transitions, "tma_mortality_bundle") ||
       (inherits(transitions, "tma_model_bundle") &&
        .tmaBundleUsesFutureMortality(transitions))) {
@@ -175,12 +183,33 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
     }
   }
 
+  effects <- .tmaTransitionEffects(transitionEffects, states, absorbingStates, cycleLength)
+  .tmaCheckEffectStages(effects, names(stageMatrices))
+  if (any(vapply(effects, function(rule) !is.null(rule$eligible), logical(1)))) {
+    stop("Eligibility callbacks require patient profiles in simulateTrajectories(). Select a homogeneous projection population explicitly.", call. = FALSE)
+  }
+  if (is.null(entry) && any(vapply(effects, function(rule)
+      rule$applyAt %in% c("entry", "both"), logical(1)))) {
+    stop("Entry effects require an explicit entry model.", call. = FALSE)
+  }
+  netEffects <- effects[is.na(.tmaEffectStages(effects)) &
+    vapply(effects, function(rule) rule$applyAt %in% c("transitions", "both"), logical(1))]
+  retainStages <- !is.null(stageMatrices) && !length(netEffects)
   entryDetails <- NULL
   initialSource <- if (!is.null(entry)) "entry_model" else if (is.null(initial)) "entryCounts" else "supplied"
   if (initialSource == "entry_model") {
     entryResult <- .tmaProjectionEntry(entry, states, absorbingStates, cycleLength, tolerance)
     initial <- entryResult$distribution
     entryDetails <- entryResult$entry
+    if (length(effects)) {
+      changed <- .tmaEffectMatrix(entryDetails$matrix, effects, 0, states,
+        source = entryDetails$baseline_distribution, applyAt = "entry")
+      entryDetails$matrix <- changed$matrix
+      occupied <- which(entryDetails$baseline_distribution > 0)
+      initial <- as.numeric(entryDetails$baseline_distribution[occupied] %*%
+        changed$matrix[occupied, , drop = FALSE])
+      names(initial) <- states
+    }
   } else if (is.null(initial)) {
     entries <- transitions$entryCounts
     if (!is.data.frame(entries) || !all(c("state", "probability") %in% names(entries)) ||
@@ -251,16 +280,29 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   probability <- matrix(NA_real_, nrow = nCycles + 1, ncol = length(states))
   probability[1L, ] <- initialDistribution
   maxError <- abs(sum(initialDistribution) - 1)
+  cycleMatrices <- vector("list", nCycles)
+  stageCycleMatrices <- if (retainStages) vector("list", nCycles) else NULL
   for (i in seq_len(nCycles)) {
     occupied <- which(probability[i, ] > 0)
     modelIndex <- periodIndex[i]
-    unavailable <- occupied[missingRows[[modelIndex]][occupied]]
+    selected <- matrices[[modelIndex]]
+    if (retainStages) {
+      stages <- lapply(stageMatrices, function(x) x[[modelIndex]])
+      altered <- .tmaStageCycle(stages, probability[i, ], effects, sourceDays[i], states)
+      stageCycleMatrices[[i]] <- altered$stages
+      selected <- .tmaStageProduct(altered$stages, states)
+    } else if (length(effects)) {
+      selected <- .tmaEffectMatrix(selected, effects, sourceDays[i], states,
+        source = probability[i, ])$matrix
+    }
+    cycleMatrices[[i]] <- selected
+    unavailable <- occupied[rowSums(is.na(selected[occupied, , drop = FALSE])) > 0]
     if (length(unavailable)) {
       stop("Unestimated transition row for state(s) ", paste(states[unavailable], collapse = ", "),
            " in period '", periods$period[modelIndex], "' at source cycle ", sourceCycles[i], ".", call. = FALSE)
     }
     nextProbability <- as.numeric(probability[i, occupied] %*%
-                                    matrices[[modelIndex]][occupied, , drop = FALSE])
+                                    selected[occupied, , drop = FALSE])
     error <- abs(sum(nextProbability) - 1)
     if (any(!is.finite(nextProbability)) || !is.finite(error) || error > 1e-8) {
       stop("Projected probabilities are nonfinite or fail to sum to 1 within 1e-8 at destination cycle ",
@@ -297,7 +339,7 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
     } else {
       sourceRow <- flowSteps$source_cycle[i] + 1L
       sourceProbability <- probability[sourceRow, ]
-      conditional <- matrices[[periodIndex[sourceRow]]]
+      conditional <- cycleMatrices[[sourceRow]]
     }
     joint <- matrix(0, nStates, nStates)
     occupied <- which(sourceProbability > 0)
@@ -308,22 +350,28 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   }
   flows$expected_count <- flows$probability_mass * cohortSize
   rownames(flows) <- NULL
-  stageResult <- if (!is.null(stageMatrices)) {
-    .tmaProjectStageFlows(stageMatrices, steps, probability, states, cohortSize)
+  stageResult <- if (retainStages) {
+    .tmaProjectStageFlows(stageMatrices, steps, probability, states, cohortSize,
+      stageCycleMatrices = stageCycleMatrices)
   } else NULL
   list(occupancy = occupancy, steps = steps, flows = flows, entry = entryDetails,
        stageMatrices = stageMatrices, stageFlows = stageResult$flows,
+       cycleMatrices = cycleMatrices, stageCycleMatrices = stageCycleMatrices,
        metadata = list(initial_distribution = initialDistribution, initial_source = initialSource,
                        initial_denominator = denominator, source_n_subjects = totalSubjects,
                        nCycles = nCycles, cohortSize = cohortSize, cycleLength = cycleLength,
                        states = states, absorbingStates = absorbingStates, periods = periods,
-                       stage_order = names(stageMatrices)),
+                       stage_order = names(stageMatrices),
+                       transition_effects = effects,
+                       stage_paths = if (retainStages) "retained" else if (!is.null(stageMatrices))
+                         "unavailable after net-cycle effects" else "not specified"),
        diagnostics = list(max_probability_sum_error = maxError,
                           max_stage_endpoint_error = stageResult$max_endpoint_error,
                           entry_source_subject_count_matches = entrySourceMatches))
 }
 
-.tmaProjectStageFlows <- function(stageMatrices, steps, probability, states, cohortSize) {
+.tmaProjectStageFlows <- function(stageMatrices, steps, probability, states, cohortSize,
+                                   stageCycleMatrices = NULL) {
   nStages <- length(stageMatrices)
   nStates <- length(states)
   nPairs <- nStates^2
@@ -338,7 +386,8 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
   for (i in seq_len(nrow(steps))) {
     source <- probability[i, ]
     for (j in seq_len(nStages)) {
-      conditional <- stageMatrices[[j]][[steps$period[i]]]
+      conditional <- if (is.null(stageCycleMatrices)) stageMatrices[[j]][[steps$period[i]]] else
+        stageCycleMatrices[[i]][[j]]
       occupied <- which(source > 0)
       if (anyNA(conditional[occupied, , drop = FALSE])) {
         stop("Missing probabilities in reachable stage '", names(stageMatrices)[j],

@@ -3,7 +3,7 @@
 #' @name transition-effects
 #' @description Supply transitionEffects to simulateTrajectories() as a named
 #'   list of rules. Each rule requires from, to, multiplier and redistributeTo.
-#'   Optional fields are eligible, startDay, endDay and applyAt. Component names must be
+#'   Optional fields are eligible, startDay, endDay, applyAt and stage. Component names must be
 #'   unique and fields not listed here are errors.
 #' @details A rule multiplies the source row's probability of to by multiplier
 #'   and assigns the remaining probability of the to/redistributeTo pair to
@@ -37,11 +37,17 @@
 #'   the current nonterminal source rows matching from and this time window;
 #'   return one logical value per supplied row, without missing values. It is
 #'   not called for an empty candidate set. At most one rule may apply to a
-#'   patient at a step, even when different rules name different destinations.
+#'   patient at a stage, even when different rules name different destinations.
+#'   Separate stages may each have a rule. Without stage, this limit applies
+#'   to the complete transition step.
 #'
 #'   Effects are applied to the selected transition row before sampling and
 #'   leave stored models unchanged. For composed models they affect combined
-#'   cycle outcomes, not individual stage mechanisms. Cost rules and cost
+#'   cycle outcomes unless stage names a declared stage. A stage rule changes
+#'   that stage before later stages are evaluated. Stage eligibility receives
+#'   cycle-start covariates with state_label set to each reachable stage source.
+#'   Callbacks must be deterministic functions of these supplied values. Net
+#'   and stage-targeted rules cannot be mixed in the same transition run. Cost rules and cost
 #'   models are independent and need separate explicit specification.
 #'
 #'   The only endpoint accommodation is binary floating-point roundoff: a
@@ -67,7 +73,7 @@ NULL
   }
   cycleLength <- .tmaProjectionInteger(cycleLength, "Transition effect cycleLength", 1)
   required <- c("from", "to", "multiplier", "redistributeTo")
-  fields <- c(required, "eligible", "startDay", "endDay", "applyAt")
+  fields <- c(required, "eligible", "startDay", "endDay", "applyAt", "stage")
   for (name in names(rules)) {
     rule <- rules[[name]]
     label <- paste0("transitionEffects[['", name, "']]")
@@ -75,7 +81,7 @@ NULL
         anyNA(names(rule)) || anyDuplicated(names(rule)) ||
         !all(required %in% names(rule)) || any(!names(rule) %in% fields)) {
       stop(label, " must contain from, to, multiplier and redistributeTo, with only ",
-           "eligible, startDay, endDay and applyAt as optional fields.", call. = FALSE)
+           "eligible, startDay, endDay, applyAt and stage as optional fields.", call. = FALSE)
     }
     for (field in c("from", "to", "redistributeTo")) {
       value <- rule[[field]]
@@ -105,6 +111,16 @@ NULL
       stop(label, "$applyAt must be 'transitions', 'entry' or 'both'.", call. = FALSE)
     }
     rule$applyAt <- unname(rule$applyAt)
+    if (!is.null(rule$stage)) {
+      if (!is.character(rule$stage) || length(rule$stage) != 1L ||
+          is.na(rule$stage) || !nzchar(trimws(rule$stage))) {
+        stop(label, "$stage must name one stage.", call. = FALSE)
+      }
+      if (rule$applyAt != "transitions") {
+        stop(label, "$stage applies only to transition stages, not the separate entry matrix.", call. = FALSE)
+      }
+      rule$stage <- unname(rule$stage)
+    }
     if (!is.null(rule$eligible) && !is.function(rule$eligible)) {
       stop(label, "$eligible must be a function of candidate source snapshots.", call. = FALSE)
     }
@@ -130,12 +146,12 @@ NULL
   rules
 }
 
-.tmaEligibleEffects <- function(rules, population, applyAt = "transitions") {
+.tmaEligibleEffects <- function(rules, population, applyAt = "transitions", stage = NULL) {
   selected <- stats::setNames(rep(NA_character_, nrow(population)),
                                as.character(population$simulation_id))
   for (name in names(rules)) {
     rule <- rules[[name]]
-    if (!rule$applyAt %in% c(applyAt, "both")) next
+    if (!rule$applyAt %in% c(applyAt, "both") || !identical(rule$stage, stage)) next
     candidates <- which(population$state_label == rule$from &
       population$elapsed_day >= rule$startDay & population$elapsed_day < rule$endDay)
     if (!length(candidates)) next
@@ -155,7 +171,7 @@ NULL
     if (length(overlap)) {
       row <- overlap[1L]
       stop("Overlapping transitionEffects '", selected[row], "' and '", name, "' for ",
-           population$simulation_id[row], ": at most one rule may apply to a patient at each step.",
+           population$simulation_id[row], ": at most one rule may apply to a patient at each stage or net step.",
            call. = FALSE)
     }
     selected[candidates] <- name
@@ -193,4 +209,88 @@ NULL
     stop("Transition effect failed to preserve finite probability mass.", call. = FALSE)
   }
   result
+}
+
+# Retain a single effect vocabulary for deterministic and sampled execution.
+.tmaEffectStages <- function(rules) {
+  vapply(rules, function(rule) if (is.null(rule$stage)) NA_character_ else rule$stage,
+    character(1))
+}
+
+.tmaCheckEffectStages <- function(rules, stageNames = character()) {
+  phases <- vapply(rules, function(rule) rule$applyAt %in% c("transitions", "both"), logical(1))
+  stages <- .tmaEffectStages(rules)[phases]
+  if (any(!is.na(stages)) && any(is.na(stages))) {
+    stop("Do not mix net-cycle and stage-targeted transition effects in one run.", call. = FALSE)
+  }
+  if (any(!is.na(stages) & !stages %in% stageNames)) {
+    stop("A transition effect names an unavailable stage: ",
+      paste(unique(stages[!is.na(stages) & !stages %in% stageNames]), collapse = ", "), ".", call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+.tmaEffectMatrix <- function(matrix, rules, day, states, stage = NULL,
+                             source = NULL, profile = NULL, applyAt = "transitions") {
+  if (is.null(source)) source <- rep(1, length(states))
+  rows <- which(source > 0)
+  candidates <- if (is.null(profile)) {
+    data.frame(simulation_id = states[rows], state_label = states[rows], elapsed_day = day)
+  } else {
+    x <- profile[rep(1L, length(rows)), , drop = FALSE]
+    x$state_label <- states[rows]
+    x$elapsed_day <- rep(day, length(rows))
+    x
+  }
+  ids <- .tmaEligibleEffects(rules, candidates, applyAt = applyAt, stage = stage)
+  applications <- list()
+  for (k in which(!is.na(ids))) {
+    j <- rows[k]
+    rule <- rules[[ids[k]]]
+    before <- matrix[j, ]
+    after <- .tmaApplyTransitionEffect(before, rule, states)
+    matrix[j, ] <- after
+    applications[[length(applications) + 1L]] <- data.frame(
+      stage = if (is.null(stage)) NA_character_ else stage,
+      source_state = states[j], effect = unname(ids[k]), to_state = rule$to,
+      redistribute_to = rule$redistributeTo, multiplier = rule$multiplier,
+      baseline_probability = unname(before[rule$to]), modified_probability = unname(after[rule$to]),
+      baseline_redistributed_probability = unname(before[rule$redistributeTo]),
+      modified_redistributed_probability = unname(after[rule$redistributeTo]),
+      stringsAsFactors = FALSE)
+  }
+  list(matrix = matrix, applications = if (length(applications)) do.call(rbind, applications) else NULL)
+}
+
+.tmaStageCycle <- function(stages, source, rules, day, states, profile = NULL) {
+  .tmaCheckEffectStages(rules, names(stages))
+  probabilities <- source
+  applications <- list()
+  for (name in names(stages)) {
+    altered <- .tmaEffectMatrix(stages[[name]], rules, day, states, stage = name,
+      source = probabilities, profile = profile)
+    stages[[name]] <- altered$matrix
+    occupied <- which(probabilities > 0)
+    if (anyNA(altered$matrix[occupied, , drop = FALSE])) {
+      stop("Unestimated probabilities in reachable stage '", name, "' at day ", day, ".", call. = FALSE)
+    }
+    probabilities <- as.numeric(probabilities[occupied] %*% altered$matrix[occupied, , drop = FALSE])
+    names(probabilities) <- states
+    if (!is.null(altered$applications)) applications[[length(applications) + 1L]] <- altered$applications
+  }
+  list(stages = stages, probability = probabilities,
+    applications = if (length(applications)) do.call(rbind, applications) else NULL)
+}
+
+.tmaStageProduct <- function(stages, states) {
+  combined <- diag(length(states))
+  dimnames(combined) <- list(states, states)
+  for (stage in stages) for (origin in seq_along(states)) {
+    p <- combined[origin, ]
+    if (anyNA(p)) next
+    occupied <- which(p > 0)
+    combined[origin, ] <- if (anyNA(stage[occupied, , drop = FALSE])) NA_real_ else
+      as.numeric(p[occupied] %*% stage[occupied, , drop = FALSE])
+  }
+  combined
 }

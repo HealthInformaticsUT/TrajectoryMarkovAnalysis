@@ -12,3 +12,4 @@ runDashboard(pathToResults = NULL)
 \description{
 This function starts the dashboard application for comparing results from different databases
 }
+\keyword{internal}

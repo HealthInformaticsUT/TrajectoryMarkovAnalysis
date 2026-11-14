@@ -36,7 +36,7 @@
 #'
 #' plot_custom_markov_tree(tree_df, transition_matrix)
 #'
-#' @export
+#' @noRd
 plot_custom_markov_tree <- function(tree_df, transition_matrix) {
   # Helper: get last active (non-split/non-chain) state
   get_active_state <- function(from_path) {
