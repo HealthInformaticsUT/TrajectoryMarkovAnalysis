@@ -1,7 +1,10 @@
-# TrajectoryMarkovAnalysis 1.1.0.9000
+# TrajectoryMarkovAnalysis 1.1.0
 
 ## Ordered stages and shared outcome accounting
 
+- Cost matching uses separate state and period columns, so labels containing
+  spaces cannot select another reward. Stage names `start`, `end` and
+  `transition` are reserved to keep interval timing unambiguous.
 - `estimateStageTransitions()` fits explicitly supplied within-cycle stage
   observations. It retains observed support, excluded outcomes, first-cycle
   events and estimates by period and covariate group. Clinical event definitions
@@ -25,13 +28,17 @@
 
 ## Public interface and examples
 
+- Corrected the licence declaration to Apache 2.0, matching the existing licence
+  file and the maintainer's confirmed choice.
+
 - Replaced blanket exports with an explicit list of supported functions. The
   older GUI, continuous-time and database-driven entry points are no longer
-  exported. Their internal implementation is retained for now.
+  exported. Removed their unused implementation and bundled database drivers.
+  The supported workflow uses R only and no longer requires Rcpp or a compiler.
 - Replaced the obsolete example script with a synthetic quickstart. Added an
   ordered-stage example covering intervention effects and economic outcomes.
 - Shortened the README and moved the detailed guide to `docs/workflow.md`.
-  Function help and the maintained examples describe this development build.
+  Function help and the maintained examples describe the current interface.
 
-This development version is not a release. Transition and cost estimation remain
-independent, and callers retain ownership of their CDMConnector connections.
+Transition and cost estimation remain independent, and callers retain ownership
+of their CDMConnector connections.

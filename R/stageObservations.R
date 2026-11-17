@@ -7,6 +7,7 @@
 #'   Covariate columns are preserved. Optional index_date and birth_date allow
 #'   mortality calibration to calculate age on the source day.
 #' @param stageOrder Unique stage names in the order they operate within a cycle.
+#'   Names "start", "end" and "transition" are reserved for interval accounting.
 #' @param cycleLength Positive integer days per complete cycle.
 #' @param states Optional complete ordered state dictionary.
 #' @param absorbingStates States that remain unchanged in every stage.

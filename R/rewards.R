@@ -206,7 +206,7 @@ summariseOutcomes <- function(result, rewards, nCycles = NULL) {
     x$period <- rewards$periods$period[.tmaPeriodIndex(x$source_day, rewards$periods)]
     for (component in unique(rules$state$component)) {
       r <- rules$state[rules$state$component == component, , drop = FALSE]
-      key <- match(paste(x$state, x$period), paste(r$state, r$cost_period))
+      key <- .tmaRewardRuleIndex(x, r, "state")
       if (anyNA(key)) stop("A state reward is missing for an accounted interval.", call. = FALSE)
       add(x, component, "cost", r$cost[key])
     }
@@ -217,7 +217,7 @@ summariseOutcomes <- function(result, rewards, nCycles = NULL) {
       x$period <- rewards$periods$period[.tmaPeriodIndex(x$source_day, rewards$periods)]
       for (component in unique(rules$transition$component[rules$transition$stage == stage])) {
         r <- rules$transition[rules$transition$stage == stage & rules$transition$component == component, , drop = FALSE]
-        key <- match(paste(x$from_state, x$to_state, x$period), paste(r$from_state, r$to_state, r$cost_period))
+        key <- .tmaRewardRuleIndex(x, r, c("from_state", "to_state"))
         keep <- !is.na(key)
         add(x[keep, , drop = FALSE], component, "cost", r$cost[key[keep]])
       }
@@ -388,4 +388,14 @@ summariseOutcomes <- function(result, rewards, nCycles = NULL) {
   if (anyNA(x$weight)) stop("Requested stage paths are unavailable after net transition effects.", call. = FALSE)
   x$cycle <- x$source_cycle
   x
+}
+
+# Match typed columns rather than concatenating labels. Spaces and other
+# punctuation in state or period names cannot change which reward is selected.
+.tmaRewardRuleIndex <- function(x, rules, fields) {
+  columns <- c(fields, "period")
+  lookup <- rules[c(fields, "cost_period")]
+  names(lookup) <- columns
+  lookup$.tma_rule_row <- seq_len(nrow(lookup))
+  dplyr::left_join(x[columns], lookup, by = columns)$.tma_rule_row
 }

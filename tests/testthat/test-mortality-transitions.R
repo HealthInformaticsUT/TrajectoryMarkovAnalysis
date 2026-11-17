@@ -21,7 +21,14 @@ test_that("mortality probabilities use the declared time interval and preserve l
       states = states, deathState = "Dead", cycleLength = 7,
       probabilityDays = 365, source = "Synthetic boundary probabilities")
     expected <- -expm1(log1p(-probability) * 7 / 365)
-    expect_equal(boundary$matrices[[1]]["Alive", "Dead"], expected, tolerance = 1e-20)
+    actual <- boundary$matrices[[1]]["Alive", "Dead"]
+    if (probability %in% c(0, 1)) {
+      expect_identical(actual, probability)
+    } else {
+      # Arithmetic can differ by one floating-point step across R builds.
+      expect_gt(actual, 0)
+      expect_lt(abs(actual / expected - 1), 4 * .Machine$double.eps)
+    }
   }
 })
 

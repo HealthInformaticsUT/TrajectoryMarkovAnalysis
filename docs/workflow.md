@@ -1951,5 +1951,5 @@ Haug M, Oja M, Pajusalu M, et al. Markov modeling for cost-effectiveness using
 federated health data network. Journal of the American Medical Informatics
 Association. 2024. [doi:10.1093/jamia/ocae044](https://doi.org/10.1093/jamia/ocae044).
 
-The publication describes the earlier implementation. See `DESCRIPTION` for
-the package's licence declaration. This refactor has not changed that declaration.
+The publication describes the earlier implementation. The package is distributed
+under Apache License 2.0. See `DESCRIPTION` and `LICENSE` for the licence.

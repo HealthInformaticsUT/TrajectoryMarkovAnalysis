@@ -8,4 +8,16 @@
 Transition and cost estimation can be run independently. See the README and
 installed examples for the supported workflow.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis}
+  \item Report bugs at \url{https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/issues}
+}
+
+}
+\author{
+\strong{Maintainer}: Markus Haug \email{markus.haug@ut.ee} (\href{https://orcid.org/0000-0003-0935-3307}{ORCID})
+
+}
 \keyword{internal}

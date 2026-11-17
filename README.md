@@ -13,8 +13,9 @@ From the cloned repository, install the current checkout in R:
 install.packages(".", repos = NULL, type = "source")
 ```
 
-Install the packages listed under `Imports` in `DESCRIPTION` first. Restart R
-if an older TMA build was already loaded. This is a development build.
+Install the packages listed under `Imports` in `DESCRIPTION` first.
+Install `CDMConnector` as well when using a connected database. Restart R
+if an older TMA build was already loaded. This is the 1.1.0 release candidate.
 
 ## Start with a small example
 
@@ -81,6 +82,7 @@ Examples are also installed under
 `system.file("examples", package = "TrajectoryMarkovAnalysis")`.
 
 The supported interface replaces the older GUI, continuous-time and
-database-driven workflow. Legacy entry points are no longer exported. The
-version-1.0 PDF guides describe that historical interface. Use this README,
-the workflow reference and current function help for this build.
+database-driven workflow. The unused legacy implementation, database drivers
+and old PDF guides have been removed. The package now uses R only and requires
+no compiler. Use this README, the workflow reference, the installed vignette
+and current function help for this version.

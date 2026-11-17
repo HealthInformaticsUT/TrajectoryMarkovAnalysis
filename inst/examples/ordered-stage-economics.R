@@ -42,6 +42,6 @@ print(comparison$costEffectiveness)
 sampled <- simulateTrajectories(createModelBundle(fit), n = 1000,
   initial = c(Stable = 1), nSteps = 52, terminalStates = c("DeathWithout", "DeathAfter"),
   transitionEffects = effect, seed = 192)
-sampled_outcomes <- summariseOutcomes(sampled, make_rewards(15))
+sampled_outcomes <- summariseOutcomes(sampled, make_rewards(15), nCycles = 52)
 print(sampled_outcomes$totals)
 # The sample varies around the expected results. It is not a parameter-uncertainty analysis.

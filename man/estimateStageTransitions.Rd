@@ -24,7 +24,8 @@ excluded from its stage denominator. An unobserved to_state may be NA.
 Covariate columns are preserved. Optional index_date and birth_date allow
 mortality calibration to calculate age on the source day.}
 
-\item{stageOrder}{Unique stage names in the order they operate within a cycle.}
+\item{stageOrder}{Unique stage names in the order they operate within a cycle.
+Names "start", "end" and "transition" are reserved for interval accounting.}
 
 \item{cycleLength}{Positive integer days per complete cycle.}
 

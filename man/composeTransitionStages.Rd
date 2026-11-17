@@ -16,7 +16,8 @@ composeTransitionStages(
 \item{stages}{A nonempty named list in execution order. Each element is a
 square numeric probability matrix with state names on both axes, or a named
 list containing one such matrix for every declared period. A single matrix
-applies in all periods. Every matrix must use the same state dictionary.}
+applies in all periods. Every matrix must use the same state dictionary.
+Names "start", "end" and "transition" are reserved for interval accounting.}
 
 \item{cycleLength}{Positive integer cycle length in days. Passing through all
 stages advances one cycle, regardless of the number of stages.}

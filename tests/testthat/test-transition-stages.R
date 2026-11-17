@@ -112,3 +112,12 @@ test_that("absorption and stage products are checked rather than silently repair
   modified$matrices[[1]]["A", ] <- c(0.6, 0.4)
   expect_error(projectCohort(modified, 1, initial = c(A = 1)), "stage|product|compos|match")
 })
+
+test_that("stage names cannot shadow interval accounting meanings", {
+  states <- c("Alive", "Dead")
+  matrix <- diag(2); dimnames(matrix) <- list(states, states)
+  for (name in c("start", "end", "transition")) {
+    expect_error(composeTransitionStages(stats::setNames(list(matrix), name), 7),
+                 "reserved")
+  }
+})

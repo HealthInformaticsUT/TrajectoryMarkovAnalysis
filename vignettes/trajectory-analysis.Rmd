@@ -1,0 +1,171 @@
+---
+title: "From patient histories to modelled outcomes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{From patient histories to modelled outcomes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(TrajectoryMarkovAnalysis)
+```
+
+The package has two independent estimation paths. One estimates transitions
+from recorded patient histories. The other allocates recorded costs to those
+histories. A model can use either set of estimates, or probabilities and costs
+supplied from other sources. Every value below is synthetic.
+
+## Prepare histories and estimate transitions
+
+Each row describes an inclusive dated interval for one patient. The analyst
+defines the clinical states and identifies any absorbing states. Patient IDs
+are preserved, including character IDs.
+
+```{r histories}
+paths <- list(
+  p1 = c("Stable", "Complication", "Dead"),
+  p2 = c("Stable", "Stable", "Complication", "Dead"),
+  p3 = c("Stable", "Complication", "Complication", "Dead"),
+  p4 = c("Stable", "Stable", "Stable", "Stable")
+)
+trajectories <- do.call(rbind, lapply(names(paths), function(id) {
+  start <- as.Date("2026-01-01") + 7 * (seq_along(paths[[id]]) - 1)
+  data.frame(subject_id = id, state_label = paths[[id]],
+             state_start_date = start, state_end_date = start + 6)
+}))
+histories <- prepareTrajectories(
+  trajectories, cycleLength = 7, absorbingStates = "Dead"
+)
+fitted <- estimateTransitions(histories)
+fitted$estimates
+```
+
+Transition denominators contain observed adjacent-cycle pairs. A final
+censored interval does not imply that the patient stayed in the same state.
+Unsupported rows remain missing, and projection stops if it reaches an
+unsupported row. Declared absorbing states have structural identity rows.
+
+Use `periodBreaks` and `periodLabels` to estimate different follow-up periods.
+Use `strata` for recorded covariates, with `addCovariateGroups()` when continuous
+values need explicit categories. Each transition belongs to the source row's
+period and covariates. A patient can therefore contribute to several age groups.
+
+## Allocate costs separately
+
+Local cost records need a patient ID, date and amount. Missing amounts remain
+missing. The package does not infer a currency or convert prices automatically.
+
+```{r costs}
+records <- data.frame(
+  subject_id = c("p1", "p1", "p2", "p3", "p4"),
+  event_date = as.Date("2026-01-01") + c(0, 7, 0, 7, 0),
+  amount = c(100, 250, 100, 200, 100),
+  currency_concept_id = "44818568", measure = "total_charge"
+)
+costs <- estimateStateCosts(histories, records)
+costs$estimates
+```
+
+For a connected study, `extractCosts(cdm, histories, ...)` reads costs through
+a database-backed `CDMConnector` reference. The caller creates and closes the
+connection. The `visitFilter` argument can select visit IDs, visit concepts,
+or visits linked to specified clinical concepts. Duration allocation spreads
+an amount over its original inclusive service interval and reports shares
+outside the observed histories. Use `adjustCostPrices()` with a supplied
+price index when amounts span price years.
+
+## Declare event order when the study needs it
+
+An end-of-week state cannot reveal whether a complication preceded death
+within that week. Supply explicit stage observations to
+`estimateStageTransitions()` when those events are observed. Supply matrices
+to `composeTransitionStages()` when the stage probabilities come from an
+external source or a defined scenario.
+
+Here onset operates first and mortality second. The intermediate event remains
+available even when both happen in one cycle.
+
+```{r stages}
+states <- c("Stable", "Complication", "Dead")
+onset <- matrix(c(.9, .1, 0, 0, 1, 0, 0, 0, 1), 3, byrow = TRUE,
+                dimnames = list(states, states))
+mortality <- matrix(c(.98, 0, .02, 0, .9, .1, 0, 0, 1), 3, byrow = TRUE,
+                    dimnames = list(states, states))
+model <- composeTransitionStages(
+  list(onset = onset, mortality = mortality), cycleLength = 7,
+  absorbingStates = "Dead"
+)
+effect <- list(prevention = list(
+  stage = "onset", from = "Stable", to = "Complication",
+  multiplier = .75, redistributeTo = "Stable", endDay = 28
+))
+reference <- projectCohort(model, nCycles = 52, initial = c(Stable = 1),
+                          cohortSize = 1000)
+intervention <- projectCohort(model, nCycles = 52, initial = c(Stable = 1),
+                             cohortSize = 1000, transitionEffects = effect)
+```
+
+The multiplier is a supplied intervention assumption. An observed association
+between complication and mortality does not establish that prevention would
+remove that mortality difference.
+
+## Use the same accounting for expected and sampled outcomes
+
+State costs below are amounts per weekly interval. `costTiming = "onset"`
+charges the post-onset state, including the last living interval before death.
+Health outcomes use the state at interval start. Other timing choices must be
+specified explicitly.
+
+```{r rewards}
+rewards <- function(program_cost) createRewardModel(
+  stateCosts = c(Stable = 10, Complication = 30, Dead = 0),
+  upfrontCosts = c(program = program_cost),
+  aliveStates = c("Stable", "Complication"),
+  utilities = c(Stable = .8, Complication = .6, Dead = 0),
+  costTiming = "onset", healthTiming = "start", discountTiming = "midpoint",
+  costDiscountRate = .035, healthDiscountRate = .035,
+  currency = "EUR", priceYear = 2026
+)
+reference_outcomes <- summariseOutcomes(reference, rewards(0))
+intervention_outcomes <- summariseOutcomes(intervention, rewards(15))
+comparison <- compareScenarios(reference_outcomes, intervention_outcomes)
+comparison$costEffectiveness
+```
+
+A 52-step weekly projection has 52 completed intervals, totalling 364 days.
+The final snapshot does not add another interval. The separate
+`projectCosts()` and `summariseSimulation()` functions use their documented
+full-label convention. Do not mix those summaries with interval summaries.
+
+A model bundle can simulate individual paths, update time-varying covariates
+between steps, and resume later with `advanceSimulation()`. Its private random
+stream avoids changing the caller's random seed.
+
+```{r simulation}
+sampled <- simulateTrajectories(
+  createModelBundle(model), n = 100, initial = c(Stable = 1), nSteps = 12,
+  terminalStates = "Dead", transitionEffects = effect, seed = 192
+)
+summariseOutcomes(sampled, rewards(15), nCycles = 12)$totals
+```
+
+An explicitly longer accounting horizon is permitted only after all patients
+have reached declared absorbing terminal states. It adds terminal snapshots,
+not new events or living time. These paths illustrate fixed-input sampling
+variation. They are not estimates of intervention-effect uncertainty.
+
+## Extend mortality only with explicit inputs
+
+`createMortalityTransitions()` accepts supplied background probabilities.
+`calibrateExcessMortality()` matches that background to the observations that
+contributed to each fitted mortality estimate. `extrapolateMortality()` can
+then use a specified handover, background model and excess-hazard rule.
+Unsupported ages, covariate combinations and future periods cause errors unless
+the analyst supplies an explicit extension. The package does not download a
+life table, assume an old-age rate, or establish the validity of the extrapolated
+tail.
+
+Results and simulations can contain individual records. No export or disclosure
+policy is applied automatically. Review the returned tables before sharing them.

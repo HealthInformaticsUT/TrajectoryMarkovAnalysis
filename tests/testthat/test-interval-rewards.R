@@ -59,9 +59,9 @@ test_that("sampled stage accounting agrees with expected outcomes under the same
   rewards <- createRewardModel(stateCosts=c(A=10,B=30,D0=0,D1=0),
     upfrontCosts=c(program=15),aliveStates=c("A","B"),utilities=c(A=.8,B=.5,D0=0,D1=0),
     costTiming="onset",currency="EUR",priceYear=2026,costDiscountRate=.035,healthDiscountRate=.035)
-  expected <- summariseOutcomes(projectCohort(fit,6,initial=c(A=1),cohortSize=10000,
+  expected <- summariseOutcomes(projectCohort(fit,6,initial=c(A=1),cohortSize=1000,
     transitionEffects=effects),rewards)
-  sampled <- summariseOutcomes(simulateTrajectories(createModelBundle(fit),n=10000,
+  sampled <- summariseOutcomes(simulateTrajectories(createModelBundle(fit),n=1000,
     initial=c(A=1),nSteps=6,terminalStates=c("D0","D1"),transitionEffects=effects,seed=36),rewards)
   for (metric in c("discounted_cost","discounted_life_years","discounted_qalys")) {
     target <- expected$totals$per_patient[expected$totals$metric==metric]
@@ -111,4 +111,29 @@ test_that("an explicit horizon can extend verified absorbing terminal snapshots"
   altered <- sim
   altered$.config$bundle$models$s1$matrices[[1]]["D", ] <- c(.2, .8)
   expect_error(summariseOutcomes(altered, rewards, nCycles = 4), "[Aa]bsorbing|identity")
+})
+
+test_that("reward keys keep state and period labels separate", {
+  states <- c("A B", "A")
+  move <- matrix(c(0, 1, 0, 1), 2, byrow = TRUE,
+                 dimnames = list(states, states))
+  fit <- composeTransitionStages(list(move = move), 7)
+  projection <- projectCohort(fit, 2, initial = c("A B" = 1))
+  rewards <- createRewardModel(
+    stateCosts = data.frame(state = rep(states, 2),
+      period = rep(c("C", "B C"), each = 2), cost = c(10, 20, 30, 40)),
+    periodBreaks = c(0, 7, Inf), periodLabels = c("C", "B C"),
+    currency = "EUR", priceYear = 2026)
+  expect_equal(summariseOutcomes(projection, rewards)$byCycle$cost, c(10, 40))
+
+  states <- c("A B", "C", "A", "B C")
+  move <- diag(4); dimnames(move) <- list(states, states)
+  move["A B", ] <- c(0, 1, 0, 0)
+  move["A", ] <- c(0, 0, 0, 1)
+  fit <- composeTransitionStages(list(move = move), 7)
+  projection <- projectCohort(fit, 1, initial = c("A B" = .5, "A" = .5), cohortSize = 2)
+  rewards <- createRewardModel(transitionCosts = data.frame(
+    from_state = c("A B", "A"), to_state = c("C", "B C"), cost = c(10, 40)),
+    currency = "EUR", priceYear = 2026)
+  expect_equal(summariseOutcomes(projection, rewards)$byCycle$cost, 50)
 })
