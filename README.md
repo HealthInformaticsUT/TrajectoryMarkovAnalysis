@@ -1,60 +1,88 @@
-TrajectoryMarkovAnalysis
-======================
+# TrajectoryMarkovAnalysis
 
-Introduction
-============
+TrajectoryMarkovAnalysis estimates transitions and recorded healthcare costs
+from patient histories. It projects expected cohort outcomes and simulates
+patient trajectories under explicitly supplied intervention and mortality
+assumptions. Transition and cost estimation can be used independently.
 
-R-package TrajectoryMarkovAnalysis specializes on modelling patient trajectories using Markov chains.
-The package supports discrete and continuous time Markov models, Kaplan-Meier plots, Markov trees and synthetic data generation.
-The package is based on OMOP CDM.
-The package can be run as GUI/CLI.
+## Install
 
-Features
-========
+From the cloned repository, install the current checkout in R:
 
-Screenshots
-===========
+```r
+install.packages(".", repos = NULL, type = "source")
+```
 
-Technology
-==========
-TrajectoryMarkovAnalysis is an R package, with some functions implemented in C++.
+Install the packages listed under `Imports` in `DESCRIPTION` first.
+Install `CDMConnector` as well when using a connected database. Restart R
+if an older TMA build was already loaded. This is the 1.1.0 release candidate.
 
-For running the package with OMOP CDM, the user must have:
-1. Permissions to select on ohdsi cdm data schema.
-2. Permissions to select on ohdsi cdm results schema.
-3. Permissions to select, create and insert on ohdsi temp/scratch schema.
+## Start with a small example
 
+```r
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
 
-System Requirements
-===================
+The example uses synthetic histories and costs. It needs no database connection.
+For your study, use the data frame returned by
+`Cohort2Trajectory::createTrajectories()`:
 
-Getting Started
-===============
+```r
+library(TrajectoryMarkovAnalysis)
 
-Package manual: [TrajectoryMarkovAnalysis.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_1.0.pdf)
+histories <- prepareTrajectories(
+  trajectories, cycleLength = 7, absorbingStates = "Dead"
+)
+transitions <- estimateTransitions(histories)
+transitions$estimates
 
-Package guide: [TrajectoryMarkovAnalysis_guide.pdf](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/TrajectoryMarkovAnalysis_guide.pdf)
- 
-License
-=======
-TrajectoryMarkovAnalysis is licensed under Apache License 2.0
+# Cost estimation can be run independently.
+costs <- estimateStateCosts(histories, cost_records)
+costs$estimates
+```
 
-Development
-===========
-TrajectoryMarkovAnalysis is being developed in R Studio.
+Declare your own absorbing states. Required trajectory columns are `subject_id`,
+`state_label`, `state_start_date` and `state_end_date`. Local cost records need
+`subject_id`, `event_date` and `amount`. You can also read costs through an
+existing CDMConnector reference with `extractCosts(cdm, histories, ...)`.
+TMA leaves that connection open.
 
-Publications
-============
-Markus Haug, Marek Oja, Maarja Pajusalu, Kerli Mooses, Sulev Reisberg, Jaak Vilo, Antonio Fernández Giménez, Thomas Falconer, Ana Danilović, Filip Maljkovic, Dalia Dawoud, Raivo Kolde, Markov modeling for cost-effectiveness using federated health data network, Journal of the American Medical Informatics Association, 2024;, ocae044, https://doi.org/10.1093/jamia/ocae044
+## Choose the modelling path
 
-Citation
-===========
-Haug, M. (2023, May). TrajectoryMarkovAnalysis, v1.0.5. GitHub. https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/releases/tag/v1.0.5
+| Task | Public functions |
+| --- | --- |
+| Validate histories and estimate adjacent-cycle transitions | `prepareTrajectories()`, `estimateTransitions()` |
+| Estimate analyst-defined events within a cycle | `estimateStageTransitions()` |
+| Estimate first-cycle outcomes from declared starting states | `estimateEntryTransitions()` |
+| Extract, adjust and allocate recorded costs | `extractCosts()`, `adjustCostPrices()`, `estimateStateCosts()` |
+| Combine supplied stages and project expected outcomes | `composeTransitionStages()`, `projectCohort()` |
+| Simulate patients with changing covariates | `createModelBundle()`, `simulateTrajectories()`, `advanceSimulation()` |
+| Account for interval costs, life-years and QALYs | `createRewardModel()`, `summariseOutcomes()`, `compareScenarios()` |
+| Calibrate and extend mortality | `createMortalityTransitions()`, `calibrateExcessMortality()`, `extrapolateMortality()` |
 
-# Acknowledgements
+Clinical state definitions, event order, eligibility, treatment effects,
+utilities and external evidence remain study inputs. The package returns tables
+and model objects. It does not write a study report or apply a disclosure policy.
 
-1. [Cohort2Trajectory package](https://github.com/HealthInformaticsUT/Cohort2Trajectory) by Markus Haug
-2. [TrajectoryViz package](https://github.com/HealthInformaticsUT/TrajectoryViz) by Maarja Pajusalu
+For ordered models, intervention effects can target a named stage. The same
+reward definition can then account for deterministic and simulated outcomes.
+With `summariseOutcomes()`, 52 completed weekly steps represent 52 weeks. The
+separate labelled-cycle functions, `projectCosts()` and `summariseSimulation()`,
+retain their documented initial-label accounting.
 
-Research group of Health-Informatics in University of Tartu https://health-informatics.cs.ut.ee/
+## Examples and reference
 
+- [Quickstart with synthetic trajectories and local costs](inst/examples/quickstart.R)
+- [Ordered stages, intervention and economic outcomes](inst/examples/ordered-stage-economics.R)
+- [Full workflow reference](docs/workflow.md)
+- [Dynamic covariates and supplied future mortality](inst/examples/future-mortality-simulation.R)
+- [Prices adjusted to an explicit reference year](inst/examples/price-adjustment.R)
+
+Examples are also installed under
+`system.file("examples", package = "TrajectoryMarkovAnalysis")`.
+
+The supported interface replaces the older GUI, continuous-time and
+database-driven workflow. The unused legacy implementation, database drivers
+and old PDF guides have been removed. The package now uses R only and requires
+no compiler. Use this README, the workflow reference, the installed vignette
+and current function help for this version.

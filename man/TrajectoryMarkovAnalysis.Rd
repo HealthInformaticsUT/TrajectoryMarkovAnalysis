@@ -2,49 +2,89 @@
 % Please edit documentation in R/TrajectoryMarkovAnalysis.R
 \name{TrajectoryMarkovAnalysis}
 \alias{TrajectoryMarkovAnalysis}
-\title{This function outputs Markov model fitted from observed data}
+\title{Run independent trajectory analyses}
 \usage{
 TrajectoryMarkovAnalysis(
-  conn,
-  dbms,
-  cdmSchema,
-  cdmTmpSchema,
-  inputData,
-  modelType,
-  studyName,
-  pathToResults = getwd(),
-  excludedStates = c(),
-  generateCostPatientTable = TRUE,
-  costDomains = c("Drug", "Visit", "Procedure", "Device", "Measurement", "Observation",
-    "Specimen"),
-  databaseDescription = "A cool database"
+  trajectories,
+  cycleLength = NULL,
+  absorbingStates = character(),
+  states = NULL,
+  analyses = "transitions",
+  cdm = NULL,
+  costData = NULL,
+  costMeasure = "total_charge",
+  costDomains = NULL,
+  periodBreaks = NULL,
+  periodLabels = NULL,
+  terminalCostMap = NULL,
+  costVisitFilter = NULL,
+  strata = NULL,
+  costAllocation = NULL
 )
 }
 \arguments{
-\item{conn}{Connection to the database}
+\item{trajectories}{Current Cohort2Trajectory output or prepared trajectories.}
 
-\item{dbms}{Database dialect}
+\item{cycleLength}{Days per cycle. Required for transition estimation unless
+already recorded by prepareTrajectories().}
 
-\item{cdmSchema}{OHDSI OMOP CDM tabels' schema}
+\item{absorbingStates}{Explicit clinical terminal-state labels. START and
+EXIT are administrative markers, not clinical states.}
 
-\item{cdmTmpSchema}{Table for creating temp tables}
+\item{states}{Optional complete state-label vector, including unobserved states.}
 
-\item{inputData}{Observed trajectories data outputted by Cohort2Trajectory package}
+\item{analyses}{One or both of "transitions" and "costs". The default only
+estimates transitions and does not need a database.}
 
-\item{modelType}{Markov model type can be "discrete" or "continuous"}
+\item{cdm}{CDMConnector reference used only to extract costs. Not required
+when costData is supplied. The caller owns its connection.}
 
-\item{studyName}{Customized study name}
+\item{costData}{Optional local cost records accepted by estimateStateCosts().
+Supply either cdm or costData for costing, not both.}
 
-\item{pathToResults}{The path where results will be saved}
+\item{costMeasure}{Cost column to extract from the CDM, such as "total_charge".}
 
-\item{excludedStates}{States which have to be discarded from the study}
+\item{costDomains}{Optional cost domains to extract from the CDM.}
 
-\item{generateCostPatientTable}{Boolean for generating cost_person table}
+\item{periodBreaks}{Follow-up boundaries in days since index, starting at 0
+and ending at Inf. NULL pools follow-up. Transition boundaries must align
+with cycleLength. Cost-only analyses may split intervals at any whole day.}
 
-\item{costDomains}{Cost domains to include in cost analysis}
+\item{periodLabels}{Optional unique names for the follow-up periods.}
 
-\item{databaseDescription}{Information about the OMOP CDM database data}
+\item{terminalCostMap}{Optional named mapping from declared absorbing states
+to defined nonabsorbing cost states, as in estimateStateCosts(). Only used
+when analyses includes "costs". Clinical trajectories remain unchanged.}
+
+\item{costVisitFilter}{Optional visit selection passed to extractCosts().
+Only valid when extracting costs through cdm. To use local costData, select
+its records before calling this function.}
+
+\item{strata}{Optional categorical trajectory column names passed to both
+estimators. Values may change by row; numeric values group by exact value.}
+
+\item{costAllocation}{Cost allocation passed to extractCosts() and
+estimateStateCosts(). "start" assigns the amount to the event date.
+"duration" spreads it uniformly across the full inclusive event duration.
+NULL uses "start" for CDM extraction and otherwise preserves the allocation
+recorded by extractCosts(), or uses "start" for plain local costData.
+Only valid when analyses includes "costs".}
+}
+\value{
+A list containing transitions, costs and the prepared trajectories.
+  An analysis not requested has a NULL result. No connection is stored.
 }
 \description{
-This function outputs Markov model fitted from observed data
+A convenience interface to the transition and cost estimators. Use either
+estimator directly when only that result is needed. No plots or files are
+created, and supplied database connections remain open.
+}
+\details{
+This interface replaces the former database-driven workflow.
+  It does not run the legacy GUI, continuous-time model, simulation or
+  first-state cost reports. Transitions use the source cycle's period.
+  Costs use the selected allocation rule and split observed days at period
+  boundaries. Duration allocation retains unobserved shares for review rather
+  than redistributing them across observed days. Within-cycle models require
+  separate, explicit rules.
 }

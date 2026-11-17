@@ -1,0 +1,17 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.gitignore$
+^\.github$
+^docs$
+^extras$
+^.*\.Rcheck$
+^.*\.tar\.gz$
+^[^/]*[.](csv|tsv)$
+^Drivers$
+^shiny$
+^resultsDashboard$
+^tmp$
+^src$
+^TrajectoryMarkovAnalysis.*[.]pdf$
+^tools$
+^LICENSE$
