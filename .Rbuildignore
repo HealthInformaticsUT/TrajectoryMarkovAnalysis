@@ -4,8 +4,6 @@
 ^\.github$
 ^docs$
 ^extras$
-^cran-comments\.md$
-^cran-release\.md$
 ^.*\.Rcheck$
 ^.*\.tar\.gz$
 ^[^/]*[.](csv|tsv)$
@@ -16,5 +14,4 @@
 ^src$
 ^TrajectoryMarkovAnalysis.*[.]pdf$
 ^tools$
-^SUBMISSION-CHECKLIST[.]md$
 ^LICENSE$
