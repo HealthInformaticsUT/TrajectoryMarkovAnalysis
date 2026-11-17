@@ -86,3 +86,27 @@ database-driven workflow. The unused legacy implementation, database drivers
 and old PDF guides have been removed. The package now uses R only and requires
 no compiler. Use this README, the workflow reference, the installed vignette
 and current function help for this version.
+
+## Related packages
+
+- [CohortContrast](https://github.com/HealthInformaticsUT/CohortContrast)
+- [Cohort2Trajectory](https://github.com/HealthInformaticsUT/Cohort2Trajectory)
+- [TrajectoryViz](https://github.com/HealthInformaticsUT/TrajectoryViz)
+
+Pass Cohort2Trajectory output through `prepareTrajectories()` before analysis.
+When combining package versions or using separate visualisation tools, check
+the expected column names, state labels and treatment of boundary rows.
+
+## Publication and citation
+
+Haug M, Oja M, Pajusalu M, et al. *Markov modeling for cost-effectiveness using
+federated health data network*. Journal of the American Medical Informatics
+Association, 2024. [doi:10.1093/jamia/ocae044](https://doi.org/10.1093/jamia/ocae044).
+
+When reporting an analysis, also record the package version or Git commit and
+retain the model settings and study assumptions used for the run.
+
+## License and contact
+
+Apache License 2.0. Developed by the University of Tartu Health Informatics
+research group. Contact [Markus Haug](mailto:markus.haug@ut.ee).
