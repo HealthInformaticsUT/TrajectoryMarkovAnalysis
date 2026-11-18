@@ -105,10 +105,7 @@ createCostModel <- function(costs, unit, currency, priceYear, terminal,
       allocation = costs$metadata$allocation,
       terminal_cost_map = terminalMap, measure = costs$metadata$measure,
       cost_scope = costs$metadata$cost_scope,
-      source_visit_filter = costs$metadata$source_visit_filter,
-      timing = "full labelled interval using destination state and covariates",
-      calibration = "explicit use of the descriptive mean per observed day",
-      conversion = "none", discounting = "none")), class = "tma_cost_model")
+      source_visit_filter = costs$metadata$source_visit_filter)), class = "tma_cost_model")
   .tmaValidateCostModel(model)
 }
 

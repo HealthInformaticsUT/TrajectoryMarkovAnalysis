@@ -301,23 +301,14 @@ estimateStateCosts <- function(trajectories, costData,
     metadata = list(measure = measure, currencies = currencies, periods = periods,
                     price_adjustment = priceAdjustment,
                     allocation = allocation, source_allocation = sourceAllocation,
-                    cost_record_counts = "interval estimates count contributing record fragments; diagnostics count unique input records",
                     cost_scope = if (is.null(sourceCostScope)) "supplied_cost_records" else sourceCostScope,
                     source_visit_filter = sourceVisitFilter,
-                    date_intervals = "inclusive", no_record = "zero recorded cost",
-                    interval_counts = "fragments within each period; original intervals identified by .row_id",
-                    unobserved_period_states = "absent; no cost estimate without observed days",
-                    terminal_cost_map = terminalCostMap,
-                    terminal_costs = if (length(terminalCostMap)) {
-                      "explicit attribution of amounts and observed days; clinical labels unchanged"
-                    } else "retained under the supplied cycle label",
-                    mean_cost_denominator = "observed days attributed to cost_state")
+                    date_intervals = "inclusive", terminal_cost_map = terminalCostMap)
   ), class = "tma_state_costs")
   if (allocation == "duration") result$allocatedCosts <- allocated
   if (!is.null(grouping)) {
     result$strata <- grouping$registry
     result$metadata$strata <- grouping$columns
-    result$metadata$stratum_assignment <- "interval row values; costs and observed days grouped together"
   }
   result
 }

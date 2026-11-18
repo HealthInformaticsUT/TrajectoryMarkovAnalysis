@@ -151,11 +151,7 @@ compareScenarios <- function(reference, intervention, scenarioCovariates = chara
       daysPerYear = r$daysPerYear, discountOriginDay = r$discountOriginDay,
       costs_configured = c(reference = r$costs_configured, intervention = i$costs_configured),
       timing = r$timing, discount_timing = r$discount_timing, health_time = r$health_time,
-      half_cycle_correction = r$half_cycle_correction,
-      extension = "shorter all-terminal run retains existing totals with no future charges or health contributions",
-      population_check = "recorded initial joint distribution and multiplicities on checked columns",
-      pairing = "simulation IDs and shared starting distributions do not establish paired random streams",
-      interpretation = "scenario differences without causal identification, uncertainty or willingness-to-pay thresholds")),
+      half_cycle_correction = r$half_cycle_correction)),
     class = "tma_scenario_comparison")
   if (!is.null(r$extrapolation) || !is.null(i$extrapolation)) {
     result$metadata$extrapolation <- list(reference = r$extrapolation,

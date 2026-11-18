@@ -132,10 +132,7 @@ summariseOccupancy <- function(trajectories, nCycles = NULL, cycleLength = NULL,
     occupancy = occupancy, coverage = coverage,
     metadata = list(
       cycleLength = cycleLength, states = states, absorbingStates = absorbingStates,
-      nCycles = nCycles, n_subjects = nSubjects,
-      denominator = "current observed known labels plus previously observed absorbing labels carried forward",
-      absorbing_carry = "starts after the observed terminal cycle; never carries nonabsorbing states",
-      cycle_labels = "zero-based supplied cycle labels, including shortened final cycles"
+      nCycles = nCycles, n_subjects = nSubjects
     )
   )
 }

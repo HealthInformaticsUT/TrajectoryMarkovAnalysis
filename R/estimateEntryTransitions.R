@@ -162,7 +162,6 @@ estimateEntryTransitions <- function(trajectories, entryState, cycleLength = NUL
       function(x) x$diagnostics[[field]], numeric(1))
   }
   model$metadata$strata <- grouping$columns
-  model$metadata$stratum_assignment <- "explicit baseline values supplied in entryState"
   structure(c(list(models = models, strata = registry), combined,
               list(diagnostics = model$diagnostics, metadata = model$metadata)),
             class = "tma_stratified_entry")
@@ -210,8 +209,5 @@ estimateEntryTransitions <- function(trajectories, entryState, cycleLength = NUL
                           excluded_subjects = nSubjects - nEligible),
        metadata = list(states = states, absorbingStates = absorbingStates,
                        cycleLength = cycleLength, estimator = "entry_outcomes",
-                       eligibility = "known first-cycle label with a complete cycle or an observed absorbing outcome",
-                       denominator = "subjects with evaluable first-cycle outcomes in each supplied entry state",
-                       baseline_population = "entry-eligible subjects only",
-                       time_meaning = "supplied state before first cycle to its recorded outcome label"))
+                       eligibility = "known first-cycle label with a complete cycle or an observed absorbing outcome"))
 }

@@ -7,13 +7,14 @@
 estimateStageTransitions(
   observations,
   stageOrder,
-  cycleLength,
+  cycleLength = NULL,
   states = NULL,
   absorbingStates = character(),
   identityStates = list(),
   periodBreaks = NULL,
   periodLabels = NULL,
-  strata = NULL
+  strata = NULL,
+  definition = NULL
 )
 }
 \arguments{
@@ -27,7 +28,8 @@ mortality calibration to calculate age on the source day.}
 \item{stageOrder}{Unique stage names in the order they operate within a cycle.
 Names "start", "end" and "transition" are reserved for interval accounting.}
 
-\item{cycleLength}{Positive integer days per complete cycle.}
+\item{cycleLength}{Positive integer days per complete cycle. Inherited from
+definition when omitted. Supply it explicitly if definition has no cycle.}
 
 \item{states}{Optional complete ordered state dictionary.}
 
@@ -43,6 +45,12 @@ identity rows are structural assumptions, even without observed support.}
 \item{strata}{Optional covariate column names. Values are taken from each
 cycle's source observations and may change between cycles. Their values
 must agree across the stages of one subject/cycle.}
+
+\item{definition}{Optional prepared trajectories or Cohort2Trajectory data
+frame carrying trajectory_definition. Supplies omitted cycleLength, states
+and absorbingStates; conflicting explicit arguments are rejected. Raw
+definition lists are not accepted. A continuous source supplies labels only;
+an explicit cycleLength defines the supplied stage observations.}
 }
 \value{
 A tma_stage_transitions model with composed matrices, stageMatrices,

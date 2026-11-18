@@ -52,7 +52,6 @@
   }
   if (any(!is.finite(ce$icer[!is.na(ce$icer)]))) stop("ICER exceeds finite limits.", call. = FALSE)
   structure(list(outcomes = outcomes, costs = costs, costEffectiveness = ce,
-    metadata = c(reference$metadata, list(checked_population_columns = columns,
-      accounting = "completed intervals under the same reward and discount conventions",
-      pairing = "no paired random-stream claim"))), class = "tma_scenario_comparison")
+    metadata = c(reference$metadata, list(checked_population_columns = columns))),
+    class = "tma_scenario_comparison")
 }

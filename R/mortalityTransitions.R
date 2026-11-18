@@ -126,7 +126,6 @@ createMortalityTransitions <- function(mortality, states, deathState,
     model <- composeTransitionStages(list(mortality = matrix),
       cycleLength = cycleLength, absorbingStates = deathState)
     model$metadata$estimator <- "specified_mortality"
-    model$metadata$probability_source <- "analyst-supplied interval death probabilities"
     model$metadata$mortality <- c(provenance,
       list(death_probability = unname(probability[row]),
            cycle_probability = unname(cycleProbability[row])))
@@ -145,7 +144,6 @@ createMortalityTransitions <- function(mortality, states, deathState,
   metadata <- models[[1L]]$metadata
   metadata$stratum_id <- NULL
   metadata$mortality <- provenance
-  metadata$stratum_assignment <- "source-cycle covariates matched to supplied mortality strata"
   structure(list(models = models, strata = registry, periods = models[[1L]]$periods,
                  metadata = metadata), class = "tma_stratified_transitions")
 }

@@ -1,3 +1,24 @@
+# TrajectoryMarkovAnalysis 1.1.0.9000
+
+* Result metadata no longer repeats explanatory paragraphs from function help.
+  Model definitions, input provenance, units, support counts and settings needed
+  to validate, compare and resume analyses are retained.
+
+* `updateRewardModel()` changes named reward assumptions with validation while
+  preserving the original. Scenario code no longer needs to edit internal fields.
+* `outcomeTotals()` reads compact cost, life-year and QALY totals or per-patient
+  values from either outcome summary. Comparison printing now shows scenario
+  totals and differences alongside ICERs. Calculations and accounting are unchanged.
+* `prepareTrajectories()` reads cycle length, state order and absorbing states
+  from current C2T output. Conflicting explicit settings raise an error. Plain
+  data frames still accept explicit definitions.
+* `estimateStageTransitions(definition = histories)` reuses those definitions
+  for analyst-supplied stage observations.
+* Results print compact summaries. `transitionMatrix()` retrieves fitted or
+  applied probabilities without navigating nested lists.
+* The connected `c2t-to-icer.R` example runs from dated intervals through C2T,
+  TMA stage fitting, costs and an economic comparison.
+
 # TrajectoryMarkovAnalysis 1.1.0
 
 ## Ordered stages and shared outcome accounting

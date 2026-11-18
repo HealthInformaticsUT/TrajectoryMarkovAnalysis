@@ -82,6 +82,64 @@ createRewardModel <- function(stateCosts = NULL, transitionCosts = NULL,
     daysPerYear = daysPerYear, costs_configured = hasCosts), class = "tma_rewards")
 }
 
+#' Change selected assumptions in a completed-interval reward model
+#'
+#' @param rewards A definition from createRewardModel().
+#' @param ... Named arguments to createRewardModel() that replace the existing
+#'   assumptions. Names must be complete, unique argument names. Omitted
+#'   arguments retain their values. Explicit NULL removes an optional input.
+#' @details Returns a newly validated definition without changing the original.
+#'   Costs remain amounts per completed interval; no conversion or accounting
+#'   change is performed. State coverage and requested stage names are checked
+#'   against the projection or simulation when summariseOutcomes() is called.
+#'
+#'   Cost-period boundaries and labels are inherited when omitted. To change
+#'   the number of periods, also supply matching periodLabels or set
+#'   periodLabels = NULL to generate default labels. Setting periodBreaks = NULL
+#'   resets to one period and its default label unless periodLabels is supplied.
+#'   Cost tables with a period column must use the resulting period labels;
+#'   they are never relabelled or pooled automatically.
+#' @return A tma_rewards definition used by summariseOutcomes().
+#' @seealso createRewardModel(), summariseOutcomes()
+#' @examples
+#' reference <- createRewardModel(
+#'   stateCosts = c(Alive = 100, Dead = 0),
+#'   upfrontCosts = c(program = 0), aliveStates = "Alive",
+#'   utilities = c(Alive = 0.8, Dead = 0), currency = "EUR", priceYear = 2026
+#' )
+#' intervention <- updateRewardModel(reference, upfrontCosts = c(program = 50))
+#' sensitivity <- updateRewardModel(
+#'   intervention, costDiscountRate = 0.035, healthDiscountRate = 0.035
+#' )
+#' @export
+updateRewardModel <- function(rewards, ...) {
+  args <- .tmaRewardArguments(rewards)
+  changes <- list(...)
+  if (length(changes)) {
+    fields <- names(changes)
+    if (is.null(fields) || anyNA(fields) || any(!nzchar(fields)))
+      stop("Reward updates must use named createRewardModel() arguments.", call. = FALSE)
+    if (anyDuplicated(fields))
+      stop("Reward update argument names must be unique.", call. = FALSE)
+    unknown <- setdiff(fields, names(formals(createRewardModel)))
+    if (length(unknown))
+      stop("Unknown reward update argument(s): ", paste(unknown, collapse = ", "),
+        ". Use complete createRewardModel() argument names.", call. = FALSE)
+    args[fields] <- changes
+    if ("periodBreaks" %in% fields && is.null(changes$periodBreaks) &&
+        !"periodLabels" %in% fields) args["periodLabels"] <- list(NULL)
+  }
+  do.call(createRewardModel, args)
+}
+
+.tmaRewardArguments <- function(rewards) {
+  if (!inherits(rewards, "tma_rewards")) stop("Supply createRewardModel() rewards.", call. = FALSE)
+  args <- rewards[intersect(names(formals(createRewardModel)), names(rewards))]
+  args$periodBreaks <- c(rewards$periods$start_day, tail(rewards$periods$end_day, 1L))
+  args$periodLabels <- rewards$periods$period
+  args
+}
+
 #' Calculate the same interval outcomes for projections and simulations
 #'
 #' @param result A projectCohort() or simulateTrajectories() result.
@@ -115,11 +173,7 @@ createRewardModel <- function(stateCosts = NULL, transitionCosts = NULL,
 #'   written and no disclosure policy is applied.
 #' @export
 summariseOutcomes <- function(result, rewards, nCycles = NULL) {
-  if (!inherits(rewards, "tma_rewards")) stop("Supply createRewardModel() rewards.", call. = FALSE)
-  args <- rewards[intersect(names(formals(createRewardModel)), names(rewards))]
-  args$periodBreaks <- c(rewards$periods$start_day, tail(rewards$periods$end_day, 1L))
-  args$periodLabels <- rewards$periods$period
-  rewards <- do.call(createRewardModel, args)
+  rewards <- do.call(createRewardModel, .tmaRewardArguments(rewards))
   simulation <- inherits(result, "tma_simulation")
   if (simulation) {
     checked <- .tmaSimulationSummaryInput(result)

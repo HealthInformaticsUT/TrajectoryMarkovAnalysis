@@ -14,10 +14,12 @@ prepareTrajectories(
 \arguments{
 \item{trajectories}{A data frame with lowercase subject_id, state_label,
 state_start_date and state_end_date columns, or a tma_trajectories object.
-Additional columns and unspecified prepared metadata are retained.}
+Additional columns and unspecified prepared metadata are retained. A
+Cohort2Trajectory trajectory_definition attribute supplies omitted cycle
+length, ordered states and absorbing states.}
 
-\item{cycleLength}{Optional positive integer cycle length in days. Leave NULL
-for interval-based cost analyses.}
+\item{cycleLength}{Optional positive integer cycle length in days. When no
+trajectory definition supplies a cycle, NULL permits interval-based costs.}
 
 \item{absorbingStates}{Clinical state labels that terminate follow-up.}
 
@@ -34,4 +36,12 @@ A tma_trajectories list containing data, patients, states,
 }
 \description{
 Validate and prepare Cohort2Trajectory intervals
+}
+\details{
+Explicit cycleLength, states or absorbingStates must agree with an
+  attached trajectory definition. State order must match; absorbing state
+  order does not matter. A continuous definition retains a NULL cycle length.
+  The compact definition is retained on the prepared object, including after
+  serialization, and is removed from its data component. It contains no
+  patient data. Plain data frames keep the explicit-argument workflow.
 }

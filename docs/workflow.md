@@ -3,6 +3,32 @@
 This guide describes the supported discrete modelling interface. Start with the
 [quickstart](../README.md) for installation and a runnable example.
 
+## Inspect objects
+
+Printing a model or result gives a compact summary. Its tables, settings and
+simulation resume state are still available. Metadata keeps the definitions used
+for the run, such as states, cycle length, estimator, grouping, units, currency,
+price basis, discounting and selected modelling rules. Counts and diagnostic
+tables remain available. Fixed explanations of denominators, event ordering,
+cost allocation and comparison limits are in the corresponding function help,
+rather than repeated in every result. Timing conventions checked when comparing
+summaries and the configuration needed to resume simulations are retained.
+
+The summary distinguishes expected
+cohort counts from sampled patients, and completed-interval outcomes from
+labelled-cycle costs.
+
+`transitionMatrix(fit)` returns a fitted full-cycle matrix. Add `stage = "onset"`
+to select that stage, and `period` or `stratum` when the selection is ambiguous.
+For a projection, supply a zero-based source `cycle` to inspect the matrix that
+was actually used, including any intervention effect. A projection with no
+completed steps has no such matrix. The accessor does not infer a single matrix
+for simulations with changing patient profiles or future mortality.
+
+The [C2T-to-ICER example](../inst/examples/c2t-to-icer.R) follows one set of
+synthetic patients through both packages. It uses the same completed intervals
+for deterministic and sampled economic outcomes.
+
 ## Fit observations within a cycle
 
 `estimateTransitions()` uses adjacent recorded labels. When the study defines
@@ -28,6 +54,22 @@ stage_fit <- estimateStageTransitions(
 stage_fit$estimates
 stage_fit$coverage
 ```
+
+If C2T already defined the states and cycle length, pass its output or prepared
+histories as `definition` instead of repeating those settings:
+
+```r
+stage_fit <- estimateStageTransitions(
+  observations, stageOrder = c("onset", "mortality"), definition = histories,
+  identityStates = list(onset = "Complication")
+)
+```
+
+Here `histories` must use the same clinical labels as the observations. The
+stage order and within-stage rules remain explicit because they cannot be
+recovered from a weekly label. A continuous trajectory definition supplies
+labels and absorbing states, but needs an explicit `cycleLength` for the stage
+observations.
 
 These are synthetic observations. The third person's outcomes are unevaluable
 and do not enter either denominator. The first person's complication followed
@@ -83,7 +125,8 @@ projected <- projectCohort(
   stage_fit, nCycles = 4, initial = c(Stable = 1), cohortSize = 100
 )
 expected_outcomes <- summariseOutcomes(projected, rewards)
-expected_outcomes$totals
+outcomeTotals(expected_outcomes)  # discounted cohort totals
+outcomeTotals(expected_outcomes, perPatient = TRUE)
 expected_outcomes$byCycle
 
 sampled <- simulateTrajectories(
@@ -92,6 +135,33 @@ sampled <- simulateTrajectories(
 )
 sampled_outcomes <- summariseOutcomes(sampled, rewards)
 ```
+
+Use `updateRewardModel()` to vary an assumption without copying the definition
+or editing the object's fields:
+
+```r
+higher_fee <- updateRewardModel(rewards, upfrontCosts = c(programme = 100))
+undiscounted <- updateRewardModel(
+  rewards, costDiscountRate = 0, healthDiscountRate = 0
+)
+```
+
+Only named arguments to `createRewardModel()` may be changed. Each replaces the
+whole field. `NULL` removes an optional field, for example `upfrontCosts = NULL`.
+Other choices, including cost and health timing, stay as defined. To change
+period boundaries, provide matching labels or `periodLabels = NULL` for default
+labels. `periodBreaks = NULL` returns to one period. Update any period-specific
+cost tables to match. The original rewards are unchanged.
+
+`outcomeTotals()` returns three named numbers: `cost`, `life_years` and `qalys`.
+By default these are discounted cohort totals. Use `discounted = FALSE` for
+undiscounted amounts or `perPatient = TRUE` for means. It reads the stored
+results, performs no new calculations and leaves uncomputed outcomes as `NA`.
+It also accepts `summariseSimulation()` output, whose labelled-cycle timing
+remains unchanged. To compare scenarios, pass the full summaries to
+`compareScenarios()` so their population, horizon and accounting definitions
+can be checked. Printing the comparison shows discounted cohort totals and
+differences, followed by per-patient increments and ICERs.
 
 These amounts and utilities illustrate the interface. Costs can use the state
 at interval start, interval end, or immediately after a named stage. Health
@@ -125,20 +195,28 @@ their values, including leading zeros and large identifiers supplied as text.
 ```r
 library(TrajectoryMarkovAnalysis)
 
+histories <- prepareTrajectories(trajectories)
+```
+
+Current C2T output carries its cycle length, ordered state labels and absorbing
+states, including states absent from the current data and resolved merged
+labels. TMA inherits these choices. It does not infer death or persistent
+history from a label. Explicit arguments must agree with the attached
+definition, including when preparing an already prepared object again.
+
+`saveRDS()` and `readRDS()` preserve the definition. CSV does not. For plain data
+frames, older C2T output or CSV imports, define the settings yourself:
+
+```r
 histories <- prepareTrajectories(
-  trajectories,
-  cycleLength = 7,
-  absorbingStates = c(
-    "Death, no pneumonia history",
-    "Death, pneumonia history"
-  )
+  rows, cycleLength = 7,
+  states = c("Stable", "Complication", "Dead"), absorbingStates = "Dead"
 )
 ```
 
-State labels must describe the analyst's definitions. The package does not
-infer that a label means death or that pneumonia history persists. Specify
-absorbing states explicitly. You can supply `states` to include states that
-are defined but absent from the current data.
+Patient subsets keep the full state dictionary. If you deliberately change
+state meanings or cycle lengths, construct new trajectories with matching
+definitions rather than overriding the attached settings.
 
 `START` and `EXIT` mark observation boundaries. They are not clinical states.
 `OUT OF COHORT` is an unresolved observed interval, not death or loss of
@@ -149,7 +227,8 @@ rows must be resolved before estimation.
 Each patient must have at least one observed interval. Boundary-only continuous
 histories are not supported by the preparation step.
 
-For interval-based costing without a discrete model, leave `cycleLength` unset.
+For interval-based costing of a plain data frame, leave `cycleLength` unset.
+Continuous C2T output already declares no discrete cycle length.
 If boundary markers are absent, the package uses the observed interval bounds
 and reports that the original observation boundaries could not be checked.
 
@@ -1564,7 +1643,8 @@ calibration$reference
 ```
 
 `histories` is a prepared trajectory object with its cycle length and absorbing
-states declared. Raw C2T rows also work when `cycleLength` is supplied. Declare
+states declared. Current C2T output carries these settings. Plain rows need
+`cycleLength` supplied explicitly. Declare
 death states explicitly. An absorbing state such as discharge is not necessarily
 death. The background bundle comes from `createMortalityTransitions()` and may
 use different state labels because it supplies background probabilities, not
@@ -1778,7 +1858,8 @@ outcomes <- summariseSimulation(
   healthDiscountRate = 0.035
 )
 
-outcomes$totals       # Cohort totals and means per simulated patient
+outcomeTotals(outcomes)  # Discounted cohort cost, life-years and QALYs
+outcomes$totals       # All totals and means, including undiscounted values
 outcomes$byPatient    # Individual totals and represented duration
 outcomes$costs        # Totals by cost component
 outcomes$stateTime    # Full cycle labels represented in each state

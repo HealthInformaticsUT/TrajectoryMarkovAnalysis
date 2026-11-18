@@ -119,19 +119,22 @@ Health outcomes use the state at interval start. Other timing choices must be
 specified explicitly.
 
 ```{r rewards}
-rewards <- function(program_cost) createRewardModel(
+reference_rewards <- createRewardModel(
   stateCosts = c(Stable = 10, Complication = 30, Dead = 0),
-  upfrontCosts = c(program = program_cost),
+  upfrontCosts = c(program = 0),
   aliveStates = c("Stable", "Complication"),
   utilities = c(Stable = .8, Complication = .6, Dead = 0),
   costTiming = "onset", healthTiming = "start", discountTiming = "midpoint",
   costDiscountRate = .035, healthDiscountRate = .035,
   currency = "EUR", priceYear = 2026
 )
-reference_outcomes <- summariseOutcomes(reference, rewards(0))
-intervention_outcomes <- summariseOutcomes(intervention, rewards(15))
+intervention_rewards <- updateRewardModel(
+  reference_rewards, upfrontCosts = c(program = 15)
+)
+reference_outcomes <- summariseOutcomes(reference, reference_rewards)
+intervention_outcomes <- summariseOutcomes(intervention, intervention_rewards)
 comparison <- compareScenarios(reference_outcomes, intervention_outcomes)
-comparison$costEffectiveness
+comparison
 ```
 
 A 52-step weekly projection has 52 completed intervals, totalling 364 days.
@@ -148,7 +151,8 @@ sampled <- simulateTrajectories(
   createModelBundle(model), n = 100, initial = c(Stable = 1), nSteps = 12,
   terminalStates = "Dead", transitionEffects = effect, seed = 192
 )
-summariseOutcomes(sampled, rewards(15), nCycles = 12)$totals
+sampled_outcomes <- summariseOutcomes(sampled, intervention_rewards, nCycles = 12)
+outcomeTotals(sampled_outcomes)
 ```
 
 An explicitly longer accounting horizon is permitted only after all patients

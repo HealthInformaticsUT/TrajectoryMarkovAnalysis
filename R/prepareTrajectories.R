@@ -2,9 +2,11 @@
 #'
 #' @param trajectories A data frame with lowercase subject_id, state_label,
 #'   state_start_date and state_end_date columns, or a tma_trajectories object.
-#'   Additional columns and unspecified prepared metadata are retained.
-#' @param cycleLength Optional positive integer cycle length in days. Leave NULL
-#'   for interval-based cost analyses.
+#'   Additional columns and unspecified prepared metadata are retained. A
+#'   Cohort2Trajectory trajectory_definition attribute supplies omitted cycle
+#'   length, ordered states and absorbing states.
+#' @param cycleLength Optional positive integer cycle length in days. When no
+#'   trajectory definition supplies a cycle, NULL permits interval-based costs.
 #' @param absorbingStates Clinical state labels that terminate follow-up.
 #' @param states Optional ordered clinical state dictionary, including unobserved
 #'   states. START, EXIT and OUT OF COHORT are not clinical states.
@@ -14,17 +16,33 @@
 #'   independently verify the original observation window. At least one observed
 #'   interval is required per subject. Without cycleLength, EXIT may preserve an
 #'   observation window that extends beyond the final retained interval.
+#' @details Explicit cycleLength, states or absorbingStates must agree with an
+#'   attached trajectory definition. State order must match; absorbing state
+#'   order does not matter. A continuous definition retains a NULL cycle length.
+#'   The compact definition is retained on the prepared object, including after
+#'   serialization, and is removed from its data component. It contains no
+#'   patient data. Plain data frames keep the explicit-argument workflow.
 #' @export
 prepareTrajectories <- function(trajectories, cycleLength = NULL,
                                 absorbingStates = character(), states = NULL) {
+  supplied <- c(cycleLength = !missing(cycleLength), states = !missing(states),
+                absorbingStates = !missing(absorbingStates))
+  definition <- if (inherits(trajectories, "tma_trajectories") || is.data.frame(trajectories)) {
+    .tmaTrajectoryDefinition(trajectories)
+  } else NULL
+  resolved <- .tmaResolveTrajectoryDefinition(definition, cycleLength, states,
+                                               absorbingStates, supplied)
+  cycleLength <- resolved$cycleLength
+  states <- resolved$states
+  absorbingStates <- resolved$absorbingStates
   if (inherits(trajectories, "tma_trajectories")) {
-    if (missing(cycleLength) && missing(absorbingStates) && missing(states)) {
+    if (!any(supplied)) {
       return(trajectories)
     }
     prepared <- trajectories
-    if (missing(cycleLength)) cycleLength <- prepared$cycleLength
-    if (missing(absorbingStates)) absorbingStates <- prepared$absorbingStates
-    if (missing(states)) states <- prepared$states
+    if (!supplied[["cycleLength"]]) cycleLength <- prepared$cycleLength
+    if (!supplied[["absorbingStates"]]) absorbingStates <- prepared$absorbingStates
+    if (!supplied[["states"]]) states <- prepared$states
     cycleLength <- .tmaCycleLength(cycleLength)
     dictionary <- .tmaStateDictionary(prepared$data$state_label, states, absorbingStates)
     .tmaValidateAbsorbing(prepared$data, dictionary$absorbingStates)
@@ -45,6 +63,7 @@ prepareTrajectories <- function(trajectories, cycleLength = NULL,
   }
   cycleLength <- .tmaCycleLength(cycleLength)
   data <- as.data.frame(trajectories, stringsAsFactors = FALSE)
+  attr(data, "trajectory_definition") <- NULL
   data$subject_id <- .tmaSubjectIds(data$subject_id)
   data$state_label <- as.character(data$state_label)
   if (anyNA(data$state_label) || any(!nzchar(trimws(data$state_label)))) {
@@ -134,7 +153,7 @@ prepareTrajectories <- function(trajectories, cycleLength = NULL,
                        subjects_without_exit = ids[!hasExit],
                        unresolved_intervals = sum(data$state_label == "OUT OF COHORT"),
                        gap_count = gapCount, partial_cycles = partial)
-  ), class = "tma_trajectories")
+  ), class = "tma_trajectories", trajectory_definition = definition)
 }
 
 .tmaSubjectIds <- function(x, name = "subject_id") {

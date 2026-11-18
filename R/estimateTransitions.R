@@ -72,7 +72,6 @@ estimateTransitions <- function(trajectories, cycleLength = NULL,
     models[[i]]$metadata$stratum_id <- registry$stratum_id[i]
   }
   model$metadata$strata <- grouping$columns
-  model$metadata$stratum_assignment <- "source row values; pairs formed before grouping"
   estimates <- lapply(seq_along(models), function(i) {
     .tmaAddStratum(models[[i]]$estimates, registry[i, , drop = FALSE])
   })
@@ -204,11 +203,7 @@ estimateTransitions <- function(trajectories, cycleLength = NULL,
     ),
     metadata = list(states = states, absorbingStates = absorbingStates,
                     cycleLength = prepared$cycleLength, time_unit = "days",
-                    estimator = "adjacent_cycles", date_endpoints = "inclusive",
-                    period_assignment = "source cycle start, days since index_date",
-                    period_endpoints = "lower inclusive, upper exclusive",
-                    denominator = "observed adjacent known pairs with a full source cycle",
-                    entry_denominator = "subjects with a known state at index_date")
+                    estimator = "adjacent_cycles", date_endpoints = "inclusive")
   )
   if (stratified) {
     result$diagnostics$patients <- length(unique(data$subject_id[selected]))
@@ -217,5 +212,5 @@ estimateTransitions <- function(trajectories, cycleLength = NULL,
       length(unique(data$subject_id[source[eligible & periodIndex[source] == i]]))
     }, integer(1))
   }
-  result
+  structure(result, class = "tma_transitions")
 }

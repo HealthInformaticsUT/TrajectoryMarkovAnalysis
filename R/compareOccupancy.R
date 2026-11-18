@@ -138,9 +138,7 @@ compareOccupancy <- function(trajectories, projection, population = "initial") {
                           count_scales_match = model$cohortSize == observed$metadata$n_subjects),
        metadata = list(population = population,
                        population_rule = if (population == "all") "all supplied subjects" else if (entryMode) "entry model's eligible subjects" else "known first-cycle subjects",
-                       observed = observed$metadata, projection = model,
-                       interpretation = "descriptive available-state proportions versus fixed-cohort projection; no censoring adjustment",
-                       provenance = "matching aggregate counts cannot establish patient-level identity"))
+                       observed = observed$metadata, projection = model))
 }
 
 .tmaComparisonProjection <- function(projection) {

@@ -180,12 +180,9 @@ summariseSimulation <- function(simulation, aliveStates = NULL, utilities = NULL
       currency = simulation$metadata$currency, priceYear = simulation$metadata$priceYear,
       costs_configured = checked$costsConfigured,
       timing = "each retained label represents one complete cycle, including the initial label",
-      coverage = "retained labels only, including terminal snapshots; no extension beyond the saved simulation",
       discount_timing = "recorded elapsed_day of each label or charge, from one shared origin",
-      state_time = "represented full-label snapshot occupancy, not observed clinical person-time",
       health_time = "full labelled cycles in explicitly supplied aliveStates",
-      half_cycle_correction = "none", within_cycle_timing = "not inferred",
-      denominator = "original simulated patients, including terminal and zero-cost patients")),
+      half_cycle_correction = "none")),
     class = "tma_simulation_summary")
   if (!is.null(simulation$metadata$extrapolation)) {
     result$metadata$extrapolation <- simulation$metadata$extrapolation

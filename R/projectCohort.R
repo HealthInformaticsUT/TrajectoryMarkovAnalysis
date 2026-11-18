@@ -354,7 +354,7 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
     .tmaProjectStageFlows(stageMatrices, steps, probability, states, cohortSize,
       stageCycleMatrices = stageCycleMatrices)
   } else NULL
-  list(occupancy = occupancy, steps = steps, flows = flows, entry = entryDetails,
+  result <- list(occupancy = occupancy, steps = steps, flows = flows, entry = entryDetails,
        stageMatrices = stageMatrices, stageFlows = stageResult$flows,
        cycleMatrices = cycleMatrices, stageCycleMatrices = stageCycleMatrices,
        metadata = list(initial_distribution = initialDistribution, initial_source = initialSource,
@@ -368,6 +368,7 @@ projectCohort <- function(transitions, nCycles, initial = NULL, cohortSize = 1,
        diagnostics = list(max_probability_sum_error = maxError,
                           max_stage_endpoint_error = stageResult$max_endpoint_error,
                           entry_source_subject_count_matches = entrySourceMatches))
+  structure(result, class = "tma_projection")
 }
 
 .tmaProjectStageFlows <- function(stageMatrices, steps, probability, states, cohortSize,

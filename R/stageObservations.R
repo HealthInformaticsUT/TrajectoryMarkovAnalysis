@@ -8,7 +8,8 @@
 #'   mortality calibration to calculate age on the source day.
 #' @param stageOrder Unique stage names in the order they operate within a cycle.
 #'   Names "start", "end" and "transition" are reserved for interval accounting.
-#' @param cycleLength Positive integer days per complete cycle.
+#' @param cycleLength Positive integer days per complete cycle. Inherited from
+#'   definition when omitted. Supply it explicitly if definition has no cycle.
 #' @param states Optional complete ordered state dictionary.
 #' @param absorbingStates States that remain unchanged in every stage.
 #' @param identityStates Named list of stage-specific unchanged states. These
@@ -18,6 +19,11 @@
 #' @param strata Optional covariate column names. Values are taken from each
 #'   cycle's source observations and may change between cycles. Their values
 #'   must agree across the stages of one subject/cycle.
+#' @param definition Optional prepared trajectories or Cohort2Trajectory data
+#'   frame carrying trajectory_definition. Supplies omitted cycleLength, states
+#'   and absorbingStates; conflicting explicit arguments are rejected. Raw
+#'   definition lists are not accepted. A continuous source supplies labels only;
+#'   an explicit cycleLength defines the supplied stage observations.
 #' @details The analyst supplies stage membership, event order and evaluability.
 #'   This function does not infer intermediate events from weekly labels.
 #'   First-cycle observations are included when observed is TRUE. A censored
@@ -36,10 +42,28 @@
 #'   stratum registry. Counts, denominators and distinct supporting patients
 #'   are returned for every stage/state/period, including unsupported cells.
 #' @export
-estimateStageTransitions <- function(observations, stageOrder, cycleLength,
+estimateStageTransitions <- function(observations, stageOrder, cycleLength = NULL,
                                      states = NULL, absorbingStates = character(),
                                      identityStates = list(), periodBreaks = NULL,
-                                     periodLabels = NULL, strata = NULL) {
+                                     periodLabels = NULL, strata = NULL,
+                                     definition = NULL) {
+  supplied <- c(cycleLength = !missing(cycleLength), states = !missing(states),
+                absorbingStates = !missing(absorbingStates))
+  if (!is.null(definition)) {
+    definition <- .tmaTrajectoryDefinition(definition, preparedFields = TRUE)
+    if (is.null(definition)) {
+      stop("definition data frame must carry a trajectory_definition attribute.", call. = FALSE)
+    }
+  }
+  resolved <- .tmaResolveTrajectoryDefinition(definition, cycleLength, states,
+    absorbingStates, supplied, allowUndeclaredCycle = TRUE)
+  cycleLength <- resolved$cycleLength
+  states <- resolved$states
+  absorbingStates <- resolved$absorbingStates
+  if (is.null(cycleLength)) {
+    stop("cycleLength must be supplied explicitly or inherited from definition for stage estimation.",
+         call. = FALSE)
+  }
   cycleLength <- .tmaProjectionInteger(cycleLength, "cycleLength", 1)
   periods <- .tmaPeriods(periodBreaks, periodLabels, cycleLength)
   required <- c("subject_id", "source_day", "stage", "from_state", "to_state", "observed")
@@ -197,8 +221,6 @@ estimateStageTransitions <- function(observations, stageOrder, cycleLength,
     patients = length(unique(x$subject_id)))
   model$metadata$estimator <- "observed_stages"
   model$metadata$identityStates <- identities
-  model$metadata$probability_source <- "observed analyst-defined stage outcomes"
-  model$metadata$denominator <- "observed outcomes per stage, source state, period and stratum"
   class(model) <- "tma_stage_transitions"
   model
 }

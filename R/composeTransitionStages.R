@@ -66,7 +66,7 @@ composeTransitionStages <- function(stages, cycleLength,
   dictionary <- .tmaStateDictionary(character(), rownames(first), absorbingStates)
   definition <- .tmaStageDefinition(stages, periods, dictionary$states,
                                      dictionary$absorbingStates)
-  list(
+  result <- list(
     matrices = definition$matrices,
     matrix = if (nrow(periods) == 1L) definition$matrices[[1L]] else NULL,
     periods = periods,
@@ -77,15 +77,10 @@ composeTransitionStages <- function(stages, cycleLength,
       cycleLength = cycleLength,
       estimator = "specified_stages",
       stage_order = names(definition$stageMatrices),
-      probability_source = "analyst-supplied conditional stage probabilities",
-      time_unit = "days",
-      time_meaning = "one complete ordered stage sequence per cycle",
-      period_assignment = "source cycle start, days since index_date",
-      period_endpoints = "lower inclusive, upper exclusive",
-      stage_timing = "ordered steps without additional timepoints or person-time",
-      initialisation = "explicit initial distribution or separate entry model required"
+      time_unit = "days"
     )
   )
+  structure(result, class = "tma_transitions")
 }
 
 # Callers validate the common periods and state dictionary before using this

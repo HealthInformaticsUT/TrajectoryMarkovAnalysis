@@ -15,7 +15,8 @@ install.packages(".", repos = NULL, type = "source")
 
 Install the packages listed under `Imports` in `DESCRIPTION` first.
 Install `CDMConnector` as well when using a connected database. Restart R
-if an older TMA build was already loaded. This is the 1.1.0 release candidate.
+if an older TMA build was already loaded. This checkout is version 1.1.0.9000.
+The automatic C2T definition handoff requires Cohort2Trajectory 1.3.0.9000 or later.
 
 ## Start with a small example
 
@@ -30,9 +31,7 @@ For your study, use the data frame returned by
 ```r
 library(TrajectoryMarkovAnalysis)
 
-histories <- prepareTrajectories(
-  trajectories, cycleLength = 7, absorbingStates = "Dead"
-)
+histories <- prepareTrajectories(trajectories)
 transitions <- estimateTransitions(histories)
 transitions$estimates
 
@@ -41,11 +40,97 @@ costs <- estimateStateCosts(histories, cost_records)
 costs$estimates
 ```
 
-Declare your own absorbing states. Required trajectory columns are `subject_id`,
+Current C2T output carries its cycle length, state labels and absorbing states.
+TMA uses them without repeating the settings. RDS preserves this handoff. For a
+plain data frame or CSV, supply the definitions explicitly:
+
+```r
+histories <- prepareTrajectories(
+  rows, cycleLength = 7, states = c("Stable", "Complication", "Dead"),
+  absorbingStates = "Dead"
+)
+```
+
+Explicit arguments that conflict with an attached C2T definition raise an
+error. Required trajectory columns are `subject_id`,
 `state_label`, `state_start_date` and `state_end_date`. Local cost records need
 `subject_id`, `event_date` and `amount`. You can also read costs through an
 existing CDMConnector reference with `extractCosts(cdm, histories, ...)`.
 TMA leaves that connection open.
+
+## Inspect results
+
+Print the object itself for a short summary:
+
+```r
+histories
+transitions
+costs
+```
+
+The full tables and settings stay on the object. Printing does not remove or
+suppress any data. Use `transitions$estimates` for counts and probabilities,
+`simulation$trajectories` for patient histories and `comparison$outcomes` for
+cohort totals and per-patient results.
+
+Use `transitionMatrix()` to inspect probabilities without navigating nested
+lists. A fitted model returns its original probabilities. A projection returns
+the probabilities actually used at the selected source cycle:
+
+```r
+transitionMatrix(transitions)
+transitionMatrix(stage_fit, stage = "onset")
+transitionMatrix(treated_projection, stage = "onset", cycle = 0)
+```
+
+Cycle zero is the first transition step. Select a `period` or `stratum` by its
+exact name when a fit contains more than one. See `?transitionMatrix` for the
+supported model types.
+
+For a connected example from C2T intervals to a TMA ICER, install
+Cohort2Trajectory and run:
+
+```r
+example_results <- source(system.file(
+  "examples", "c2t-to-icer.R", package = "TrajectoryMarkovAnalysis"
+))$value
+example_results$comparison
+```
+
+This five-patient example uses invented costs and effects. It keeps the same
+completed-interval accounting for projected and simulated economic outcomes.
+Example helpers are explicitly labelled and are not package functions.
+
+## Define economic assumptions once
+
+Create rewards for the reference scenario, then change only what differs:
+
+```r
+reference_rewards <- createRewardModel(
+  stateCosts = c(Stable = 100, Complication = 200, Dead = 0),
+  aliveStates = c("Stable", "Complication"),
+  utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0),
+  currency = "EUR", priceYear = 2026,
+  costDiscountRate = 0.035, healthDiscountRate = 0.035
+)
+intervention_rewards <- updateRewardModel(
+  reference_rewards, upfrontCosts = c(programme = 50)
+)
+reference_outcomes <- summariseOutcomes(reference_projection, reference_rewards)
+intervention_outcomes <- summariseOutcomes(intervention_projection, intervention_rewards)
+
+outcomeTotals(intervention_outcomes)  # discounted cohort cost, life-years, QALYs
+outcomeTotals(intervention_outcomes, perPatient = TRUE)
+comparison <- compareScenarios(reference_outcomes, intervention_outcomes)
+comparison
+```
+
+The projections above must use your defined states, treatment effects and a
+common horizon. These costs and utilities are illustrative. `updateRewardModel()`
+validates the changed definition and leaves the original unchanged. Each named
+argument replaces that entire field, so supply all components you want to keep.
+`outcomeTotals(..., discounted = FALSE)` reads undiscounted results. Uncomputed
+outcomes stay `NA`. Detailed tables remain available on the result objects.
 
 ## Choose the modelling path
 
@@ -57,7 +142,8 @@ TMA leaves that connection open.
 | Extract, adjust and allocate recorded costs | `extractCosts()`, `adjustCostPrices()`, `estimateStateCosts()` |
 | Combine supplied stages and project expected outcomes | `composeTransitionStages()`, `projectCohort()` |
 | Simulate patients with changing covariates | `createModelBundle()`, `simulateTrajectories()`, `advanceSimulation()` |
-| Account for interval costs, life-years and QALYs | `createRewardModel()`, `summariseOutcomes()`, `compareScenarios()` |
+| Account for interval costs, life-years and QALYs | `createRewardModel()`, `updateRewardModel()`, `summariseOutcomes()` |
+| Read and compare economic outcomes | `outcomeTotals()`, `compareScenarios()` |
 | Calibrate and extend mortality | `createMortalityTransitions()`, `calibrateExcessMortality()`, `extrapolateMortality()` |
 
 Clinical state definitions, event order, eligibility, treatment effects,

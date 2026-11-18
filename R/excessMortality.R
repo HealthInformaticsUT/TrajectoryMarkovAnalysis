@@ -292,17 +292,6 @@ calibrateExcessMortality <- function(trajectories, background, deathStates,
       strata = if (is.null(grouping)) character() else grouping$columns,
       negativeExcess = negativeExcess, estimator = "source_cycle_moment_calibration",
       mortality_stage = if (stageInput) stage else NULL, probabilityCeiling = probabilityCeiling,
-      excess_hazard_unit = "per day",
-      denominator = if (stageInput) "observed stage outcomes from nonabsorbing source states" else
-        "observed adjacent known pairs with a full nonabsorbing source cycle",
-      stratum_assignment = if (stageInput) "fitted stage-source covariate values" else
-        "original source-row values; pairs formed before grouping",
-      period_assignment = "source cycle start, days since index_date",
-      background_matching = "source-row covariates; separate background grouping rules",
-      age = "completed years at state_start_date when birth_date exists; otherwise supplied row age",
-      reference_weighting = "equal weights for eligible source cycles within each calibration cell",
-      calibration_target = if (is.null(probabilityCeiling))
-        "observed cycle death probability on the matched reference population" else
-        "explicitly capped cycle death probability on the matched reference population")),
+      excess_hazard_unit = "per day")),
     class = "tma_excess_mortality")
 }
