@@ -16,6 +16,12 @@
     stop("Install TrajectoryMarkovAnalysis before sourcing c2t-to-icer.R.", call. = FALSE)
   }
 
+  if (!"prepareStageObservations" %in%
+      getNamespaceExports("TrajectoryMarkovAnalysis")) {
+    stop("Update TrajectoryMarkovAnalysis and restart R to use prepareStageObservations().",
+         call. = FALSE)
+  }
+
   # 1. Supply dated target and state intervals. Dates include both endpoints.
   # "0" marks observation support. 001 has no pneumonia, 002 develops pneumonia,
   # 003 develops pneumonia then dies, 004 dies without pneumonia, and 005 is censored.
@@ -96,56 +102,51 @@
                select = c(from_state, to_state, count, denominator, probability)),
         row.names = FALSE)
 
-  # 4. Construct onset -> mortality observations from the ORIGINAL dated events.
-  # Example helper: these rules are analyst choices for this synthetic dataset,
-  # not a general event-to-stage adapter. Everyone starts without pneumonia.
-  # Death closes both outcomes. Otherwise, an event-free partial week has an
-  # unknown outcome: observed = FALSE excludes it from the stage denominator.
-  example_stage_observations <- function(events, states, cycle_length) {
-    patient_rows <- lapply(split(events, events$subject_id), function(person) {
-      target <- person[person$cohort_definition_id == "0", ]
-      index_date <- target$cohort_start_date
-      end_day <- as.numeric(target$cohort_end_date - index_date)
-      pneumonia_day <- min(c(as.numeric(
-        person$cohort_start_date[person$cohort_definition_id == states[2]] - index_date
-      ), Inf))
-      death_day <- min(c(as.numeric(
-        person$cohort_start_date[person$cohort_definition_id %in% states[3:4]] - index_date
-      ), Inf))
-      last_day <- min(end_day, death_day)
+  # 4. Build a second C2T view of the same weeks, retaining pneumonia history.
+  # The final view above keeps death as the weekly outcome. The history view
+  # omits death labels so they cannot hide pneumonia recorded earlier that week.
+  # Both views use the same patients, index dates, weekly grid and follow-up end.
+  # C2T selects each view's labels; TMA does not infer clinical events from them.
+  final_view <- trajectories
+  history_input <- subset(input, !cohort_definition_id %in% death_states)
+  final_end <- stats::aggregate(state_end_date ~ subject_id, data = clinical, FUN = max)
+  target_rows <- history_input$cohort_definition_id == "0"
+  history_input$cohort_end_date[target_rows] <- final_end$state_end_date[
+    match(history_input$subject_id[target_rows], final_end$subject_id)
+  ]
+  history_study <- Cohort2Trajectory::cohort2TrajectoryConfiguration(
+    studyName = "WeeklyHistoryExample", pathToStudy = study_path,
+    useCDM = FALSE, trajectoryDataObject = history_input,
+    stateCohortLabels = alive_states,
+    stateCohortPriorityOrder = rev(alive_states),
+    stateCohortAbsorbing = character(0),
+    allowedStatesList = stats::setNames(list(alive_states, states[2]), alive_states),
+    stateSelectionType = "Priority", trajectoryType = "Discrete",
+    cycleLength = cycle_length
+  )
+  Cohort2Trajectory::getDataForStudy(studyEnv = history_study)
+  history_view <- Cohort2Trajectory::createTrajectories(studyEnv = history_study)
 
-      cycle_rows <- lapply(seq(0, last_day, by = cycle_length), function(day) {
-        cycle_end <- day + cycle_length - 1
-        observed_end <- min(cycle_end, last_day)
-        had_pneumonia <- pneumonia_day < day
-        has_pneumonia <- pneumonia_day <= observed_end
-        died <- death_day <= observed_end
-        complete <- end_day >= cycle_end || died
-        before <- states[if (had_pneumonia) 2 else 1]
-        after_onset <- states[if (has_pneumonia) 2 else 1]
-        after_mortality <- if (died) {
-          states[if (has_pneumonia) 4 else 3]
-        } else {
-          after_onset
-        }
-        observed <- c(has_pneumonia || complete, complete)
-        data.frame(
-          subject_id = target$subject_id, source_day = day,
-          stage = c("onset", "mortality"),
-          from_state = c(before, after_onset),
-          to_state = ifelse(observed, c(after_onset, after_mortality), NA_character_),
-          observed = observed
-        )
-      })
-      do.call(rbind, cycle_rows)
-    })
-    do.call(rbind, patient_rows)
-  }
-  stage_observations <- example_stage_observations(input, states, cycle_length)
+  # Compare 003's history before death and 005's incomplete censored week.
+  view_columns <- c("subject_id", "state_label", "state_start_date", "state_end_date")
+  print(subset(history_view, subject_id %in% c("003", "005") &
+                 !state_label %in% c("START", "EXIT"), select = view_columns),
+        row.names = FALSE)
+  print(subset(final_view, subject_id %in% c("003", "005") &
+                 !state_label %in% c("START", "EXIT"), select = view_columns),
+        row.names = FALSE)
+
+  # Each weekly cycle contains onset followed by mortality. Everyone enters
+  # without pneumonia; subsequent cycles start at the preceding final state.
+  # A complete last week counts without a later week. Death closes its week;
+  # an incomplete censored week is unobserved for both stages and is excluded.
+  stage_observations <- TrajectoryMarkovAnalysis::prepareStageObservations(
+    trajectories = list(onset = history_view, mortality = final_view),
+    entryState = states[1], requireNextCycle = FALSE
+  )
   print(subset(stage_observations, subject_id %in% c("003", "005")), row.names = FALSE)
   fitted_stages <- TrajectoryMarkovAnalysis::estimateStageTransitions(
-    stage_observations, stageOrder = c("onset", "mortality"),
-    definition = histories, identityStates = list(onset = states[2])
+    stage_observations, identityStates = list(onset = states[2])
   )
   print(subset(fitted_stages$estimates, !structural & count > 0,
                select = c(stage, from_state, to_state, count, denominator, probability)),
@@ -243,7 +244,8 @@
 
   # source(... )$value retains these results if you want to inspect them further.
   invisible(list(
-    trajectories = trajectories, histories = histories, adjacent = adjacent,
+    trajectories = trajectories, history_view = history_view, final_view = final_view,
+    histories = histories, adjacent = adjacent,
     stage_observations = stage_observations, fitted_stages = fitted_stages,
     fitted_costs = fitted_costs, reference = reference, intervention = intervention,
     reference_outcomes = reference_outcomes, intervention_outcomes = intervention_outcomes,

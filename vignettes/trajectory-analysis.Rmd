@@ -78,9 +78,32 @@ price index when amounts span price years.
 
 ## Declare event order when the study needs it
 
-An end-of-week state cannot reveal whether a complication preceded death
-within that week. Supply explicit stage observations to
-`estimateStageTransitions()` when those events are observed. Supply matrices
+An end-of-week state alone cannot reveal all events within that week.
+For an onset-then-mortality model, C2T can produce two aligned views: one that
+retains complication history, including in the death week, and one that records
+the final outcome. Both must use the same patients and observation boundaries.
+`prepareStageObservations()` pairs these views within each cycle:
+
+```{r paired-views, eval=FALSE}
+observations <- prepareStageObservations(
+  list(onset = history_view, mortality = final_view),
+  entryState = "Stable"
+)
+fitted <- estimateStageTransitions(
+  observations, identityStates = list(onset = "Complication")
+)
+```
+
+The first stage starts from the previous cycle's final outcome, or the explicit
+entry state for the first cycle. Each later stage starts from the preceding
+view in the same cycle. A censored partial cycle is excluded; a terminal outcome
+supplies an outcome even in a short cycle. Set `requireNextCycle = TRUE` if the
+study also requires another observed cycle to establish a nonterminal outcome.
+The helper does not infer event order from labels. The analyst defines the
+views and their order. See `examples/c2t-to-icer.R` for both C2T runs.
+
+For other observation rules, supply stage rows directly to
+`estimateStageTransitions()`. Supply matrices
 to `composeTransitionStages()` when the stage probabilities come from an
 external source or a defined scenario.
 

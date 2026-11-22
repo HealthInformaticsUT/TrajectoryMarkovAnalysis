@@ -1,12 +1,13 @@
 #' Estimate ordered stages from explicitly supplied observations
 #'
-#' @param observations Data frame with subject_id, source_day, stage, from_state,
+#' @param observations Output of prepareStageObservations(), or a data frame with subject_id, source_day, stage, from_state,
 #'   to_state and observed. Each subject/day/stage has at most one row.
 #'   observed must be logical. FALSE records an unevaluable outcome, which is
 #'   excluded from its stage denominator. An unobserved to_state may be NA.
 #'   Covariate columns are preserved. Optional index_date and birth_date allow
 #'   mortality calibration to calculate age on the source day.
 #' @param stageOrder Unique stage names in the order they operate within a cycle.
+#'   Inherited from prepareStageObservations() when omitted.
 #'   Names "start", "end" and "transition" are reserved for interval accounting.
 #' @param cycleLength Positive integer days per complete cycle. Inherited from
 #'   definition when omitted. Supply it explicitly if definition has no cycle.
@@ -22,9 +23,12 @@
 #' @param definition Optional prepared trajectories or Cohort2Trajectory data
 #'   frame carrying trajectory_definition. Supplies omitted cycleLength, states
 #'   and absorbingStates; conflicting explicit arguments are rejected. Raw
-#'   definition lists are not accepted. A continuous source supplies labels only;
+#'   definition lists are not accepted. The definition attached by
+#'   prepareStageObservations() is used when definition is omitted.
+#'   A continuous source supplies labels only;
 #'   an explicit cycleLength defines the supplied stage observations.
-#' @details The analyst supplies stage membership, event order and evaluability.
+#' @details The analyst supplies stage membership, event order and evaluability,
+#'   either directly or through aligned views passed to prepareStageObservations().
 #'   This function does not infer intermediate events from weekly labels.
 #'   First-cycle observations are included when observed is TRUE. A censored
 #'   outcome is not a self-transition. Unknown nonstructural rows stay NA.
@@ -42,11 +46,34 @@
 #'   stratum registry. Counts, denominators and distinct supporting patients
 #'   are returned for every stage/state/period, including unsupported cells.
 #' @export
-estimateStageTransitions <- function(observations, stageOrder, cycleLength = NULL,
+estimateStageTransitions <- function(observations, stageOrder = NULL, cycleLength = NULL,
                                      states = NULL, absorbingStates = character(),
                                      identityStates = list(), periodBreaks = NULL,
                                      periodLabels = NULL, strata = NULL,
                                      definition = NULL) {
+  declaredOrder <- attr(observations, "stage_order", exact = TRUE)
+  if (!is.null(declaredOrder) && is.data.frame(observations) && "stage" %in% names(observations)) {
+    declaredOrder <- declaredOrder[declaredOrder %in% observations$stage]
+  }
+  if (is.null(stageOrder)) {
+    stageOrder <- declaredOrder
+  } else if (!is.null(declaredOrder) && !identical(stageOrder, declaredOrder)) {
+    stop("stageOrder conflicts with the order of the prepared stage observations.", call. = FALSE)
+  }
+  if (!is.null(attr(observations, "trajectory_definition", exact = TRUE))) {
+    if (is.null(definition)) {
+      definition <- observations
+    } else {
+      suppliedDefinition <- .tmaTrajectoryDefinition(definition, preparedFields = TRUE)
+      if (is.null(suppliedDefinition)) {
+        stop("definition must supply a trajectory definition.", call. = FALSE)
+      }
+      .tmaResolveTrajectoryDefinition(.tmaTrajectoryDefinition(observations),
+        suppliedDefinition$cycleLength, suppliedDefinition$states,
+        suppliedDefinition$absorbingStates,
+        supplied = c(cycleLength = TRUE, states = TRUE, absorbingStates = TRUE))
+    }
+  }
   supplied <- c(cycleLength = !missing(cycleLength), states = !missing(states),
                 absorbingStates = !missing(absorbingStates))
   if (!is.null(definition)) {

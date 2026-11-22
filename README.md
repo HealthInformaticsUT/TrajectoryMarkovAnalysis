@@ -97,9 +97,14 @@ example_results <- source(system.file(
 example_results$comparison
 ```
 
-This five-patient example uses invented costs and effects. It keeps the same
-completed-interval accounting for projected and simulated economic outcomes.
-Example helpers are explicitly labelled and are not package functions.
+This five-patient example runs C2T twice on the same weekly grid: a pneumonia
+history view preserves events before death, and a final-outcome view records
+death. `prepareStageObservations()` aligns these views for onset followed by
+mortality within each week. State definitions and this stage order are analyst
+choices; the helper does not infer clinical events. Complete final weeks count
+by default, while incomplete censored weeks are excluded from both stages.
+Prevention changes only onset. The example uses invented costs and effects,
+with the same completed-interval accounting for projected and simulated outcomes.
 
 ## Define economic assumptions once
 
@@ -137,7 +142,7 @@ outcomes stay `NA`. Detailed tables remain available on the result objects.
 | Task | Public functions |
 | --- | --- |
 | Validate histories and estimate adjacent-cycle transitions | `prepareTrajectories()`, `estimateTransitions()` |
-| Estimate analyst-defined events within a cycle | `estimateStageTransitions()` |
+| Align C2T views and estimate ordered events within a cycle | `prepareStageObservations()`, `estimateStageTransitions()` |
 | Estimate first-cycle outcomes from declared starting states | `estimateEntryTransitions()` |
 | Extract, adjust and allocate recorded costs | `extractCosts()`, `adjustCostPrices()`, `estimateStateCosts()` |
 | Combine supplied stages and project expected outcomes | `composeTransitionStages()`, `projectCohort()` |

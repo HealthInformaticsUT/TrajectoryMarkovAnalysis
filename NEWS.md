@@ -1,5 +1,11 @@
 # TrajectoryMarkovAnalysis 1.1.0.9000
 
+* `prepareStageObservations()` aligns two or more C2T trajectory views in
+  the specified within-cycle order. It checks matching patient-cycle boundaries
+  and absorbing states, and passes definitions and stage order to
+  `estimateStageTransitions()`. The connected example now uses separate onset
+  and mortality views.
+
 * Result metadata no longer repeats explanatory paragraphs from function help.
   Model definitions, input provenance, units, support counts and settings needed
   to validate, compare and resume analyses are retained.
