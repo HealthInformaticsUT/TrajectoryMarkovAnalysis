@@ -2,10 +2,15 @@ Package: TrajectoryMarkovAnalysis
 Type: Package
 Title: Estimate and Simulate Discrete Patient Trajectories
 Version: 1.2.0
-Authors@R: person("Markus", "Haug", email = "markus.haug@ut.ee",
-    role = c("aut", "cre"), comment = c(ORCID = "0000-0003-0935-3307"))
+Authors@R: c(
+    person("Markus", "Haug", email = "markus.haug@ut.ee",
+        role = c("aut", "cre"), comment = c(ORCID = "0000-0003-0935-3307")),
+    person("Raivo", "Kolde", role = "aut",
+        comment = c(ORCID = "0000-0003-2886-6298")))
 Description: Estimates transitions and recorded healthcare costs from patient
-    trajectories, including histories created by 'Cohort2Trajectory'. Supports
+    trajectories, including histories created by the optional 'Cohort2Trajectory'
+    package (available from
+    <https://github.com/HealthInformaticsUT/Cohort2Trajectory>). Supports
     follow-up periods, time-varying covariates, explicitly ordered transition
     stages, deterministic cohort projection and patient simulation. Cost records
     can be supplied locally or extracted through 'CDMConnector'. Explicit
