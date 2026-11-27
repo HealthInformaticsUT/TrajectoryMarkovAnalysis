@@ -33,7 +33,10 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck
+          extra-packages: |
+            any::rcmdcheck
+            Cohort2Trajectory=github::HealthInformaticsUT/Cohort2Trajectory@main
+            CirceR=?ignore
           needs: check
       - uses: r-lib/actions/check-r-package@v2
         with:
