@@ -43,5 +43,11 @@ Explicit cycleLength, states or absorbingStates must agree with an
   order does not matter. A continuous definition retains a NULL cycle length.
   The compact definition is retained on the prepared object, including after
   serialization, and is removed from its data component. It contains no
-  patient data. Plain data frames keep the explicit-argument workflow.
+  patient data. Data frames without this attribute use the argument values.
+  Allowed-transition rules are not validated.
+
+  One observation episode per subject is supported. Use
+  targetEpisodeHandling = "First" when generating Cohort2Trajectory output.
+  Its "All" mode and rows with multiple episode_id values per subject are
+  rejected. One nonmissing episode_id per subject is retained as metadata.
 }

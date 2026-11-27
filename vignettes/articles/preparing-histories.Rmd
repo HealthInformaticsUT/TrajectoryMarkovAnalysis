@@ -1,0 +1,111 @@
+---
+title: "Prepare patient histories"
+description: "Prepare Cohort2Trajectory output or local interval rows for transition and cost analysis."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(TrajectoryMarkovAnalysis)
+invisible(capture.output(source(system.file(
+  "examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"
+), local = TRUE)))
+```
+
+`prepareTrajectories()` validates interval rows and records the state dictionary,
+cycle length and observation boundaries used by later analyses.
+
+The examples use synthetic data from the
+[quickstart script](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/quickstart.R).
+To load the same objects in R:
+
+```{r load-example, eval=FALSE}
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
+
+## Supply the interval columns
+
+A local data frame needs these four columns. Dates include both endpoints.
+
+| Column | Meaning |
+|:--|:--|
+| `subject_id` | Patient identifier. Preserve large or zero-prefixed IDs as text. |
+| `state_label` | Clinical state for the interval. |
+| `state_start_date` | First observed date in the state. |
+| `state_end_date` | Last observed date in the state. |
+
+```{r prepare}
+histories <- prepareTrajectories(
+  trajectories, cycleLength = 7,
+  states = c("Stable", "Complication", "Dead"), absorbingStates = "Dead"
+)
+histories
+```
+
+`cycleLength` is needed for discrete transition and occupancy analyses. It can
+remain `NULL` for interval-based cost estimation. `states` is optional when the
+observed labels cover the intended dictionary; supply it to include unobserved
+states or choose their order. Declare absorbing states explicitly.
+
+Extra columns, such as birth date or treatment status, are preserved. Preparation
+does not infer clinical states or validate allowed-transition rules from C2T.
+
+## Use Cohort2Trajectory output
+
+C2T's default `targetEpisodeHandling = "First"` output carries a
+`trajectory_definition` attribute. It supplies omitted cycle length, ordered
+states and absorbing states. Explicit arguments must agree with it.
+
+For your own first-episode output:
+
+```{r c2t-input, eval=FALSE}
+histories <- prepareTrajectories(c2t_output)
+saveRDS(c2t_output, "trajectories.rds")
+```
+
+RDS preserves the definition; CSV does not. After importing a CSV, supply the
+model definitions explicitly as in the local-data example.
+
+C2T's `"All"` mode uses version 2 metadata and patient–episode identity. TMA
+currently supports one target episode per patient. Use `"First"` output for
+this workflow; do not remove episode metadata to combine episodes into one
+patient history.
+
+## Check boundaries and unresolved intervals
+
+`START` and `EXIT` are observation markers. `OUT OF COHORT` is an unresolved
+interval. None belongs in the clinical state dictionary.
+
+Preparation rejects duplicate intervals, overlaps and leaving a declared
+absorbing state. With a cycle length, starts must align with the patient's
+index date and only the final observed cycle may be short. Each patient needs
+at least one observed interval.
+
+Without boundary markers, TMA uses the first and last observed intervals.
+Those dates cannot independently verify the original observation window.
+
+```{r inspect-boundaries}
+histories$patients
+histories$diagnostics
+```
+
+## Define groups before estimation
+
+Numeric strata use exact values. Make age bands explicitly when that is the
+intended analysis. Groups include the lower boundary and exclude the upper.
+
+```{r group-covariates}
+rows <- trajectories
+rows$birth_date <- as.Date("1961-01-08")
+groups <- list(age_group = list(
+  column = "age", breaks = c(0, 65, Inf), labels = c("Under 65", "65+")
+))
+grouped_rows <- addCovariateGroups(rows, groups, dateColumn = "state_start_date")
+head(grouped_rows[c("subject_id", "state_start_date", "age", "age_group")], 4)
+```
+
+With dates, age is completed calendar years at the row's start. This helper
+does not split an interval at a birthday. Covariates must represent information
+available at the start of each source interval.
+
+Next: [estimate transitions](estimating-transitions.html), or go directly to
+[recorded costs](costs-and-economic-outcomes.html) without fitting transitions.

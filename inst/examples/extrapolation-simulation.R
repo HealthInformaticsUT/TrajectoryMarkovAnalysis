@@ -1,5 +1,4 @@
-# Every patient, probability, price and utility here is synthetic.
-# The short periods make the handover easy to inspect, not clinically realistic.
+# Synthetic data illustrate switching to a supplied late-phase model.
 library(TrajectoryMarkovAnalysis)
 
 states <- c("Stable", "Complication", "Dead")
@@ -14,8 +13,7 @@ fitted <- estimateTransitions(observed, cycleLength = 7,
   states = states, absorbingStates = "Dead")
 original <- createModelBundle(fitted)
 
-# These external full-cycle probabilities are explicit assumptions. Wrapping
-# each in a single stage does not claim separate within-week event timings.
+# Supply full-cycle probabilities as a single stage in each period.
 early <- rbind(Stable = c(0.8, 0.1, 0.1),
                Complication = c(0, 0.8, 0.2), Dead = c(0, 0, 1))
 late <- rbind(Stable = c(0.9, 0.05, 0.05),
@@ -31,7 +29,7 @@ extended <- extendModelBundle(original, fromDay = 14, transitions = supplied,
 
 # Original estimates still apply to source days 0 and 7. At source day 14,
 # model_day becomes 0 for the external model. Its Later period starts at global
-# day 28. The supplied cutoff is a modelling choice, not inferred from the data.
+# day 28. The cutoff is supplied by the analyst.
 population <- data.frame(
   subject_id = paste0("scenario_", 1:30),
   state_label = rep(c("Stable", "Complication"), c(20, 10))
@@ -61,8 +59,7 @@ summaries <- lapply(list(standard = standard, treated = treated), function(x) {
     utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0))
 })
 comparison <- compareScenarios(summaries$standard, summaries$treated)
-# These small samples can differ through random variation. A shared seed does
-# not guarantee paired patient draws or a favourable incremental result.
+# A shared seed gives reproducibility but does not pair patient draws.
 print(comparison$outcomes)
 print(comparison$metadata$extrapolation)
 
@@ -81,6 +78,4 @@ stopifnot(
     standard$transitions$source_day == 28] == 14)
 )
 
-# This example supplies a complete late-phase model, not a mortality algorithm.
-# There is no background-mortality lookup, hazard conversion or fitted decay.
-# Costs, entry probabilities and discounting are configured separately.
+# For mortality extrapolation, see future-mortality-simulation.R.

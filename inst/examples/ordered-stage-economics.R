@@ -46,4 +46,4 @@ sampled <- simulateTrajectories(createModelBundle(fit), n = 1000,
   transitionEffects = effect, seed = 192)
 sampled_outcomes <- summariseOutcomes(sampled, intervention_rewards, nCycles = 52)
 print(outcomeTotals(sampled_outcomes))
-# The sample varies around the expected results. It is not a parameter-uncertainty analysis.
+# Sampled paths vary around the expected results; model parameters remain fixed.

@@ -21,9 +21,8 @@ print(background$strata)
 print(background$models[[1]]$matrix)
 print(background$models[[1]]$metadata$mortality)
 
-# In this deliberately simple starting model nobody changes state. The switch
-# at day 14 introduces only background mortality. It does not add mortality to
-# existing estimates, or claim that a complication's excess mortality vanishes.
+# The initial model keeps everyone in their starting state. From day 14,
+# background mortality is the only cause of state changes.
 unchanged <- diag(length(states))
 dimnames(unchanged) <- list(states, states)
 original <- createModelBundle(composeTransitionStages(

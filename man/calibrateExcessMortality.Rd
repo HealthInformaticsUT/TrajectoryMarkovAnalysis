@@ -35,7 +35,7 @@ used and must not be attached to this reference bundle.}
 These must be declared absorbing states in prepared trajectories.}
 
 \item{cycleLength}{Positive integer cycle length in days. Required unless
-stored in prepared trajectories.}
+supplied by a trajectory definition, prepared trajectories or a fitted stage model.}
 
 \item{periodBreaks}{Period boundaries in days since each patient's index,
 using the same rules as estimateTransitions(). NULL pools all follow-up.}
@@ -102,11 +102,11 @@ With stage input, periods and strata come from the fitted model.
   moment calibration, not an individual event-time likelihood fit.
 
   For a common excess hazard e, the mean reconstructed death probability is
-  1 - (1 - b) * exp(-e * cycleLength). Without flooring it reproduces q on the
-  reference cycles. It need not reproduce the same aggregate probability in a
+  1 - (1 - b) * exp(-e * cycleLength). Without flooring or a probability cap,
+  it reproduces q on the reference cycles. It need not reproduce that probability in a
   future population with a different covariate distribution. A matched
-  background probability of one or a supported cell in which every cycle
-  ends in death cannot yield this finite-hazard calibration and is rejected.
+  background probability of one cannot yield a finite calibration. A supported
+  cell in which every outcome is death requires an explicit probabilityCeiling.
 
   The calculation does not correct informative censoring, establish a causal
   disease effect, provide confidence intervals or infer a future decline in

@@ -24,6 +24,16 @@
 
 .tmaValidateTrajectoryDefinition <- function(definition) {
   fields <- c("version", "trajectoryType", "cycleLength", "states", "absorbingStates")
+  episodeFields <- c("identityColumns", "timeOrigin", "targetEpisodeHandling",
+                     "stopAfterAbsorbingEpisode")
+  if (is.list(definition) && !is.object(definition) &&
+      identical(names(attributes(definition)), "names") &&
+      !anyDuplicated(names(definition)) &&
+      setequal(names(definition), c(fields, episodeFields)) &&
+      identical(definition$version, 2L)) {
+    stop("Multiple target episodes per subject are not supported. Generate Cohort2Trajectory output with targetEpisodeHandling = \"First\".",
+         call. = FALSE)
+  }
   if (!is.list(definition) || is.object(definition) ||
       !identical(names(attributes(definition)), "names") ||
       is.null(names(definition)) || anyDuplicated(names(definition)) ||

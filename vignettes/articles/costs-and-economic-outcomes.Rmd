@@ -1,0 +1,143 @@
+---
+title: "Estimate costs and compare economic outcomes"
+description: "Allocate recorded expenditure and choose completed-interval or full-label outcome accounting."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(TrajectoryMarkovAnalysis)
+invisible(capture.output(source(system.file(
+  "examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"
+), local = TRUE)))
+```
+
+Recorded cost estimation and future economic assumptions are separate steps.
+Examples use the synthetic
+[quickstart data](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/quickstart.R):
+
+```{r load-example, eval=FALSE}
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
+
+## Estimate expenditure from observed records
+
+```{r estimate-costs}
+costs <- estimateStateCosts(histories, cost_records, terminalCostMap = c(Dead = "Stable"))
+costs$estimates[c("cost_state", "observed_days", "total_cost", "mean_cost_per_day")]
+```
+
+Local records need `subject_id`, `event_date` and `amount`. Estimation does not
+need a transition model. Daily means divide recorded amounts by **all observed
+state-days**, including days without a cost record. No matching record means
+zero recorded cost; a missing amount makes its affected total and mean `NA`.
+States without observed days have no estimate. Currencies stay separate.
+
+For your own connected CDM, choose the cost measure and domains explicitly:
+
+```{r extract-costs, eval=FALSE}
+cost_events <- extractCosts(
+  cdm, histories, measure = "total_charge", domains = c("Visit", "Drug"),
+  allocation = "duration"
+)
+costs <- estimateStateCosts(histories, cost_events)
+```
+
+`cdm` is your existing CDMConnector reference. The extractor keeps the connection
+open. Visit filters select associated expenditure without changing the observed-day
+denominator; qualifying records can select earlier costs from the same visit.
+Check whether visit charges already include itemised costs before combining domains.
+
+Start allocation assigns the full charge to `event_date`. Duration allocation
+spreads it over the original inclusive service interval; local records also need
+`event_end_date`. A seven-day charge of 700 with five resolved observed days
+allocates 500 and leaves 200 unallocated. Inspect `allocatedCosts` and
+`unallocatedCosts`; sum `amount`, not repeated `original_amount` values.
+
+`terminalCostMap` moves terminal costs **and observed days** to a nonabsorbing
+cost state, without changing clinical histories. `adjustCostPrices()` uses a
+supplied currency-specific price index before allocation. See the
+[price-adjustment example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/price-adjustment.R).
+
+## Choose the accounting horizon
+
+| Path | Functions | Four weekly steps |
+|:--|:--|:--|
+| Completed intervals | `createRewardModel()`, `summariseOutcomes()` | Four intervals, 28 days |
+| Full cycle labels | `projectCosts()`, `summariseSimulation()` | Five labels, 35 days |
+
+The day totals assume continuous living occupancy. Intermediate stages add no
+time. Neither path infers within-cycle death times or a half-cycle correction.
+
+## Account for completed intervals
+
+```{r interval-rewards}
+rewards <- createRewardModel(
+  stateCosts = c(Stable = 100, Complication = 200, Dead = 0),
+  aliveStates = c("Stable", "Complication"),
+  utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0),
+  currency = "EUR", priceYear = 2026,
+  costDiscountRate = 0.035, healthDiscountRate = 0.035
+)
+reference <- summariseOutcomes(projection, rewards)
+outcomeTotals(reference, perPatient = TRUE)
+```
+
+State costs are amounts per completed interval. The final endpoint adds no
+recurring cost or living time. `costTiming` and `healthTiming` independently
+select the start, end or state after a named stage; discount timing is separate.
+`transitionCosts` can charge named-stage or net events. `upfrontCosts` applies once.
+
+This path accepts projections and uncosted simulations with explicit starting
+states. It rejects fitted entry models and simulations carrying cost rules or
+a cost model. The boundary `entryState` used to prepare stage observations is
+compatible; it is distinct from a fitted `entry` outcome model.
+
+## Charge full labelled cycles
+
+Raw cost estimates in a bundle are descriptive. Activate fitted healthcare
+charging with an explicit cost model:
+
+```{r healthcare-model}
+healthcare <- createCostModel(
+  costs, unit = "day", currency = "EUR", priceYear = 2026, terminal = "entry"
+)
+run <- simulateTrajectories(
+  createModelBundle(transitions, costs = healthcare), n = 100,
+  initial = c(Stable = 1), nSteps = 4, terminalStates = "Dead", seed = 42
+)
+labelled <- summariseSimulation(
+  run, aliveStates = c("Stable", "Complication"),
+  utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0)
+)
+outcomeTotals(labelled, perPatient = TRUE)
+```
+
+Daily models integrate a full label, splitting cost periods when needed. Cycle
+models multiply the daily mean by the supplied matching cycle length. Terminal
+entry charges one full label with `terminal = "entry"`; `"none"` suppresses it.
+Initially terminal patients and subsequent terminal residency are not charged.
+Manual `costRules` add entry, once, recurring or transition components.
+
+`summariseSimulation()` reads saved charges. Every living label, including the
+initial and final labels, contributes full-cycle health time: 52 weekly steps
+can represent 53 weeks. Discounting uses recorded label-start `elapsed_day`.
+For projections, `projectCosts()` charges stipulated state and net-transition
+costs across labels, with no discounting or health calculation. Fitted entry adds
+no baseline cycle, although explicit entry fees or transition charges can apply.
+
+## Compare compatible scenarios
+
+```{r compare-outcomes}
+intervention_rewards <- updateRewardModel(rewards, upfrontCosts = c(programme = 50))
+intervention <- summariseOutcomes(projection, intervention_rewards)
+comparison <- compareScenarios(reference, intervention)
+comparison$costEffectiveness
+```
+
+`updateRewardModel()` replaces entire supplied fields. Comparisons require the
+same accounting path and compatible populations, horizons and health definitions.
+Use `scenarioCovariates` for explicit treatment-assignment differences. Incremental
+values are intervention minus reference. ICERs are reported for positive health
+gain and nonnegative incremental cost; dominance receives a separate status.
+Uncomputed outcomes stay `NA`. Prices, discount rates and willingness to pay are
+analyst inputs. See [interventions and future mortality](interventions-and-future-mortality.html).

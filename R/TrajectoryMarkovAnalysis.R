@@ -6,8 +6,8 @@
 #'
 #' @param trajectories Current Cohort2Trajectory output or prepared trajectories.
 #' @param cycleLength Days per cycle. Required for transition estimation unless
-#'   already recorded by prepareTrajectories().
-#' @param absorbingStates Explicit clinical terminal-state labels. START and
+#'   supplied by the trajectory definition or prepared trajectories.
+#' @param absorbingStates Clinical absorbing state labels. START and
 #'   EXIT are administrative markers, not clinical states.
 #' @param states Optional complete state-label vector, including unobserved states.
 #' @param analyses One or both of "transitions" and "costs". The default only
@@ -38,9 +38,7 @@
 #'   Only valid when analyses includes "costs".
 #' @return A list containing transitions, costs and the prepared trajectories.
 #'   An analysis not requested has a NULL result. No connection is stored.
-#' @details This interface replaces the former database-driven workflow.
-#'   It does not run the legacy GUI, continuous-time model, simulation or
-#'   first-state cost reports. Transitions use the source cycle's period.
+#' @details Transitions use the source cycle's period.
 #'   Costs use the selected allocation rule and split observed days at period
 #'   boundaries. Duration allocation retains unobserved shares for review rather
 #'   than redistributing them across observed days. Within-cycle models require

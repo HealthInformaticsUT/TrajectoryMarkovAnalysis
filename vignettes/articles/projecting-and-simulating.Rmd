@@ -1,0 +1,139 @@
+---
+title: "Project cohorts and simulate patients"
+description: "Choose starting profiles, inspect occupancy and update patient covariates during simulation."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(TrajectoryMarkovAnalysis)
+invisible(capture.output(source(system.file(
+  "examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"
+), local = TRUE)))
+```
+
+Use `projectCohort()` for expected occupancy of a fixed cohort. Use
+`simulateTrajectories()` when individual states, eligibility or covariates must
+be updated. Both use supplied probabilities; neither estimates new models.
+
+Examples use the [quickstart objects](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/quickstart.R).
+Load them in a new R session with:
+
+```{r load-example, eval=FALSE}
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
+
+## Project a fixed starting distribution
+
+```{r project}
+projection <- projectCohort(
+  transitions, nCycles = 4, initial = c(Stable = 1), cohortSize = 100
+)
+head(projection$occupancy, 6)
+transitionMatrix(projection, cycle = 0)
+```
+
+Four steps produce five distributions: the initial label and four subsequent
+labels. Expected counts can be fractional. Each step selects the matrix using
+the source cycle's elapsed day. The final period remains in use for the requested
+horizon; an infinite period does not establish empirical lifetime validity.
+
+Without `initial` or `entry`, projection uses the fitted `entryCounts` first-label
+mix. A named `initial` vector supplies first-label probabilities; omitted known
+states receive zero. Supplied stage models need an explicit start or entry model.
+For a stratified fit, select one element of `models` to project that group.
+
+An unavailable row is harmless while its state has zero mass. If a step needs
+that row, projection stops. `flows` distinguishes conditional probabilities
+from the whole cohort's probability mass. Absorbing self-transitions retain
+occupancy; they are not new deaths. Ordered models also retain `stageFlows`.
+
+## Apply entry once, when needed
+
+```{r project-entry}
+entry <- estimateEntryTransitions(histories, entryState = "Stable")
+from_entry <- projectCohort(transitions, nCycles = 3, entry = entry, cohortSize = 100)
+from_entry$entry$baseline_distribution
+```
+
+In `projectCohort()`, non-`NULL` `initial` and `entry` are mutually exclusive.
+Entry uses its eligible baseline mix to generate the first label at cycle zero.
+It adds no timepoint, baseline living time or recurring baseline charge.
+`nCycles = 0` applies entry alone. Three subsequent steps produce labels 0–3.
+A manually calculated first-label mix can reproduce occupancy through `initial`,
+while an entry model also retains baseline-to-outcome flows and entry effects.
+
+## Simulate explicit patients or distributions
+
+```{r simulate}
+bundle <- createModelBundle(transitions)
+simulation <- simulateTrajectories(
+  bundle, n = 100, initial = c(Stable = 1), nSteps = 4,
+  terminalStates = "Dead", seed = 42
+)
+head(simulation$population, 3)
+```
+
+A bundle stores models and grouping rules, without a training population.
+For stratified simulation, supply a `population` with one snapshot per patient
+and the required covariates. Optional `subject_id` must be unique. Omit `n` to
+use every profile once; `n` and `replace = TRUE` sample profiles with replacement.
+`simulation_id` identifies each draw and `source_subject_id` records its source.
+
+A named `initial` vector replaces sampled states independently of covariates.
+Without a population, stratified models need a joint `initial` table containing
+`state_label`, `probability` and covariates. All supplied positive-probability
+starting profiles must have support, including profiles not eventually drawn.
+
+Simulation can combine `entry` with explicit baseline profiles or `initial`;
+it does not adopt the entry estimator's training population or baseline mix.
+Entry requires zero starting clocks, runs once before the initial snapshot,
+and does not call `updateCovariates`. Stratified entry selects baseline groups
+once; later transition grouping remains dynamic. See the
+[entry example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/entry-simulation.R).
+
+## Advance time and update covariates
+
+`elapsed_day` and `cycle` default to zero. Days must align with the cycle length.
+A step selects the source model, draws the state, advances time, updates
+nonterminal covariates, then recomputes groups for the next draw.
+
+With `birth_date` and `index_date` Date columns, age is completed calendar years
+at `index_date + elapsed_day`. Numeric age alone changes only through a callback:
+
+```{r update-age}
+profiles <- data.frame(subject_id = "example", state_label = "Stable", age = 64.99)
+age_run <- simulateTrajectories(
+  bundle, population = profiles, nSteps = 2, terminalStates = "Dead", seed = 42,
+  updateCovariates = function(current, previous) data.frame(
+    simulation_id = current$simulation_id,
+    age = previous$age + (current$elapsed_day - previous$elapsed_day) / 365.25
+  )
+)
+age_run$population[c("simulation_id", "elapsed_day", "age")]
+```
+
+Callbacks return `simulation_id` plus changed raw covariates. IDs, states, clocks,
+age-defining dates and derived groups are protected. Use the same grouping rules
+before fitting and in the bundle. A final destination may have no matching
+model, but the next draw from it fails; there is no pooled fallback.
+
+## Inspect and resume a run
+
+`trajectories` stores labelled snapshots, `transitions` stores actual draws,
+and `population` stores the latest snapshot. Ordered draws also populate
+`stageTransitions`. Terminal covariates stay fixed while other patients continue.
+
+```{r resume}
+continued <- advanceSimulation(simulation, nSteps = 2)
+continued$metadata$steps
+```
+
+Resume retains rules, charged-component memory and the private RNG checkpoint.
+The last snapshot is not charged twice. Split runs match uninterrupted runs when
+callbacks depend on their arguments and saved configuration. Terminal or custom
+stopping remains final. Supply an explicit seed for reproducible initialization.
+
+For observed occupancy, use `summariseOccupancy()` and inspect `coverage`.
+`compareOccupancy()` is descriptive: its observed available-state denominator
+can shrink, while projection keeps a fixed cohort. Continue to
+[economic accounting](costs-and-economic-outcomes.html).

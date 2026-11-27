@@ -1,0 +1,108 @@
+---
+title: "Getting started"
+description: "Fit transitions, project a cohort and calculate outcomes from synthetic single-episode histories."
+---
+
+This example uses one synthetic history per patient. It fits transitions,
+projects a cohort and calculates economic outcomes without a database.
+
+## Install the package
+
+From a checkout of the
+[repository](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis),
+set R's working directory to the package folder and install its `Imports`
+dependencies from `DESCRIPTION`. Then install the checkout:
+
+```r
+install.packages(".", repos = NULL, type = "source")
+```
+
+Restart R if an older TMA build was loaded. `CDMConnector` is needed for
+database-backed cost extraction; Cohort2Trajectory is needed for examples that
+create histories through C2T.
+
+## Run the synthetic example
+
+```{r quickstart, results='hide', message=FALSE}
+library(TrajectoryMarkovAnalysis)
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"),
+       local = TRUE)
+```
+
+The script creates `trajectories`, `histories`, `transitions`, `projection`,
+`cost_records` and `costs`. Each patient has one history on a seven-day grid,
+using `Stable`, `Complication` and absorbing `Dead` states. All amounts and
+probabilities are illustrative.
+
+Inspect the fitted probabilities:
+
+```{r probabilities}
+transitionMatrix(transitions)
+```
+
+`transitions$estimates` also contains observed counts and denominators. The
+projection starts with 100 stable patients and takes four adjacent-cycle steps.
+Here are its first and last snapshots:
+
+```{r occupancy}
+subset(projection$occupancy, cycle %in% c(0, 4))
+```
+
+Expected counts may be fractional. The cost estimates come from the separate
+synthetic records; they do not automatically charge the projection:
+
+```{r recorded-costs}
+costs$estimates[c("cost_state", "observed_days", "total_cost", "mean_cost_per_day")]
+```
+
+## Calculate completed-interval outcomes
+
+Continue in the same R session:
+
+```{r outcomes}
+rewards <- createRewardModel(
+  stateCosts = c(Stable = 100, Complication = 200, Dead = 0),
+  aliveStates = c("Stable", "Complication"),
+  utilities = c(Stable = 0.8, Complication = 0.6, Dead = 0),
+  currency = "EUR", priceYear = 2026
+)
+outcomes <- summariseOutcomes(projection, rewards)
+outcomeTotals(outcomes)
+outcomeTotals(outcomes, perPatient = TRUE)
+```
+
+These supplied state costs are amounts per seven-day interval. Utilities and
+costs are example assumptions. The four completed intervals span 28 days; the
+last endpoint adds no extra interval. Discount rates default to zero.
+
+For interventions and comparisons, continue with
+[costs and economic outcomes](costs-and-economic-outcomes.html) or the
+[ordered-stage example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/ordered-stage-economics.R).
+
+## Use your own histories
+
+A local table needs `subject_id`, `state_label`, `state_start_date` and
+`state_end_date`. Dates include both endpoints. Supply your clinical definitions:
+
+```r
+# rows contains your single-episode histories.
+histories <- prepareTrajectories(
+  rows, cycleLength = 7,
+  states = c("Stable", "Complication", "Dead"), absorbingStates = "Dead"
+)
+transitions <- estimateTransitions(histories)
+```
+
+C2T First-mode output with a `trajectory_definition` attribute supplies omitted
+cycle length, state order and absorbing states. RDS preserves that attribute;
+CSV does not. C2T All-mode repeated-episode output is not currently supported.
+Removing episode fields or attributes does not make those histories suitable
+for TMA. See [preparing histories](preparing-histories.html).
+
+Use your own state labels and absorbing-state definitions. Preparation does not
+validate C2T allowed-transition rules. Inspect support before projection:
+unestimated probability rows remain `NA` and cause an error when needed.
+
+Browse the [examples](examples.html) for complete analyses, or open the installed
+vignette with `vignette("trajectory-analysis", package = "TrajectoryMarkovAnalysis")`
+when the package was installed with vignettes built.

@@ -116,8 +116,9 @@
 #'   grouping does not change the clinical or cost groups in patient snapshots.
 #'   Transition effects are applied after the mortality model is evaluated.
 #'
-#'   If birth_date and index_date are supplied, completed age is recomputed at
-#'   index_date + elapsed_day for nonterminal patients. Without birth_date,
+#'   If birth_date and index_date are supplied, age in completed calendar years
+#'   is recomputed at index_date + elapsed_day for nonterminal patients. Without
+#'   birth_date,
 #'   numeric age stays unchanged unless updateCovariates changes it; no birthday
 #'   is inferred from a baseline age. Grouping rules are reapplied after updates.
 #'   Terminal covariates remain fixed; their cycle/day labels advance while other
@@ -138,8 +139,7 @@
 #'   charged once using its retained source covariates and destination elapsed
 #'   day; terminal = "none" suppresses this charge. Explicit transition rules
 #'   can also charge terminal entry. Persistent terminal rows incur no further
-#'   charges. All-terminal or custom stopping is checked after charges. No files,
-#'   plots, database queries or connections are created.
+#'   charges. All-terminal or custom stopping is checked after charges.
 #'
 #'   With entry, baseline covariates and groups are derived before drawing one
 #'   entry outcome per nonterminal patient. Baseline terminal patients remain

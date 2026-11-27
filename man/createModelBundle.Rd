@@ -7,8 +7,9 @@
 createModelBundle(transitions, costs = NULL, groups = NULL)
 }
 \arguments{
-\item{transitions}{A result from estimateTransitions(), with or without
-strata, a model from createMortalityTransitions(), or an ordinary model
+\item{transitions}{A result from estimateTransitions() or
+estimateStageTransitions(), with or without strata, a model from
+createMortalityTransitions(), or an ordinary model
 from composeTransitionStages().}
 
 \item{costs}{Optional result from estimateStateCosts() or createCostModel().
@@ -33,8 +34,9 @@ A tma_model_bundle with models, strata, groups, optional costEstimates
 Collect transition models and their covariate definitions
 }
 \details{
-Models share one clinical state dictionary, cycle length and set of
-  follow-up periods. Covariate groups are separate from clinical states.
+Transition models share one clinical state dictionary, cycle length
+  and set of follow-up periods. Covariate groups are separate from clinical
+  states.
   Selection uses the complete combination of source-row covariates. Missing
   groups and unavailable probability rows are not replaced by another model.
 

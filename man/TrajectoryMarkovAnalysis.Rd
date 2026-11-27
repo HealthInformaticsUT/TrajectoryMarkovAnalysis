@@ -26,9 +26,9 @@ TrajectoryMarkovAnalysis(
 \item{trajectories}{Current Cohort2Trajectory output or prepared trajectories.}
 
 \item{cycleLength}{Days per cycle. Required for transition estimation unless
-already recorded by prepareTrajectories().}
+supplied by the trajectory definition or prepared trajectories.}
 
-\item{absorbingStates}{Explicit clinical terminal-state labels. START and
+\item{absorbingStates}{Clinical absorbing state labels. START and
 EXIT are administrative markers, not clinical states.}
 
 \item{states}{Optional complete state-label vector, including unobserved states.}
@@ -80,9 +80,7 @@ estimator directly when only that result is needed. No plots or files are
 created, and supplied database connections remain open.
 }
 \details{
-This interface replaces the former database-driven workflow.
-  It does not run the legacy GUI, continuous-time model, simulation or
-  first-state cost reports. Transitions use the source cycle's period.
+Transitions use the source cycle's period.
   Costs use the selected allocation rule and split observed days at period
   boundaries. Duration allocation retains unobserved shares for review rather
   than redistributing them across observed days. Within-cycle models require

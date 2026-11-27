@@ -1,5 +1,14 @@
 # TrajectoryMarkovAnalysis 1.1.0.9000
 
+* C2T's default single-episode output remains supported. Multiple-episode
+  definitions and repeated episode IDs now give an explicit error, preventing
+  attribute-free rows from creating transitions between episodes.
+* Added task guides, a grouped function reference and a pkgdown documentation
+  build for GitHub Pages.
+
+* Shortened the README and workflow guide, and clarified input and accounting
+  conventions in function help and examples. Model calculations are unchanged.
+
 * `prepareStageObservations()` aligns two or more C2T trajectory views in
   the specified within-cycle order. It checks matching patient-cycle boundaries
   and absorbing states, and passes definitions and stage order to
@@ -55,8 +64,7 @@
 
 ## Public interface and examples
 
-- Corrected the licence declaration to Apache 2.0, matching the existing licence
-  file and the maintainer's confirmed choice.
+- Corrected the licence declaration to Apache 2.0, matching the licence file.
 
 - Replaced blanket exports with an explicit list of supported functions. The
   older GUI, continuous-time and database-driven entry points are no longer

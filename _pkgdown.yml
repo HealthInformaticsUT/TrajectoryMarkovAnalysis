@@ -1,0 +1,106 @@
+url: https://healthinformaticsut.github.io/TrajectoryMarkovAnalysis/
+destination: docs/site
+development:
+  mode: unreleased
+template:
+  bootstrap: 5
+  light-switch: true
+  bslib:
+    primary: '#0054AD'
+    border-radius: 0.5rem
+    btn-border-radius: 0.25rem
+    danger: '#A6081A'
+home:
+  title: Patient trajectories, costs and modelled outcomes in R
+  description: >
+    Estimate transitions and recorded healthcare costs, project cohorts,
+    simulate patient paths and compare economic scenarios.
+navbar:
+  structure:
+    left: [start, articles, reference, news]
+    right: [search, github, lightswitch]
+  components:
+    start:
+      text: Get started
+      href: articles/getting-started.html
+    articles:
+      text: Guides
+      menu:
+        - text: Prepare patient histories
+          href: articles/preparing-histories.html
+        - text: Estimate transitions
+          href: articles/estimating-transitions.html
+        - text: Project cohorts and simulate patients
+          href: articles/projecting-and-simulating.html
+        - text: Costs and economic outcomes
+          href: articles/costs-and-economic-outcomes.html
+        - text: Interventions and future mortality
+          href: articles/interventions-and-future-mortality.html
+        - text: Worked analysis
+          href: articles/trajectory-analysis.html
+        - text: Runnable examples
+          href: articles/examples.html
+        - text: FAQ
+          href: articles/faq.html
+articles:
+  - title: Start here
+    contents:
+      - articles/getting-started
+      - trajectory-analysis
+  - title: Tasks
+    navbar: ~
+    contents:
+      - articles/preparing-histories
+      - articles/estimating-transitions
+      - articles/projecting-and-simulating
+      - articles/costs-and-economic-outcomes
+      - articles/interventions-and-future-mortality
+      - articles/examples
+      - articles/faq
+reference:
+  - title: Prepare histories and fit transitions
+    contents:
+      - prepareTrajectories
+      - addCovariateGroups
+      - estimateTransitions
+      - estimateEntryTransitions
+      - prepareStageObservations
+      - estimateStageTransitions
+      - composeTransitionStages
+      - transitionMatrix
+  - title: Project, simulate and inspect occupancy
+    contents:
+      - projectCohort
+      - summariseOccupancy
+      - compareOccupancy
+      - createModelBundle
+      - simulateTrajectories
+      - advanceSimulation
+      - transition-effects
+  - title: Estimate and apply healthcare costs
+    contents:
+      - extractCosts
+      - adjustCostPrices
+      - estimateStateCosts
+      - createCostModel
+      - projectCosts
+      - simulation-cost-rules
+  - title: Define rewards and compare outcomes
+    contents:
+      - createRewardModel
+      - updateRewardModel
+      - summariseOutcomes
+      - summariseSimulation
+      - outcomeTotals
+      - compareScenarios
+  - title: Extend follow-up and mortality
+    contents:
+      - extendModelBundle
+      - createMortalityTransitions
+      - calibrateExcessMortality
+      - extrapolateMortality
+  - title: Combined estimation and object summaries
+    contents:
+      - TrajectoryMarkovAnalysis
+      - print-tma
+      - TrajectoryMarkovAnalysis-package

@@ -11,7 +11,8 @@ Description: Estimates transitions and recorded healthcare costs from patient
     can be supplied locally or extracted through 'CDMConnector'. Explicit
     intervention, reward and mortality assumptions support economic scenarios.
 License: Apache License (== 2.0)
-URL: https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis
+URL: https://healthinformaticsut.github.io/TrajectoryMarkovAnalysis/,
+    https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis
 BugReports: https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/issues
 Depends: R (>= 4.1.0)
 Imports:

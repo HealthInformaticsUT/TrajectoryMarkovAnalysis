@@ -1,0 +1,99 @@
+---
+title: "FAQ"
+description: "Answers about input support, missing probabilities, entry, time accounting and economic outcomes."
+---
+
+## Do I need C2T or a database?
+
+TMA accepts local histories with patient IDs, state labels and dated intervals.
+C2T can create those histories and attach their definitions. A database is needed
+only when extracting costs through an existing CDMConnector reference. The
+[getting-started example](getting-started.html) uses neither.
+
+## Can I analyse several episodes for one patient?
+
+TMA currently supports one target episode per subject. Use C2T First-mode output
+or another single-episode history. C2T All-mode repeated-episode output is not
+supported. Keep its episode identifiers and definition attributes intact so
+validation can detect unsupported input; removing them does not resolve the
+episode-specific indexing and denominator requirements.
+
+## Why do I need to supply states or cycle length again after CSV export?
+
+CSV does not retain the `trajectory_definition` attribute. Supply the cycle
+length, full state dictionary and absorbing states explicitly, using the same
+definitions as the exported histories. RDS preserves the attribute. Explicit
+arguments must agree with any attached definition.
+
+## Why are some transition probabilities `NA`?
+
+There were no eligible outgoing observations for that nonabsorbing source row,
+period or group. A pair needs a complete source cycle followed immediately by
+a known destination label. A final partial destination can qualify. TMA does
+not replace missing support with a pooled or neighbouring model. Projection
+can leave a row unused at zero occupancy; simulation needs support when drawing
+from it. See [estimating transitions](estimating-transitions.html).
+
+## Does a final living label imply another living cycle?
+
+No. A final label without an observed successor supplies no adjacent transition.
+Declared absorbing states receive structural identity rows. Observed occupancy
+can retain absorbing outcomes, while living patients are not carried past
+censoring. Compare observed and projected coverage before interpreting their
+proportions as model fit.
+
+## What is the difference between `initial` and `entry`?
+
+In `projectCohort()`, `initial` supplies the first labelled distribution. A fitted
+`entry` model instead transforms its eligible baseline state mix into that first
+label; supply either argument. Entry adds no clock step, baseline living time or
+recurring baseline charge. Simulation has a separate contract: supply baseline
+profiles or an explicit starting distribution, then optionally pass `entry` to
+sample their first outcomes. See [projecting and simulating](projecting-and-simulating.html).
+
+## Do 52 weekly steps always represent one year of outcomes?
+
+Choose the summary's time convention. `summariseOutcomes()` counts 52 completed
+weekly intervals, or 364 days; the final endpoint adds no interval.
+`projectCosts()` and `summariseSimulation()` count full labels, including the
+initial label. A continuously living patient completing 52 weekly steps has
+53 labels, representing 371 labelled days. The pre-entry baseline adds neither
+a label nor survival time. See [costs and economic outcomes](costs-and-economic-outcomes.html).
+
+## Why does `summariseOutcomes()` reject my simulation?
+
+Shared interval rewards require a simulation without a configured cost model
+or `costRules`. They also reject results initialised with a fitted `entry` model.
+Use `summariseSimulation()` for the saved labelled-cycle charges, or run a model
+with explicit boundary states and shared interval rewards. The `entryState`
+definition used by `prepareStageObservations()` is compatible with interval
+rewards; it is separate from a fitted `entry` model.
+
+## Why are costs or QALYs missing?
+
+Unconfigured outcomes remain unknown. A simulation without costs reports `NA`
+cost totals. Life-years need explicit `aliveStates`; QALYs also need utilities.
+A configured component with no qualifying charges contributes zero. Attaching
+raw `estimateStateCosts()` output to a bundle is descriptive; a `createCostModel()`
+result activates healthcare charging.
+
+## Will age increase automatically?
+
+With Date columns `birth_date` and `index_date`, simulation derives completed
+calendar-year age at `index_date + elapsed_day`. Numeric age alone stays fixed
+unless `updateCovariates` changes it. The callback runs after the transition and
+clock advance, then grouping rules are reapplied for the next draw.
+
+## Does an intervention multiplier estimate a causal effect?
+
+It applies a supplied relative probability change and redistributes the
+difference to a specified destination. It does not estimate treatment efficacy
+or establish a causal downstream mortality effect. Future mortality likewise
+requires explicit background probabilities and extension assumptions. See
+[interventions and future mortality](interventions-and-future-mortality.html).
+
+## Are returned summaries safe to share as aggregates?
+
+Inspect their fields first. Histories, entry diagnostics and the initial
+population retained for scenario comparisons can contain patient identifiers
+and covariates. TMA does not apply a disclosure policy.

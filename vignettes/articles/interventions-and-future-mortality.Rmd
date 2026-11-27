@@ -1,0 +1,137 @@
+---
+title: "Define interventions and future mortality"
+description: "Apply explicit probability effects and extend patient simulations beyond fitted follow-up."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(TrajectoryMarkovAnalysis)
+invisible(capture.output(source(system.file(
+  "examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"
+), local = TRUE)))
+```
+
+Effects and extrapolation are supplied modelling assumptions. Fitted counts do
+not select an intervention effect, support cutoff or future mortality trend.
+The short intervention example uses the synthetic
+[quickstart objects](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/quickstart.R):
+
+```{r load-example, eval=FALSE}
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
+
+## Change a transition probability
+
+```{r intervention}
+effects <- list(prevention = list(
+  from = "Stable", to = "Complication", multiplier = 0.75,
+  redistributeTo = "Stable", startDay = 0, endDay = 28
+))
+treated <- projectCohort(
+  transitions, nCycles = 4, initial = c(Stable = 1), cohortSize = 100,
+  transitionEffects = effects
+)
+transitionMatrix(treated, cycle = 0)
+```
+
+The rule multiplies the selected destination probability and transfers the
+exact difference to `redistributeTo`. For probabilities 0.70 Stable, 0.20
+Complication and 0.10 Dead, the result is 0.75, 0.15 and 0.10. It is an effect
+on discrete cycle probability, not a hazard ratio. Invalid rows cause an error.
+Stored fitted matrices remain unchanged.
+
+Windows use the **source** `elapsed_day`: start included, end excluded. In this
+weekly example the rule covers sources at days 0, 7, 14 and 21. Simulation also
+accepts `eligible = function(p) p$treatment_active`; its input is the current
+source profile. Covariate updates affect the next draw. Projection has no
+patient-level eligibility callback. Intervention fees are specified separately
+through rewards or cost rules.
+
+## Target stages or entry explicitly
+
+For an ordered model, add `stage = "onset"` to change onset before mortality.
+Omitting `stage` changes the combined cycle row and leaves intermediate paths
+unavailable. Stage and net-cycle rules cannot be mixed. At most one applicable
+rule may act on a source profile per stage, or per net step.
+
+`applyAt = "transitions"` is the default. `"entry"` and `"both"` include a fitted
+entry model explicitly. Entry and the first adjacent draw both have source day
+zero: `applyAt = "both", endDay = 28` covers entry plus four weekly draws. For
+four outcome labels, use an entry rule and an adjacent rule ending at day 21.
+An entry fee can remain payable when entry produces death; it adds no baseline
+cycle or living time. See the
+[entry intervention example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/entry-simulation.R).
+
+## Switch to supplied later probabilities
+
+`extendModelBundle()` attaches one explicit later model at `fromDay`. It must
+share clinical states, absorbing states and cycle length; its groups and periods
+can differ. Use your own `late_model` and source description:
+
+```{r supplied-extension, eval=FALSE}
+extended <- extendModelBundle(
+  createModelBundle(transitions), fromDay = 364, transitions = late_model,
+  source = "Description of the external evidence or assumption"
+)
+```
+
+The step from day 357 to 364 uses the original model; the step from 364 to 371
+uses the later model. Its period clock starts at the handover, while patient age,
+treatment windows, cost periods and discounting keep their original clocks.
+Entry and costs are not replaced. Unsupported later rows fail without falling
+back to the original fit. Extensions operate in simulation and resumed runs,
+not `projectCohort()`. See the
+[runnable extension example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/extrapolation-simulation.R).
+
+## Supply background mortality
+
+```{r background-mortality}
+background <- createModelBundle(createMortalityTransitions(
+  data.frame(death_probability = 0.02),
+  states = c("Living", "Death"), deathState = "Death", cycleLength = 7,
+  probabilityDays = 365.25, source = "Synthetic annual probability"
+))
+```
+
+Supply probabilities rather than percentages or rates. An interval probability
+`p` is converted to `1 - (1 - p)^(cycleLength / probabilityDays)`, assuming a
+constant hazard over the supplied interval. The table can contain covariate
+strata. This creates a mortality-only model; it does not automatically add
+background mortality to an existing all-cause model.
+
+## Calibrate excess and define the future tail
+
+Use your study's matching histories, fitted bundle and background table. These
+calls illustrate the connection; `study_histories` and `fitted_bundle` must come
+from the same source-cycle support and use the named reference period.
+
+```{r mortality-tail, eval=FALSE}
+calibration <- calibrateExcessMortality(
+  study_histories, background, deathStates = "Dead", periodLabels = "Observed"
+)
+future <- extrapolateMortality(
+  fitted_bundle, calibration, fromDay = 364, referencePeriod = "Observed",
+  excess = "linear", declineDays = 365.25,
+  source = "Assumed excess hazard declines to zero over one year"
+)
+```
+
+Calibration matches background to actual contributing observations. With observed
+death probability `p`, mean matched background `b` and cycle days `c`, daily
+excess is `(log(1 - b) - log(1 - p)) / c`. Negative excess needs an explicit
+`negativeExcess = "zero"` policy; probability one needs an explicit finite
+ceiling. Unsupported cells remain unavailable. A stage fit requires the named
+mortality stage. Multiple death states need explicit `deathAllocation` for the tail.
+
+The future model replaces mortality, preserving nondeath destination shares
+conditional on survival. In a stage model only the mortality stage is replaced.
+Constant excess keeps the calibrated daily hazard; linear excess integrates its
+decline within each cycle. Current patient covariates select background and
+excess, without interpolation or missing-group fallback. Use the complete
+returned bundle with `simulateTrajectories()`; `projectCohort()` cannot use this
+profile-dependent tail.
+
+Run the full [future-mortality example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/future-mortality-simulation.R)
+for calendar ageing, audit fields and a reproducible resumed run. A shared seed
+reproduces initialization; it does not guarantee paired draws across scenarios.
+Continue with [cost and health outcomes](costs-and-economic-outcomes.html).

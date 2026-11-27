@@ -1,7 +1,8 @@
 #' Collect transition models and their covariate definitions
 #'
-#' @param transitions A result from estimateTransitions(), with or without
-#'   strata, a model from createMortalityTransitions(), or an ordinary model
+#' @param transitions A result from estimateTransitions() or
+#'   estimateStageTransitions(), with or without strata, a model from
+#'   createMortalityTransitions(), or an ordinary model
 #'   from composeTransitionStages().
 #' @param costs Optional result from estimateStateCosts() or createCostModel().
 #'   Raw estimates remain descriptive and are not charged. A cost model explicitly
@@ -13,8 +14,9 @@
 #'   breaks = c(0, 65, 75, Inf))). Use addCovariateGroups() with the same rules
 #'   before fitting. Rules may serve transition strata, cost-model strata or
 #'   both. Without rules, supply the strata columns directly.
-#' @details Models share one clinical state dictionary, cycle length and set of
-#'   follow-up periods. Covariate groups are separate from clinical states.
+#' @details Transition models share one clinical state dictionary, cycle length
+#'   and set of follow-up periods. Covariate groups are separate from clinical
+#'   states.
 #'   Selection uses the complete combination of source-row covariates. Missing
 #'   groups and unavailable probability rows are not replaced by another model.
 #'

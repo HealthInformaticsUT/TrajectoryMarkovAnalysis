@@ -22,7 +22,7 @@ must cover every supplied patient exactly once. Entry states must belong to
 the declared state dictionary. No starting state is inferred from outcomes.}
 
 \item{cycleLength}{Positive integer cycle length in days, required unless
-already stored in prepared trajectories.}
+supplied by the trajectory definition or prepared trajectories.}
 
 \item{absorbingStates}{Explicit clinical absorbing labels.}
 

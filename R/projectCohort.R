@@ -1,7 +1,8 @@
 #' Project a cohort through period-specific transition matrices
 #'
-#' @param transitions A result from estimateTransitions() or
-#'   composeTransitionStages(), or an unstratified createMortalityTransitions()
+#' @param transitions A result from estimateTransitions(),
+#'   estimateStageTransitions() or composeTransitionStages(), or an unstratified
+#'   createMortalityTransitions()
 #'   model. Supplied models need an explicit initial distribution or a separate
 #'   entry model. Select one stratum's model explicitly to project that group.
 #' @param nCycles Number of transition steps, a finite nonnegative integer.
@@ -23,8 +24,8 @@
 #'   unestimated row is allowed only while its state has zero projected mass.
 #'   The last period's matrix applies to every requested step within that period;
 #'   an infinite final period does not establish empirical lifetime validity.
-#'   Probabilities are never normalised. No costs, random sampling, database
-#'   operations or file writes are performed.
+#'   Probabilities are never normalised. Reward and cost accounting are separate;
+#'   see summariseOutcomes() and projectCosts().
 #'   Mortality extrapolations from extrapolateMortality() require current
 #'   patient profiles and must use simulateTrajectories(). This function does
 #'   not substitute an average background mortality profile.

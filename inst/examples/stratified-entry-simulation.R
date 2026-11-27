@@ -1,5 +1,4 @@
-# All patients, outcomes, effect sizes, utilities and prices here are synthetic.
-# The tiny groups make model selection visible, not clinically reliable.
+# Synthetic data illustrate entry strata and changing age groups.
 library(TrajectoryMarkovAnalysis)
 
 index <- as.Date("2025-01-01")
@@ -11,8 +10,8 @@ groups <- list(
                    labels = c("lower", "higher"))
 )
 
-# Baseline records describe what is known BEFORE the first-cycle outcomes.
-# PGS (polygenic score) is an invented covariate here, not calculated by TMA.
+# Baseline covariates precede first-cycle outcomes. The polygenic score (PGS)
+# is supplied by the analyst.
 baseline <- data.frame(
   subject_id = paste0("entry_training_", 1:4), entry_state = "Stable",
   birth_date = as.Date(c("1960-01-05", "1975-01-01", "1950-01-01", "1945-01-01")),
@@ -30,7 +29,7 @@ entry <- estimateEntryTransitions(
 )
 print(entry$diagnostics$by_stratum)
 
-# A second small set supplies observed adjacent-cycle pairs for BOTH living
+# A second set supplies adjacent-cycle pairs for both living
 # states in each age group. Later transitions use age, not PGS in this example.
 followup <- data.frame(
   subject_id = rep(paste0("followup_training_", 1:4), each = 2),
@@ -47,9 +46,8 @@ later <- estimateTransitions(
 )
 bundle <- createModelBundle(later, groups = groups["age_group"])
 
-# Supply the simulation profiles explicitly. The entry estimator does not
-# automatically reuse its training patients. PGS groups are already supplied.
-# The bundle recomputes age and its group at each weekly boundary.
+# Supply simulation profiles with the entry model's PGS groups.
+# The bundle recomputes age and age group at each weekly boundary.
 population <- baseline
 population$subject_id <- paste0("scenario_patient_", 1:4)
 names(population)[names(population) == "entry_state"] <- "state_label"
@@ -61,8 +59,7 @@ prevention <- list(
 )
 fees <- c(care, list(treatment = list(type = "entry", amount = 100)))
 
-# The hypothetical treatment prevents first-cycle complication only. A zero
-# multiplier is deliberately extreme so the example has deterministic results.
+# A zero multiplier prevents all first-cycle complications in this example.
 # Everyone pays the upfront fee, including patients who die during entry.
 standard <- simulateTrajectories(
   bundle, population = population, entry = entry, nSteps = 2,
@@ -99,8 +96,7 @@ stopifnot(
   summaries$treated$metadata$initial_population_basis == "pre_entry"
 )
 
-# There are three labelled weeks, not three weeks plus an entry week.
+# Outcomes cover three labelled weeks, including the first label.
 # Entry age/PGS combinations are selected once. Later age groups can change.
-# An unknown entry group or unsupported starting-state row is an error, not a
-# request to substitute pooled probabilities. Entry-specific group rules must
-# be applied to profiles explicitly if the later bundle does not use them.
+# Unknown entry groups and unsupported starting states cause errors.
+# Apply entry-specific grouping rules to profiles when the bundle lacks them.

@@ -19,8 +19,7 @@ has reached a declared absorbing terminal state.}
 \value{
 A tma_outcomes object containing byCycle, totals, costs, initialPopulation,
   metadata and, for simulations, byPatient. Counts are expected weights for a
-  deterministic projection and actual counts for a simulation. No files are
-  written and no disclosure policy is applied.
+  deterministic projection and actual counts for a simulation.
 }
 \description{
 Calculate the same interval outcomes for projections and simulations
@@ -33,6 +32,8 @@ A projection with 52 steps contributes 52 weekly intervals, not 53
   configured with costRules or a cost model, to prevent silently discarding or
   double-counting those charges. Use an uncosted simulation with these shared
   rewards, or summariseSimulation() for the existing labelled-cycle ledger.
+  Results initialised with a fitted entry model are also rejected; use
+  projectCosts() or summariseSimulation() for their labelled-cycle accounting.
 
   Stage rewards require retained stage events. The function never infers an
   intermediate event from a net transition. Simulation covariates and the

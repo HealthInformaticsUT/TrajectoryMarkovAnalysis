@@ -1,0 +1,72 @@
+---
+title: "Examples"
+description: "Runnable examples for transitions, costs, interventions, entry models and future mortality."
+---
+
+The package installs twelve scripts using synthetic histories, probabilities
+and costs. None requires a database. The C2T example additionally requires a
+compatible installation of Cohort2Trajectory.
+
+## Run a script
+
+```r
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
+
+Replace `quickstart.R` with a filename from the tables below. Run each script
+in a fresh R session when you want to keep its objects separate from other
+examples. The source links show the complete code and assumptions.
+
+## Start with an analysis
+
+| Script | What it demonstrates |
+| --- | --- |
+| [quickstart.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/quickstart.R) | Prepare single-episode histories, estimate transitions, project occupancy and estimate local costs. |
+| [c2t-to-icer.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/c2t-to-icer.R) | Create two aligned C2T views, estimate onset and mortality stages, and compare economic scenarios. |
+| [ordered-stage-economics.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/ordered-stage-economics.R) | Fit ordered events, target an intervention at onset, and use the same interval rewards for projected and simulated outcomes. |
+
+The C2T example checks its required C2T version when sourced. It returns its
+results rather than leaving its working objects in the calling environment:
+
+```r
+example_results <- source(system.file(
+  "examples", "c2t-to-icer.R", package = "TrajectoryMarkovAnalysis"
+))$value
+example_results$comparison
+```
+
+## First-cycle outcomes and interventions
+
+| Script | What it demonstrates |
+| --- | --- |
+| [entry-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/entry-simulation.R) | Estimate baseline-to-first-label outcomes, apply entry effects and fees, and compare simulations from the same baseline profiles. |
+| [stratified-entry-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/stratified-entry-simulation.R) | Match entry probabilities to baseline groups, then update age groups during later transitions. |
+| [intervention-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/intervention-simulation.R) | Combine probability effects, eligibility and treatment charges, then compare costs, life-years and QALYs. |
+
+Entry draws generate the first outcome label without another clock step.
+These examples use the labelled-cycle accounting described in
+[costs and economic outcomes](costs-and-economic-outcomes.html).
+
+## Recorded healthcare costs
+
+| Script | What it demonstrates |
+| --- | --- |
+| [estimated-cost-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/estimated-cost-simulation.R) | Turn observed daily means into charges with changing groups, cost periods and terminal care. |
+| [price-adjustment.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/price-adjustment.R) | Apply an explicit price index before duration allocation, then retain the reference-year provenance in cost models. |
+
+## Follow-up beyond fitted data
+
+| Script | What it demonstrates |
+| --- | --- |
+| [extrapolation-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/extrapolation-simulation.R) | Switch at a supplied source day to a later transition model and resume the simulation. |
+| [background-mortality-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/background-mortality-simulation.R) | Convert supplied mortality probabilities to the cycle length and select groups as age changes. |
+| [excess-mortality-calibration.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/excess-mortality-calibration.R) | Match background mortality to observed source-cycle support and calibrate excess mortality. |
+| [future-mortality-simulation.R](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/future-mortality-simulation.R) | Extend follow-up with current background mortality and explicit constant or declining excess assumptions. |
+
+These extensions require supplied evidence and assumptions. The example inputs
+illustrate the mechanics; they are not clinical recommendations or validated
+long-term forecasts. See [interventions and future mortality](interventions-and-future-mortality.html).
+
+The [getting-started article](getting-started.html) provides a shorter connected
+introduction. Use function help for complete argument definitions and output
+tables.

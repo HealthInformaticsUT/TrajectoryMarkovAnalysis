@@ -13,13 +13,13 @@ summariseOccupancy(
 )
 }
 \arguments{
-\item{trajectories}{Lowercase C2T trajectories or prepared trajectories.}
+\item{trajectories}{Cohort2Trajectory output or prepared trajectories.}
 
 \item{nCycles}{Final zero-based cycle index to report. NULL reports through
 the latest supplied cycle label. The output includes cycles 0 through nCycles.}
 
 \item{cycleLength}{Positive integer cycle length in days, required unless
-already recorded in prepared trajectories.}
+supplied by the trajectory definition or prepared trajectories.}
 
 \item{absorbingStates}{Explicit clinical labels whose occupancy continues
 after their final observed cycle.}

@@ -1,10 +1,10 @@
 #' Summarise available state labels and follow-up coverage by cycle
 #'
-#' @param trajectories Lowercase C2T trajectories or prepared trajectories.
+#' @param trajectories Cohort2Trajectory output or prepared trajectories.
 #' @param nCycles Final zero-based cycle index to report. NULL reports through
 #'   the latest supplied cycle label. The output includes cycles 0 through nCycles.
 #' @param cycleLength Positive integer cycle length in days, required unless
-#'   already recorded in prepared trajectories.
+#'   supplied by the trajectory definition or prepared trajectories.
 #' @param absorbingStates Explicit clinical labels whose occupancy continues
 #'   after their final observed cycle.
 #' @param states Optional ordered clinical state dictionary, including states

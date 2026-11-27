@@ -12,10 +12,11 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 library(TrajectoryMarkovAnalysis)
 ```
 
-The package has two independent estimation paths. One estimates transitions
-from recorded patient histories. The other allocates recorded costs to those
-histories. A model can use either set of estimates, or probabilities and costs
-supplied from other sources. Every value below is synthetic.
+TrajectoryMarkovAnalysis estimates transitions and allocates recorded costs
+from dated patient histories. These estimates, or supplied probabilities and
+costs, can inform cohort projections and patient simulations. This example
+compares an onset-prevention scenario with a reference scenario using synthetic
+data and assumptions.
 
 ## Prepare histories and estimate transitions
 
@@ -42,8 +43,9 @@ fitted <- estimateTransitions(histories)
 fitted$estimates
 ```
 
-Transition denominators contain observed adjacent-cycle pairs. A final
-censored interval does not imply that the patient stayed in the same state.
+Transition denominators contain complete source cycles followed by adjacent
+known destination labels, including a final partial destination. A final
+label without a successor does not imply that the patient stayed in that state.
 Unsupported rows remain missing, and projection stops if it reaches an
 unsupported row. Declared absorbing states have structural identity rows.
 
@@ -96,8 +98,9 @@ fitted <- estimateStageTransitions(
 
 The first stage starts from the previous cycle's final outcome, or the explicit
 entry state for the first cycle. Each later stage starts from the preceding
-view in the same cycle. A censored partial cycle is excluded; a terminal outcome
-supplies an outcome even in a short cycle. Set `requireNextCycle = TRUE` if the
+view in the same cycle. A censored partial cycle is excluded; a declared
+absorbing outcome in the final view qualifies even in a short cycle.
+Set `requireNextCycle = TRUE` if the
 study also requires another observed cycle to establish a nonterminal outcome.
 The helper does not infer event order from labels. The analyst defines the
 views and their order. See `examples/c2t-to-icer.R` for both C2T runs.
@@ -164,6 +167,9 @@ A 52-step weekly projection has 52 completed intervals, totalling 364 days.
 The final snapshot does not add another interval. The separate
 `projectCosts()` and `summariseSimulation()` functions use their documented
 full-label convention. Do not mix those summaries with interval summaries.
+`summariseOutcomes()` rejects fitted entry models and simulations with existing
+cost charges. The `entryState` boundary used to prepare stage observations is
+compatible with interval rewards; it does not apply a fitted entry model.
 
 A model bundle can simulate individual paths, update time-varying covariates
 between steps, and resume later with `advanceSimulation()`. Its private random

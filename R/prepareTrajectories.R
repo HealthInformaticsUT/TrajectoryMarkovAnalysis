@@ -21,7 +21,13 @@
 #'   order does not matter. A continuous definition retains a NULL cycle length.
 #'   The compact definition is retained on the prepared object, including after
 #'   serialization, and is removed from its data component. It contains no
-#'   patient data. Plain data frames keep the explicit-argument workflow.
+#'   patient data. Data frames without this attribute use the argument values.
+#'   Allowed-transition rules are not validated.
+#'
+#'   One observation episode per subject is supported. Use
+#'   targetEpisodeHandling = "First" when generating Cohort2Trajectory output.
+#'   Its "All" mode and rows with multiple episode_id values per subject are
+#'   rejected. One nonmissing episode_id per subject is retained as metadata.
 #' @export
 prepareTrajectories <- function(trajectories, cycleLength = NULL,
                                 absorbingStates = character(), states = NULL) {
@@ -36,6 +42,7 @@ prepareTrajectories <- function(trajectories, cycleLength = NULL,
   states <- resolved$states
   absorbingStates <- resolved$absorbingStates
   if (inherits(trajectories, "tma_trajectories")) {
+    .tmaValidateSingleEpisode(trajectories$data)
     if (!any(supplied)) {
       return(trajectories)
     }
@@ -65,6 +72,7 @@ prepareTrajectories <- function(trajectories, cycleLength = NULL,
   data <- as.data.frame(trajectories, stringsAsFactors = FALSE)
   attr(data, "trajectory_definition") <- NULL
   data$subject_id <- .tmaSubjectIds(data$subject_id)
+  .tmaValidateSingleEpisode(data)
   data$state_label <- as.character(data$state_label)
   if (anyNA(data$state_label) || any(!nzchar(trimws(data$state_label)))) {
     stop("state_label must contain nonempty, nonmissing labels.", call. = FALSE)
@@ -154,6 +162,20 @@ prepareTrajectories <- function(trajectories, cycleLength = NULL,
                        unresolved_intervals = sum(data$state_label == "OUT OF COHORT"),
                        gap_count = gapCount, partial_cycles = partial)
   ), class = "tma_trajectories", trajectory_definition = definition)
+}
+
+.tmaValidateSingleEpisode <- function(data) {
+  if (!"episode_id" %in% names(data)) return(invisible(NULL))
+  subjects <- .tmaSubjectIds(data$subject_id)
+  if (anyNA(data$episode_id)) {
+    stop("episode_id must not contain missing values when supplied.", call. = FALSE)
+  }
+  episodes <- unique(data.frame(subject_id = subjects, episode_id = data$episode_id))
+  if (anyDuplicated(episodes$subject_id)) {
+    stop("Multiple target episodes per subject are not supported. Generate Cohort2Trajectory output with targetEpisodeHandling = \"First\".",
+         call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 .tmaSubjectIds <- function(x, name = "subject_id") {

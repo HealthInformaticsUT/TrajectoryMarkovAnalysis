@@ -1,4 +1,4 @@
-# Wholly synthetic amounts and indexes. No database or downloads are needed.
+# Synthetic amounts and price indexes illustrate adjustment before allocation.
 library(TrajectoryMarkovAnalysis)
 
 histories <- prepareTrajectories(data.frame(
@@ -19,7 +19,7 @@ events <- data.frame(
 attr(events, "allocation") <- "duration"
 original_events <- events
 
-# These invented index values are not CPI estimates or published prices.
+# Supply the price index and its provenance.
 price_index <- data.frame(
   year = c(2020L, 2025L),
   index = c(100, 120),

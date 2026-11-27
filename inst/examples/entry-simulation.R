@@ -1,5 +1,4 @@
-# Synthetic histories, effects and prices illustrate the interface.
-# These are not clinical evidence or estimates from the thesis.
+# Synthetic histories, effects and prices illustrate entry modelling.
 library(TrajectoryMarkovAnalysis)
 
 index <- as.Date("2025-01-01")
@@ -45,7 +44,7 @@ intervention_costs <- c(care, list(treatment = list(
   type = "entry", amount = 100, eligible = eligible
 )))
 
-# Reuse the exact same profiles, including eligibility, in both scenarios.
+# Reuse the same profiles and eligibility in both scenarios.
 standard <- simulateTrajectories(
   bundle, population = baseline_patients, entry = entry, nSteps = 3,
   terminalStates = "Dead", seed = 42, costRules = care,
@@ -85,12 +84,10 @@ stopifnot(
   sum(fees$amount) == sum(baseline_patients$treatment_eligible) * 100
 )
 
-# Four full labelled weeks, not a baseline week plus four outcome weeks.
-# Fees and effects are independent and share the same baseline eligibility flag.
-# Eligible patients who die during entry have already paid the fee.
+# Costs and health outcomes cover four labelled weeks, including the first label.
+# Eligible patients pay the entry fee even if they die during entry.
 # Entry and the first adjacent transition both use source day zero. The two
 # rules cover entry plus three later draws starting at days 0, 7 and 14.
-# A single applyAt = "both", endDay = 28 rule would cover five labels instead.
-# Entry probabilities remain pooled within starting state. Neither an effect
-# nor entry modelling infers intermediate events or their causal consequences.
-# A shared seed makes runs reproducible, not guaranteed patient-matched draws.
+# To target the same four draws with one rule, use applyAt = "both", endDay = 21.
+# Entry probabilities are pooled within starting state.
+# A shared seed gives reproducibility but does not pair patient draws.

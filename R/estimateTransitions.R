@@ -1,8 +1,8 @@
 #' Estimate adjacent-cycle transition probabilities by follow-up period
 #'
-#' @param trajectories Lowercase C2T trajectories or a tma_trajectories object.
+#' @param trajectories Cohort2Trajectory output or a tma_trajectories object.
 #' @param cycleLength Positive integer cycle length in days. Required unless
-#'   already recorded in prepared trajectories.
+#'   supplied by the trajectory definition or prepared trajectories.
 #' @param absorbingStates Clinical absorbing state labels.
 #' @param states Optional ordered clinical state dictionary.
 #' @param periodBreaks Period boundaries in days since each patient's index.
@@ -13,8 +13,9 @@
 #' @param strata Optional character vector of categorical trajectory column names.
 #'   Values may change between rows. Numeric values define exact-value groups;
 #'   create age bands or other categories explicitly before estimation.
-#' @details Only a full source cycle followed immediately by an observed known
-#'   state contributes a transition. Gaps, OUT OF COHORT and administrative EXIT
+#' @details Only a full source cycle followed immediately by a known destination
+#'   label contributes a transition, including a shortened final destination
+#'   cycle. Gaps, OUT OF COHORT and administrative EXIT
 #'   never create transitions. Entry counts describe known states at index_date;
 #'   a first-cycle death does not create an unobserved preceding state.
 #'

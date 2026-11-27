@@ -1,0 +1,133 @@
+---
+title: "Estimate transitions"
+description: "Fit adjacent-cycle probabilities, baseline entry outcomes and ordered within-cycle stages."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(TrajectoryMarkovAnalysis)
+invisible(capture.output(source(system.file(
+  "examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"
+), local = TRUE)))
+```
+
+Choose the estimator according to what the observations represent.
+
+| Question | Function |
+|:--|:--|
+| What label follows the current complete cycle? | `estimateTransitions()` |
+| What is the first label after an explicitly defined baseline? | `estimateEntryTransitions()` |
+| What happens in each analyst-defined stage within a cycle? | `estimateStageTransitions()` |
+
+The snippets use the synthetic [quickstart data](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/quickstart.R).
+Run this first in your own session:
+
+```{r load-example, eval=FALSE}
+source(system.file("examples", "quickstart.R", package = "TrajectoryMarkovAnalysis"))
+```
+
+## Fit adjacent-cycle probabilities
+
+```{r fit-adjacent}
+transitions <- estimateTransitions(histories)
+transitionMatrix(transitions)
+```
+
+A pair qualifies when the source is a complete cycle and its immediately
+adjacent destination has a known label. A short final destination can qualify.
+Gaps, unresolved labels and administrative exits never imply transitions. A
+last label without a successor does not imply a self-transition.
+
+Denominators count eligible outgoing pairs. Inspect `transitions$estimates`
+for counts and denominators; stratified fits also report patient support.
+Unsupported nonabsorbing rows remain `NA`;
+declared absorbing rows are structural identities. Missing support is not
+replaced by pooled probabilities.
+
+## Separate follow-up periods
+
+```{r fit-periods}
+period_fit <- estimateTransitions(
+  histories, periodBreaks = c(0, 7, Inf),
+  periodLabels = c("First week", "Later")
+)
+transitionMatrix(period_fit, period = "First week")
+```
+
+Periods use days from each patient's index date. Boundaries start at zero,
+end at `Inf` and align with the cycle length. Lower boundaries are included;
+upper boundaries are excluded. A pair belongs to its **source** period even
+when the destination falls in the next one.
+
+## Fit covariate-specific models
+
+```{r fit-strata}
+rows <- trajectories
+rows$age <- ifelse(rows$subject_id %in% c("p1", "p3"), 64, 70)
+groups <- list(age_group = list(
+  column = "age", breaks = c(0, 65, Inf), labels = c("Under 65", "65+")
+))
+rows <- addCovariateGroups(rows, groups)
+grouped <- prepareTrajectories(rows, cycleLength = 7, absorbingStates = "Dead")
+group_fit <- estimateTransitions(grouped, strata = "age_group")
+group_fit$strata
+transitionMatrix(group_fit, stratum = group_fit$strata$stratum_id[1])
+```
+
+Each source row's complete covariate combination selects its group. Covariates
+may change between cycles; transitions across groups are retained. Numeric
+values make exact-value groups unless you create bands first. Use the returned
+registry to interpret `stratum_id`; it is not a covariate value. Supporting
+patient counts cannot be added across groups or periods.
+
+## Estimate baseline-to-first-label entry
+
+```{r fit-entry}
+entry <- estimateEntryTransitions(histories, entryState = "Stable")
+entry$coverage
+entry$matrix
+```
+
+`entryState` is a supplied clinical baseline, not an inferred earlier state.
+Alternatively, supply one row per patient with `subject_id` and `entry_state`.
+For stratified entry, include baseline covariates in that table and name them
+in `strata`. Later trajectory values are not substituted for missing baseline
+information.
+
+A known complete first cycle qualifies, as does a short first cycle ending in
+a declared absorbing state. Exclusions appear in `entry$subjects`. Probabilities
+and the default baseline mix use eligible patients only, without censoring
+adjustment. A first-cycle death in ordinary `entryCounts` remains a first label;
+it does not create an assumed preceding alive-to-death transition.
+
+## Model ordered events within a cycle
+
+For onset followed by mortality, supply one evaluable outcome per stage:
+
+```{r fit-stages}
+observations <- data.frame(
+  subject_id = rep(c("p1", "p2"), each = 2), source_day = 0,
+  stage = rep(c("onset", "mortality"), 2),
+  from_state = c("Stable", "Complication", "Stable", "Stable"),
+  to_state = c("Complication", "Dead", "Stable", "Stable"), observed = TRUE
+)
+stage_fit <- estimateStageTransitions(
+  observations, stageOrder = c("onset", "mortality"), definition = histories,
+  identityStates = list(onset = "Complication")
+)
+transitionMatrix(stage_fit, stage = "onset")
+```
+
+`observed = FALSE` excludes an unevaluable outcome from its stage denominator.
+`identityStates` declares unchanged rows for a stage; unsupported rows otherwise
+remain unknown. Stages add no elapsed time.
+
+`prepareStageObservations()` can build these rows from aligned C2T views in
+stage order, with an explicit first-cycle `entryState`. Matching patient-cycle
+boundaries are required. Complete final cycles qualify by default; short final
+cycles qualify with an absorbing final outcome. `requireNextCycle = TRUE`
+requires another observed cycle for nonabsorbing outcomes. See the
+[C2T-to-ICER example](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/inst/examples/c2t-to-icer.R).
+For supplied stage matrices, use `composeTransitionStages()` instead.
+
+Next: [project or simulate](projecting-and-simulating.html).

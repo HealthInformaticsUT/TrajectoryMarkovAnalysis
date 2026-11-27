@@ -1,4 +1,4 @@
-# Illustrative probabilities and prices, not estimates of a clinical effect.
+# Synthetic probabilities and prices illustrate intervention effects.
 library(TrajectoryMarkovAnalysis)
 
 states <- c("Stable", "Complication", "Dead")
@@ -60,7 +60,7 @@ print(rbind(summary_row(standard, "Standard care"),
 print(head(treated$effects))
 stopifnot(identical(bundle$models$s1$matrices[[1]], probabilities))
 
-# These utilities and discount rates illustrate the API, not clinical evidence.
+# Summarise costs, survival and quality-adjusted survival.
 summaries <- lapply(list(standard_care = standard, intervention = treated),
   function(run) summariseSimulation(
     run, aliveStates = c("Stable", "Complication"),
@@ -77,9 +77,7 @@ comparison <- compareScenarios(
 print(comparison$outcomes)
 print(comparison$costEffectiveness)
 
-# Effects apply to net cycle probabilities, not the component stages.
-# The same seed gives reproducible runs, not guaranteed paired patient draws.
-# Costs include the initial label and 12 subsequent labels. The treatment
-# effect applies only to steps starting on days 0, 7, 14 and 21.
-# Health outcomes also use full labels, with no half-cycle correction. A patient
-# alive throughout this run contributes 13 * 7 days, not 12 * 7 days.
+# Effects apply to net cycle probabilities at source days 0, 7, 14 and 21.
+# A shared seed gives reproducibility but does not pair patient draws.
+# Costs and health outcomes include the initial label and 12 subsequent labels.
+# A patient alive throughout contributes 13 * 7 days, without half-cycle correction.

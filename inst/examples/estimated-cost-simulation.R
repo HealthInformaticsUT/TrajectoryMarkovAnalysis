@@ -1,4 +1,4 @@
-# Small synthetic example. No database, files or browser are needed.
+# Synthetic data illustrate charging estimated healthcare costs.
 library(TrajectoryMarkovAnalysis)
 
 index_date <- as.Date("2025-01-01")
@@ -26,8 +26,7 @@ groups <- list(age_group = list(
 rows <- addCovariateGroups(rows, groups, dateColumn = "state_start_date")
 histories <- prepareTrajectories(rows, cycleLength = 7, absorbingStates = "Dead")
 
-# Invented daily amounts make the cost calculation easy to inspect.
-# The cost period changes at day 10, partway through a weekly label.
+# Daily costs change at day 10, partway through a weekly label.
 events <- do.call(rbind, lapply(seq_len(nrow(rows)), function(i) {
   days <- seq(rows$state_start_date[i], rows$state_end_date[i], by = "day")
   daily <- if (rows$age_group[i] == "Under 65") 10 else 20
@@ -48,7 +47,7 @@ healthcare <- createCostModel(
 )
 bundle <- createModelBundle(transitions, costs = healthcare, groups = groups)
 
-# The startup fee is separate from ordinary healthcare. It does not alter risk.
+# Add a startup fee to ordinary healthcare costs.
 intervention <- list(startup = list(type = "once", amount = 100))
 run <- simulateTrajectories(
   bundle, population = profiles, n = 12, replace = TRUE,
@@ -68,5 +67,5 @@ stopifnot(identical(run$trajectories, resumed$trajectories),
 print(run$totals)
 print(head(run$costs[run$costs$component == "healthcare", ]))
 
-# Terminal entries receive one full labelled-cycle charge under this assumption.
-# This does not reproduce the three observed days in a short terminal interval.
+# terminal = "entry" charges a full labelled cycle on entering death, even
+# though the terminal intervals used for estimation contained only three days.

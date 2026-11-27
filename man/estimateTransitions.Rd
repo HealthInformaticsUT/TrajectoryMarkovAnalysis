@@ -15,10 +15,10 @@ estimateTransitions(
 )
 }
 \arguments{
-\item{trajectories}{Lowercase C2T trajectories or a tma_trajectories object.}
+\item{trajectories}{Cohort2Trajectory output or a tma_trajectories object.}
 
 \item{cycleLength}{Positive integer cycle length in days. Required unless
-already recorded in prepared trajectories.}
+supplied by the trajectory definition or prepared trajectories.}
 
 \item{absorbingStates}{Clinical absorbing state labels.}
 
@@ -49,8 +49,9 @@ A list with estimates, matrices, periods, entryCounts, diagnostics and
 Estimate adjacent-cycle transition probabilities by follow-up period
 }
 \details{
-Only a full source cycle followed immediately by an observed known
-  state contributes a transition. Gaps, OUT OF COHORT and administrative EXIT
+Only a full source cycle followed immediately by a known destination
+  label contributes a transition, including a shortened final destination
+  cycle. Gaps, OUT OF COHORT and administrative EXIT
   never create transitions. Entry counts describe known states at index_date;
   a first-cycle death does not create an unobserved preceding state.
 

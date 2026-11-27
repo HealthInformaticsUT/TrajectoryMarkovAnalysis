@@ -2,21 +2,21 @@
 % Please edit documentation in R/compareScenarios.R
 \name{compareScenarios}
 \alias{compareScenarios}
-\title{Compare compatible summaries of simulated scenarios}
+\title{Compare compatible economic scenarios}
 \usage{
 compareScenarios(reference, intervention, scenarioCovariates = character())
 }
 \arguments{
 \item{reference}{A summary from summariseSimulation() or summariseOutcomes().}
 
-\item{intervention}{A second tma_simulation_summary with compatible outcome
+\item{intervention}{A summary from the same function, with compatible outcome
 definitions and the same recorded initial joint population distribution.}
 
 \item{scenarioCovariates}{Explicit initial covariate columns that may differ
 between scenarios, for example "treatment_active". Each must exist in at
 least one initial population. Source patient identifiers, initial state,
 elapsed_day, index_date and birth_date cannot be excluded. Generated
-simulation_id, stratum_id, model_phase and cycle columns are ignored automatically.}
+simulation_id, stratum_id, model_phase and cycle columns are ignored.}
 }
 \value{
 A tma_scenario_comparison with outcomes, costs, costEffectiveness and
@@ -24,31 +24,39 @@ A tma_scenario_comparison with outcomes, costs, costEffectiveness and
   per-patient values and differences. costs uses the same columns for each
   component and the cost and discounted_cost metrics. costEffectiveness has
   two rows with outcome, basis, incremental_cost, incremental_effect, icer and
-  status. Metadata records checked population columns and terminal extension.
+  status. Metadata records checked population columns and, for labelled-cycle
+  summaries, any terminal extension.
 }
 \description{
-Compare compatible summaries of simulated scenarios
+Compare compatible economic scenarios
 }
 \details{
-Initial populations must have the same rows and multiplicities on
-  the checked columns, regardless of row order. Matching separate covariate
+Both inputs must use the same summary function. Initial populations
+  must have the same rows and multiplicities on the checked columns, regardless
+  of row order. Matching separate covariate
   distributions is insufficient when their joint distributions differ.
   Column classes must match, except for plain integer and double vectors.
   Simulation identifiers do not establish paired patient random streams.
-  With an explicit entry model, comparisons use pre-entry profiles rather
-  than sampled first-cycle outcomes. Both summaries must use the same
-  initial_population_basis. Entry and already-labelled starts cannot be mixed.
 
-  Comparisons use the larger recorded step count. A shorter run is accepted
-  only when it stopped because every patient was terminal, with verified
-  terminal final states and zero terminal health contributions. Its existing
-  cost and health totals are retained without adding future contributions.
-  This extension is recorded in metadata. Custom stop_when runs are rejected
-  even when step counts match. No planned simulation horizon is inferred.
+  With summariseOutcomes(), execution type (projection or simulation), cohort
+  size, ordered states, cycle length, completed horizon and source-day grid
+  must agree.
+  Living states, utilities, health timing and discount assumptions must also
+  match. Projection initial weights cannot be excluded by scenarioCovariates.
+  Choose a common horizon with summariseOutcomes(nCycles = ...).
 
-  State dictionaries, terminal and living-state definitions, utilities,
-  cycle length, discount assumptions and full-label timing conventions must agree. Both
-  configured cost scenarios must use the same currency and price year.
+  With summariseSimulation(), state dictionaries, terminal and living states,
+  utilities, cycle length and discount assumptions must agree. Comparisons use
+  the larger recorded step count. A shorter run must have stopped all_terminal,
+  with verified terminal final states and zero terminal health contributions.
+  Its totals are retained without adding future contributions. Custom
+  stop_when runs are rejected even when step counts match. Entry models use
+  pre-entry profiles for population checks; initial_population_basis must
+  match. Generated groups are ignored only when their recorded raw inputs
+  are present in both initial populations. Directly supplied groups remain
+  checked. Each scenario's extrapolation definition is retained separately.
+
+  Configured cost scenarios must use the same currency and price year.
   Uncomputed outcomes remain NA. An absent cost component is zero only when
   that scenario has configured costs.
 
@@ -58,10 +66,4 @@ Initial populations must have the same rows and multiplicities on
   nonnegative incremental cost. Other quadrants receive an explicit status
   and an NA ICER. Zero differences are evaluated exactly. No willingness-to-pay
   threshold, uncertainty estimate or causal interpretation is supplied.
-  Scenarios may use different extrapolation assumptions. Each supplied
-  extrapolation definition is retained separately in the comparison metadata.
-  Model-generated group columns are not compared when their recorded raw
-  inputs are present in both initial populations. Those raw inputs remain
-  subject to the population check. Directly supplied groups are not inferred
-  to be generated, and missing raw inputs do not justify skipping a column.
 }
