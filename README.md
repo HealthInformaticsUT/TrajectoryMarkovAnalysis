@@ -113,10 +113,10 @@ estimates. Scenario effects and extrapolations must be supplied explicitly.
 
 ## Examples and reference
 
-- [Task guides](vignettes/articles/getting-started.Rmd)
+- [Task guides](https://healthinformaticsut.github.io/TrajectoryMarkovAnalysis/articles/getting-started.html)
 - [Worked introduction](vignettes/trajectory-analysis.Rmd), also available as
   `vignette("trajectory-analysis", package = "TrajectoryMarkovAnalysis")`
-- [Workflow guide](docs/workflow.md)
+- [Workflow guide](https://github.com/HealthInformaticsUT/TrajectoryMarkovAnalysis/blob/main/docs/workflow.md)
 - [Quickstart with synthetic histories and local costs](inst/examples/quickstart.R)
 - [Ordered stages, interventions and economic outcomes](inst/examples/ordered-stage-economics.R)
 - [C2T histories through to a cost-effectiveness comparison](inst/examples/c2t-to-icer.R)
