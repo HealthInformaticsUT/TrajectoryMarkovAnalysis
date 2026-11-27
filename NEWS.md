@@ -1,4 +1,6 @@
-# TrajectoryMarkovAnalysis 1.1.0.9000
+# TrajectoryMarkovAnalysis 1.2.0
+
+* The C2T-to-ICER example requires Cohort2Trajectory 1.4.0 or later.
 
 * C2T's default single-episode output remains supported. Multiple-episode
   definitions and repeated episode IDs now give an explicit error, preventing

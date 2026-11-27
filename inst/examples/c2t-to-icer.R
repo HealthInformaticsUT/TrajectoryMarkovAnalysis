@@ -8,8 +8,8 @@
 
 (function() {
   if (!requireNamespace("Cohort2Trajectory", quietly = TRUE) ||
-      utils::packageVersion("Cohort2Trajectory") < "1.3.0.9000") {
-    stop("This example requires Cohort2Trajectory >= 1.3.0.9000 for the definition handoff. Update it before sourcing c2t-to-icer.R.",
+      utils::packageVersion("Cohort2Trajectory") < "1.4.0") {
+    stop("This example requires Cohort2Trajectory >= 1.4.0 for the definition handoff. Update it before sourcing c2t-to-icer.R.",
          call. = FALSE)
   }
   if (!requireNamespace("TrajectoryMarkovAnalysis", quietly = TRUE)) {
